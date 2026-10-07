@@ -2,22 +2,32 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iniciar Sesión - TU REPORTE AL DIA</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 flex items-center justify-center h-screen">
-    <div class="bg-white p-8 rounded-xl shadow-md w-96">
-        <h2 class="text-2xl font-bold mb-6 text-center text-blue-600">TU REPORTE AL DIA</h2>
-        <form action="/login" method="POST" class="space-y-4">
+<body class="bg-gray-100 flex items-center justify-center h-screen p-4">
+    <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-md text-center">
+        <h1 class="text-2xl font-bold text-blue-600 mb-6">TU REPORTE AL DIA</h1>
+        
+        {% if error %}
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4 text-sm">
+                {{ error }}
+            </div>
+        {% endif %}
+
+        <form action="/login" method="POST" class="space-y-4 text-left">
             <div>
-                <label class="block text-sm font-medium text-gray-700">Usuario / Agencia</label>
-                <input type="text" name="username" required class="w-full mt-1 p-2 border rounded-md uppercase">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Usuario / Agencia</label>
+                <input type="text" name="usuario" required class="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700">Contraseña</label>
-                <input type="password" name="password" required class="w-full mt-1 p-2 border rounded-md">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                <input type="password" name="clave" required class="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500">
             </div>
-            <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded-md font-semibold hover:bg-blue-700">Ingresar</button>
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition-colors">
+                Ingresar
+            </button>
         </form>
     </div>
 </body>
