@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel Administrador</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-6">
+    <div class="max-w-6xl mx-auto bg-white p-6 rounded-lg shadow">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">Panel de Verificación de Pagos</h1>
+            <a href="/" class="text-red-500 font-semibold">Salir</a>
+        </div>
+
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="border-b bg-gray-200">
+                    <th class="p-2">Agencia</th>
+                    <th class="p-2">Fecha</th>
+                    <th class="p-2">Factura</th>
+                    <th class="p-2">Monto</th>
+                    <th class="p-2">Comprobante</th>
+                    <th class="p-2">Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in pagos %}
+                <tr class="border-b">
+                    <td class="p-2 font-bold">{{ p[1] }}</td>
+                    <td class="p-2">{{ p[2] }}</td>
+                    <td class="p-2">{{ p[3] }}</td>
+                    <td class="p-2">{{ p[4] }} Bs</td>
+                    <td class="p-2">
+                        <a href="/uploads/{{ p[5] }}" target="_blank" class="text-blue-600 underline">Ver Foto</a>
+                    </td>
+                    <td class="p-2 font-bold text-yellow-600">{{ p[6] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
