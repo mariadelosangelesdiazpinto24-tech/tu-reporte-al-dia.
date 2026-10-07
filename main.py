@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
 
+# Directorios de almacenamiento
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("templates", exist_ok=True)
 
@@ -26,6 +27,7 @@ def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
+    # Tabla de Usuarios / Agencias
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,6 +36,7 @@ def init_db():
         )
     ''')
     
+    # Tabla de Reportes de Pagos
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,15 +48,23 @@ def init_db():
             estado TEXT DEFAULT 'PENDIENTE'
         )
     ''')
+    
+    # Asegurar que exista la columna estado si la tabla ya había sido creada antes
+    try:
+        cursor.execute("ALTER TABLE reportes ADD COLUMN estado TEXT DEFAULT 'PENDIENTE'")
+    except sqlite3.OperationalError:
+        pass # La columna ya existe
+        
     conn.commit()
     conn.close()
 
 init_db()
 
+# --- LOGIN ---
 @app.get("/", response_class=HTMLResponse)
 @app.get("/login", response_class=HTMLResponse)
 def get_login(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="login.html")
 
 @app.post("/login")
 def post_login(
@@ -62,15 +73,17 @@ def post_login(
     clave: Optional[str] = Form(None)
 ):
     if not usuario or not clave:
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Por favor ingresa usuario y clave"})
+        return templates.TemplateResponse(request=request, name="login.html", context={"error": "Ingresa usuario y clave"})
 
     usuario_norm = normalizar(usuario)
 
+    # Administrador Master
     if usuario_norm == "ADMIN" and clave == "admin123":
         response = RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
         response.set_cookie(key="user", value="ADMIN")
         return response
 
+    # Agencias registradas en Base de Datos
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute("SELECT clave FROM usuarios WHERE agencia = ?", (usuario_norm,))
@@ -82,8 +95,9 @@ def post_login(
         response.set_cookie(key="user", value=usuario_norm)
         return response
 
-    return templates.TemplateResponse("login.html", {"request": request, "error": "Usuario o clave incorrectos"})
+    return templates.TemplateResponse(request=request, name="login.html", context={"error": "Usuario o clave incorrectos"})
 
+# --- PANEL ADMIN ---
 @app.get("/admin", response_class=HTMLResponse)
 def get_admin(request: Request):
     conn = sqlite3.connect("database.db")
@@ -97,7 +111,11 @@ def get_admin(request: Request):
     agencias = cursor.fetchall()
     conn.close()
 
-    return templates.TemplateResponse("admin.html", {"request": request, "reportes": reportes, "agencias": agencias})
+    return templates.TemplateResponse(
+        request=request, 
+        name="admin.html", 
+        context={"reportes": reportes, "agencias": agencias}
+    )
 
 @app.post("/admin/crear-agencia")
 def crear_agencia(agencia: str = Form(...), clave: str = Form(...)):
@@ -122,6 +140,7 @@ def cambiar_estado(reporte_id: int = Form(...), nuevo_estado: str = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
+# --- PANEL AGENCIA ---
 @app.get("/agencia", response_class=HTMLResponse)
 def get_agencia(request: Request, nombre: str = ""):
     nombre_norm = normalizar(nombre)
@@ -132,7 +151,11 @@ def get_agencia(request: Request, nombre: str = ""):
     mis_reportes = cursor.fetchall()
     conn.close()
 
-    return templates.TemplateResponse("agencia.html", {"request": request, "agencia": nombre_norm, "reportes": mis_reportes})
+    return templates.TemplateResponse(
+        request=request, 
+        name="agencia.html", 
+        context={"agencia": nombre_norm, "reportes": mis_reportes}
+    )
 
 @app.post("/reportar")
 async def reportar_pago(
