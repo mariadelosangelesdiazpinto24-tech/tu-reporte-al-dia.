@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, Form, UploadFile, File, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from typing import Optional
 import sqlite3
 import shutil
 import os
@@ -9,7 +10,6 @@ import unicodedata
 
 app = FastAPI()
 
-# Asegurar directorios
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("templates", exist_ok=True)
 
@@ -19,7 +19,6 @@ templates = Jinja2Templates(directory="templates")
 def normalizar_agencia(texto: str) -> str:
     if not texto:
         return ""
-    # Quitar tildes y caracteres especiales
     texto = unicodedata.normalize('NFD', texto)
     texto = ''.join(c for c in texto if unicodedata.category(c) != 'Mn')
     return texto.strip().upper()
@@ -42,14 +41,20 @@ def init_db():
 
 init_db()
 
-# Rutas para el Login (Acepta GET y POST sin errores)
 @app.get("/", response_class=HTMLResponse)
 @app.get("/login", response_class=HTMLResponse)
 def get_login(request: Request):
     return templates.TemplateResponse(request=request, name="login.html")
 
 @app.post("/login")
-def post_login(request: Request, usuario: str = Form(...), clave: str = Form(...)):
+def post_login(
+    request: Request, 
+    usuario: Optional[str] = Form(None), 
+    clave: Optional[str] = Form(None)
+):
+    if not usuario or not clave:
+        return templates.TemplateResponse(request=request, name="login.html", context={"error": "Por favor ingresa usuario y clave"})
+
     usuario_norm = normalizar_agencia(usuario)
     
     if usuario_norm == "ADMIN" and clave == "admin123":
@@ -64,13 +69,11 @@ def post_login(request: Request, usuario: str = Form(...), clave: str = Form(...
         
     return templates.TemplateResponse(request=request, name="login.html", context={"error": "Credenciales inválidas"})
 
-# Ruta para el Panel de Agencia
 @app.get("/agencia", response_class=HTMLResponse)
 def get_agencia(request: Request, nombre: str = ""):
     nombre_norm = normalizar_agencia(nombre)
     return templates.TemplateResponse(request=request, name="agencia.html", context={"agencia": nombre_norm})
 
-# Ruta para reportar pago
 @app.post("/reportar")
 async def reportar_pago(
     agencia: str = Form(...),
@@ -81,12 +84,10 @@ async def reportar_pago(
 ):
     agencia_norm = normalizar_agencia(agencia)
     
-    # Guardar la imagen del comprobante
     ruta_archivo = f"uploads/{agencia_norm}_{factura}_{comprobante.filename}"
     with open(ruta_archivo, "wb") as buffer:
         shutil.copyfileobj(comprobante.file, buffer)
 
-    # Guardar reporte en base de datos
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute('''
@@ -98,7 +99,6 @@ async def reportar_pago(
 
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&exito=1", status_code=status.HTTP_303_SEE_OTHER)
 
-# Ruta para el Panel de Administrador
 @app.get("/admin", response_class=HTMLResponse)
 def get_admin(request: Request):
     conn = sqlite3.connect("database.db")
