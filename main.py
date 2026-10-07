@@ -1,131 +1,110 @@
-from fastapi import FastAPI, Request, Form, File, UploadFile, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
-import sqlite3
 import os
-import shutil
+import unicodedata
+from fastapi import FastAPI, Request, Form, File, UploadFile, Depends, HTTPException, status
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+import sqlite3
 
 app = FastAPI()
 
-# Configurar carpeta para guardar comprobantes de pago
-UPLOADS_DIR = "uploads"
-os.makedirs(UPLOADS_DIR, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
+# Configurar carpetas
+if not os.path.exists("uploads"):
+    os.makedirs("uploads")
 
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 templates = Jinja2Templates(directory="templates")
 
-# Base de datos SQLite
+# Normalizador de agencias
+def normalizar_agencia(nombre: str) -> str:
+    nombre = nombre.strip().upper()
+    if nombre.startswith("AGENCIA "):
+        nombre = nombre[8:]
+    nombre = ''.join(
+        c for c in unicodedata.normalize('NFD', nombre)
+        if unicodedata.category(c) != 'Mn'
+    )
+    return nombre.strip()
+
+# Base de datos
 def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS usuarios (
+        CREATE TABLE IF NOT EXISTS reportes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            rol TEXT NOT NULL
-        )
-    """)
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS pagos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            agencia TEXT NOT NULL,
-            fecha TEXT NOT NULL,
-            factura TEXT NOT NULL,
-            monto REAL NOT NULL,
+            agencia TEXT,
+            fecha TEXT,
+            factura TEXT,
+            monto REAL,
             comprobante TEXT,
             estado TEXT DEFAULT 'PENDIENTE'
         )
     """)
-    
-    # Usuario Administrador por defecto
-    cursor.execute("SELECT * FROM usuarios WHERE username = 'admin'")
-    if not cursor.fetchone():
-        cursor.execute("INSERT INTO usuarios (username, password, rol) VALUES ('admin', 'admin123', 'admin')")
-    
-    # Crear algunas agencias de ejemplo
-    agencias_ejemplo = [('FENIX GOLD', '1234'), ('AG GEGE', '1234'), ('LADDLALOBA', '1234')]
-    for user, pwd in agencias_ejemplo:
-        cursor.execute("SELECT * FROM usuarios WHERE username = ?", (user,))
-        if not cursor.fetchone():
-            cursor.execute("INSERT INTO usuarios (username, password, rol) VALUES (?, ?, 'agencia')", (user, pwd))
-
     conn.commit()
     conn.close()
 
 init_db()
 
-# --- RUTAS DE NAVEGACIÓN ---
-
 @app.get("/", response_class=HTMLResponse)
-def vista_login(request: Request):
+def get_login(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
 @app.post("/login")
-def login(username: str = Form(...), password: str = Form(...)):
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT username, password, rol FROM usuarios WHERE username = ?", (username.upper(),))
-    user = cursor.fetchone()
-    conn.close()
-
-    if user and user[1] == password:
-        if user[2] == "admin":
-            return RedirectResponse(url="/admin", status_code=303)
-        return RedirectResponse(url=f"/agencia?nombre={user[0]}", status_code=303)
+def post_login(request: Request, usuario: str = Form(...), clave: str = Form(...)):
+    usuario_norm = normalizar_agencia(usuario)
     
-    return RedirectResponse(url="/?error=1", status_code=303)
+    if usuario_norm == "ADMIN" and clave == "admin123":
+        response = RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+        response.set_cookie(key="user", value="ADMIN")
+        return response
+    
+    if clave == "1234":
+        response = RedirectResponse(url=f"/agencia?nombre={usuario_norm}", status_code=status.HTTP_303_SEE_OTHER)
+        response.set_cookie(key="user", value=usuario_norm)
+        return response
+        
+    return templates.TemplateResponse("login.html", {"request": request, "error": "Credenciales inválidas"})
 
 @app.get("/agencia", response_class=HTMLResponse)
-def vista_agencia(request: Request, nombre: str = "AGENCIA"):
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT fecha, factura, monto, estado FROM pagos WHERE agencia = ? ORDER BY id DESC", (nombre,))
-    historial = cursor.fetchall()
-    conn.close()
-    
-    return templates.TemplateResponse("agencia.html", {
-        "request": request,
-        "nombre": nombre,
-        "historial": historial
-    })
+def get_agencia(request: Request, nombre: str = ""):
+    return templates.TemplateResponse("agencia.html", {"request": request, "agencia": nombre})
 
-@app.post("/agencia/guardar_pago")
-async def guardar_pago(
+@app.post("/reportar")
+async def post_reportar(
+    request: Request,
     agencia: str = Form(...),
     fecha: str = Form(...),
     factura: str = Form(...),
     monto: float = Form(...),
     comprobante: UploadFile = File(...)
 ):
-    # Guardar la foto/PDF del comprobante
-    nombre_archivo = f"{agencia}_{factura}_{comprobante.filename}"
-    ruta_guardado = os.path.join(UPLOADS_DIR, nombre_archivo)
-    
-    with open(ruta_guardado, "wb") as buffer:
-        shutil.copyfileobj(comprobante.file, buffer)
-
-    # Registrar en base de datos
+    ruta_foto = f"uploads/{comprobante.filename}"
+    with open(ruta_foto, "wb") as f:
+        f.write(await comprobante.read())
+        
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO pagos (agencia, fecha, factura, monto, comprobante)
-        VALUES (?, ?, ?, ?, ?)
-    """, (agencia, fecha, factura, monto, nombre_archivo))
+    cursor.execute(
+        "INSERT INTO reportes (agencia, fecha, factura, monto, comprobante) VALUES (?, ?, ?, ?, ?)",
+        (agencia, fecha, factura, monto, ruta_foto)
+    )
     conn.commit()
     conn.close()
-
-    return RedirectResponse(url=f"/agencia?nombre={agencia}", status_code=303)
+    
+    return templates.TemplateResponse("agencia.html", {
+        "request": request, 
+        "agencia": agencia, 
+        "mensaje": "¡Pago reportado con éxito!"
+    })
 
 @app.get("/admin", response_class=HTMLResponse)
-def vista_admin(request: Request):
+def get_admin(request: Request):
     conn = sqlite3.connect("database.db")
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("SELECT id, agencia, fecha, factura, monto, comprobante, estado FROM pagos ORDER BY id DESC")
-    pagos = cursor.fetchall()
+    cursor.execute("SELECT * FROM reportes ORDER BY id DESC")
+    reportes = cursor.fetchall()
     conn.close()
     
-    return templates.TemplateResponse("admin.html", {"request": request, "pagos": pagos})
+    return templates.TemplateResponse("admin.html", {"request": request, "reportes": reportes})
