@@ -8,14 +8,12 @@ import sqlite3
 
 app = FastAPI()
 
-# Configurar carpetas
 if not os.path.exists("uploads"):
     os.makedirs("uploads")
 
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 templates = Jinja2Templates(directory="templates")
 
-# Normalizador de agencias
 def normalizar_agencia(nombre: str) -> str:
     nombre = nombre.strip().upper()
     if nombre.startswith("AGENCIA "):
@@ -26,7 +24,6 @@ def normalizar_agencia(nombre: str) -> str:
     )
     return nombre.strip()
 
-# Base de datos
 def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
@@ -48,7 +45,7 @@ init_db()
 
 @app.get("/", response_class=HTMLResponse)
 def get_login(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="login.html")
 
 @app.post("/login")
 def post_login(request: Request, usuario: str = Form(...), clave: str = Form(...)):
@@ -64,11 +61,11 @@ def post_login(request: Request, usuario: str = Form(...), clave: str = Form(...
         response.set_cookie(key="user", value=usuario_norm)
         return response
         
-    return templates.TemplateResponse("login.html", {"request": request, "error": "Credenciales inválidas"})
+    return templates.TemplateResponse(request=request, name="login.html", context={"error": "Credenciales inválidas"})
 
 @app.get("/agencia", response_class=HTMLResponse)
 def get_agencia(request: Request, nombre: str = ""):
-    return templates.TemplateResponse("agencia.html", {"request": request, "agencia": nombre})
+    return templates.TemplateResponse(request=request, name="agencia.html", context={"agencia": nombre})
 
 @app.post("/reportar")
 async def post_reportar(
@@ -92,8 +89,7 @@ async def post_reportar(
     conn.commit()
     conn.close()
     
-    return templates.TemplateResponse("agencia.html", {
-        "request": request, 
+    return templates.TemplateResponse(request=request, name="agencia.html", context={
         "agencia": agencia, 
         "mensaje": "¡Pago reportado con éxito!"
     })
@@ -107,4 +103,4 @@ def get_admin(request: Request):
     reportes = cursor.fetchall()
     conn.close()
     
-    return templates.TemplateResponse("admin.html", {"request": request, "reportes": reportes})
+    return templates.TemplateResponse(request=request, name="admin.html", context={"reportes": reportes})
