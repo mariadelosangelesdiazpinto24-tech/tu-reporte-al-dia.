@@ -26,6 +26,7 @@ def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
+    # Crear o recrear la tabla usuarios
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,6 +35,7 @@ def init_db():
         )
     ''')
     
+    # Crear la tabla reportes
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,8 +48,19 @@ def init_db():
         )
     ''')
     
+    # Asegurar que existan todas las columnas
     try:
         cursor.execute("ALTER TABLE reportes ADD COLUMN estado TEXT DEFAULT 'PENDIENTE'")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN agencia TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN clave TEXT")
     except sqlite3.OperationalError:
         pass
         
@@ -68,7 +81,7 @@ def post_login(
     clave: Optional[str] = Form(None)
 ):
     if not usuario or not clave:
-        return templates.TemplateResponse(request=request, name="login.html", context={"error": "Por favor ingresa usuario y clave"})
+        return templates.TemplateResponse(request=request, name="login.html", context={"error": "Ingresa usuario y clave"})
 
     usuario_norm = normalizar(usuario)
 
@@ -99,7 +112,7 @@ def get_admin(request: Request):
     cursor.execute("SELECT * FROM reportes ORDER BY id DESC")
     reportes = [dict(row) for row in cursor.fetchall()]
     
-    cursor.execute("SELECT * FROM usuarios ORDER BY agencia ASC")
+    cursor.execute("SELECT * FROM usuarios ORDER BY id DESC")
     agencias = [dict(row) for row in cursor.fetchall()]
     conn.close()
 
