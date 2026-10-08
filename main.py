@@ -128,8 +128,8 @@ def crear_agencia(agencia: str = Form(...), clave: str = Form(...)):
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
-    # Verificamos si la agencia ya existe para decidir si actualizamos o insertamos
-    cursor.execute("SELECT id FROM usuarios WHERE agencia = ?", (agencia_norm,))
+    # Buscamos directamente por la columna agencia para evitar problemas con tablas viejas
+    cursor.execute("SELECT agencia FROM usuarios WHERE agencia = ?", (agencia_norm,))
     existe = cursor.fetchone()
     
     if existe:
