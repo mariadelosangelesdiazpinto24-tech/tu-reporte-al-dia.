@@ -26,7 +26,7 @@ def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
-    # Crear o recrear la tabla usuarios
+    # Crear la tabla usuarios si no existe
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,6 +34,17 @@ def init_db():
             clave TEXT
         )
     ''')
+    
+    # Limpiar automáticamente la columna vieja 'username' si la tabla la tenía guardada
+    try:
+        cursor.execute("SELECT username FROM usuarios LIMIT 1")
+        # Si existe, migramos los datos limpios a una tabla nueva y reemplazamos la vieja
+        cursor.execute("CREATE TABLE IF NOT EXISTS usuarios_temp (id INTEGER PRIMARY KEY AUTOINCREMENT, agencia TEXT UNIQUE, clave TEXT)")
+        cursor.execute("INSERT OR IGNORE INTO usuarios_temp (id, agencia, clave) SELECT id, agencia, clave FROM usuarios")
+        cursor.execute("DROP TABLE usuarios")
+        cursor.execute("ALTER TABLE usuarios_temp RENAME TO usuarios")
+    except Exception:
+        pass
     
     # Crear la tabla reportes
     cursor.execute('''
@@ -48,19 +59,9 @@ def init_db():
         )
     ''')
     
-    # Asegurar que existan todas las columnas
+    # Asegurar columnas en reportes
     try:
         cursor.execute("ALTER TABLE reportes ADD COLUMN estado TEXT DEFAULT 'PENDIENTE'")
-    except sqlite3.OperationalError:
-        pass
-
-    try:
-        cursor.execute("ALTER TABLE usuarios ADD COLUMN agencia TEXT")
-    except sqlite3.OperationalError:
-        pass
-
-    try:
-        cursor.execute("ALTER TABLE usuarios ADD COLUMN clave TEXT")
     except sqlite3.OperationalError:
         pass
         
@@ -128,7 +129,6 @@ def crear_agencia(agencia: str = Form(...), clave: str = Form(...)):
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
-    # Buscamos directamente por la columna agencia para evitar problemas con tablas viejas
     cursor.execute("SELECT agencia FROM usuarios WHERE agencia = ?", (agencia_norm,))
     existe = cursor.fetchone()
     
