@@ -127,11 +127,16 @@ def crear_agencia(agencia: str = Form(...), clave: str = Form(...)):
     agencia_norm = normalizar(agencia)
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO usuarios (agencia, clave)
-        VALUES (?, ?)
-        ON CONFLICT(agencia) DO UPDATE SET clave=excluded.clave
-    ''', (agencia_norm, clave))
+    
+    # Verificamos si la agencia ya existe para decidir si actualizamos o insertamos
+    cursor.execute("SELECT id FROM usuarios WHERE agencia = ?", (agencia_norm,))
+    existe = cursor.fetchone()
+    
+    if existe:
+        cursor.execute("UPDATE usuarios SET clave = ? WHERE agencia = ?", (clave, agencia_norm))
+    else:
+        cursor.execute("INSERT INTO usuarios (agencia, clave) VALUES (?, ?)", (agencia_norm, clave))
+        
     conn.commit()
     conn.close()
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
