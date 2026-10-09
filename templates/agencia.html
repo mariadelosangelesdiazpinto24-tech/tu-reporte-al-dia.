@@ -88,10 +88,10 @@
                 <button class="nav-link fw-bold" id="pagos-tab" data-bs-toggle="tab" data-bs-target="#pagos" type="button"><i class="fas fa-wallet"></i> Mis Pagos y Solicitudes</button>
             </li>
             <li class="nav-item">
-                <button class="nav-link fw-bold" id="modificaciones-tab" data-bs-toggle="tab" data-bs-target="#modificaciones" type="button"><i class="fas fa-edit"></i> Modificaciones</button>
+                <button class="nav-link fw-bold" id="adelantos-tab" data-bs-toggle="tab" data-bs-target="#adelantos" type="button"><i class="fas fa-hand-holding-usd"></i> Adelantos</button>
             </li>
             <li class="nav-item">
-                <button class="nav-link fw-bold" id="adelantos-tab" data-bs-toggle="tab" data-bs-target="#adelantos" type="button"><i class="fas fa-hand-holding-usd"></i> Adelantos</button>
+                <button class="nav-link fw-bold" id="pendientes-tab" data-bs-toggle="tab" data-bs-target="#pendientes" type="button"><i class="fas fa-clock"></i> Pendiente (Por Cobrar)</button>
             </li>
             <li class="nav-item">
                 <button class="nav-link fw-bold" id="tripletas-tab" data-bs-toggle="tab" data-bs-target="#tripletas" type="button"><i class="fas fa-star"></i> Tripletas del Día Anterior</button>
@@ -169,42 +169,136 @@
 
             <!-- 2. Mis Pagos y Solicitudes -->
             <div class="tab-pane fade" id="pagos" role="tabpanel">
-                <div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">No hay pagos o solicitudes registradas.</p></div></div>
-            </div>
-
-            <!-- 3. Modificaciones -->
-            <div class="tab-pane fade" id="modificaciones" role="tabpanel">
-                <div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">No hay modificaciones registradas.</p></div></div>
-            </div>
-
-            <!-- 4. Adelantos -->
-            <div class="tab-pane fade" id="adelantos" role="tabpanel">
-                <div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">No hay adelantos registrados.</p></div></div>
-            </div>
-
-            <!-- 5. Tripletas del Día Anterior (Formulario con Ticket de Texto) -->
-            <div class="tab-pane fade" id="tripletas" role="tabpanel">
                 <div class="card shadow-sm">
-                    <div class="card-header bg-dark text-white">
-                        <h5 class="mb-0"><i class="fas fa-star text-warning"></i> Cargar Tripleta del Día Anterior</h5>
+                    <div class="card-body">
+                        <h5 class="card-title mb-3"><i class="fas fa-wallet text-success"></i> Historial de Transacciones</h5>
+                        {% if pagos %}
+                        <div class="table-responsive">
+                            <table class="table table-striped align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Tipo</th>
+                                        <th>Detalle</th>
+                                        <th>Monto (Bs.)</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for p in pagos %}
+                                    <tr>
+                                        <td>{{ p.fecha }}</td>
+                                        <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
+                                        <td>{{ p.factura }}</td>
+                                        <td>Bs. {{ "%.2f"|format(p.monto|float) }}</td>
+                                        <td><span class="badge {% if p.estado == 'APROBADO' %}bg-success{% elif p.estado == 'EN ESPERA' %}bg-warning text-dark{% else %}bg-danger{% endif %}">{{ p.estado }}</span></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="text-center text-muted my-3">No hay registros de pagos o solicitudes.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Adelantos -->
+            <div class="tab-pane fade" id="adelantos" role="tabpanel">
+                <div class="card shadow-sm border-success">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-hand-holding-usd"></i> Solicitar Adelanto</h5>
+                    </div>
+                    <div class="card-body">
+                        <form action="/solicitar-adelanto" method="POST" class="row g-3">
+                            <input type="hidden" name="agencia" value="{{ agencia }}">
+                            <div class="col-md-6">
+                                <label class="form-label">Fecha</label>
+                                <input type="date" class="form-control" name="fecha" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Monto Solicitado (Bs.)</label>
+                                <input type="text" class="form-control" name="monto" placeholder="Ej: 10000.00" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Motivo / Observación del Adelanto</label>
+                                <input type="text" class="form-control" name="observacion" placeholder="Ej: Adelanto para cambio de premios" required>
+                            </div>
+                            <div class="col-12 text-end">
+                                <button type="submit" class="btn btn-success px-4 fw-bold"><i class="fas fa-check-circle"></i> Solicitar Adelanto</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. Pendiente (Por si me deben) -->
+            <div class="tab-pane fade" id="pendientes" role="tabpanel">
+                <div class="card shadow-sm border-info">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-clock"></i> Registrar Pendiente / Por Cobrar</h5>
+                    </div>
+                    <div class="card-body">
+                        <form action="/reportar-pendiente" method="POST" class="row g-3">
+                            <input type="hidden" name="agencia" value="{{ agencia }}">
+                            <div class="col-md-6">
+                                <label class="form-label">Fecha</label>
+                                <input type="date" class="form-control" name="fecha" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Monto Pendiente (Bs.)</label>
+                                <input type="text" class="form-control" name="monto" placeholder="Ej: 5000.00" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Detalle del Pendiente</label>
+                                <input type="text" class="form-control" name="observacion" placeholder="Ej: Monto pendiente por cobrar de la semana pasada" required>
+                            </div>
+                            <div class="col-12 text-end">
+                                <button type="submit" class="btn btn-info px-4 fw-bold text-white"><i class="fas fa-paper-plane"></i> Registrar Pendiente</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. Tripletas del Día Anterior (Con "Fecha del ticket" y selector de sistema) -->
+            <div class="tab-pane fade" id="tripletas" role="tabpanel">
+                <div class="card shadow-sm border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0"><i class="fas fa-star"></i> Cargar Tripleta del Día Anterior</h5>
                     </div>
                     <div class="card-body">
                         <form action="/reportar-tripleta" method="POST" class="row g-3">
                             <input type="hidden" name="agencia" value="{{ agencia }}">
-                            <div class="col-md-4">
-                                <label class="form-label">Fecha</label>
+                            <div class="col-md-3">
+                                <label class="form-label">Fecha del ticket</label>
                                 <input type="date" class="form-control" name="fecha" required>
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label">N° de Ticket</label>
-                                <input type="text" class="form-control" name="ticket" placeholder="Ej: T-99382" required>
+                            <div class="col-md-3">
+                                <label class="form-label">Sistema</label>
+                                <select class="form-select" name="sistema" required>
+                                    <option value="" selected disabled>Seleccione...</option>
+                                    <option value="SRQ">SRQ</option>
+                                    <option value="LUCKY">LUCKY</option>
+                                    <option value="GATO">GATO</option>
+                                    <option value="LOTIPOS">LOTIPOS</option>
+                                    <option value="MAXPLAY">MAXPLAY</option>
+                                    <option value="BETSOL">BETSOL</option>
+                                    <option value="PREMIER">PREMIER</option>
+                                    <option value="WINBIG">WINBIG</option>
+                                </select>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
+                                <label class="form-label">N° de Ticket</label>
+                                <input type="text" class="form-control" name="ticket" placeholder="Ej: 99382" required>
+                            </div>
+                            <div class="col-md-3">
                                 <label class="form-label">Monto (Bs.)</label>
                                 <input type="text" class="form-control" name="monto" placeholder="Ej: 5000.00" required>
                             </div>
                             <div class="col-12 text-end">
-                                <button type="submit" class="btn btn-warning btn-sm px-4 fw-bold text-dark"><i class="fas fa-paper-plane"></i> Enviar Tripleta</button>
+                                <button type="submit" class="btn btn-warning px-4 fw-bold text-dark"><i class="fas fa-paper-plane"></i> Enviar Tripleta</button>
                             </div>
                         </form>
                     </div>
