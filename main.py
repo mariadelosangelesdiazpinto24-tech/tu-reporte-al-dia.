@@ -26,27 +26,22 @@ def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
-    # Crear la tabla usuarios si no existe
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            agencia TEXT UNIQUE,
-            clave TEXT
-        )
-    ''')
+    # Verificamos si la tabla usuarios ya existe y si tiene la columna agencia
+    cursor.execute("PRAGMA table_info(usuarios)")
+    columnas = [col[1] for col in cursor.fetchall()]
     
-    # Limpiar automáticamente la columna vieja 'username' si la tabla la tenía guardada
-    try:
-        cursor.execute("SELECT username FROM usuarios LIMIT 1")
-        # Si existe, migramos los datos limpios a una tabla nueva y reemplazamos la vieja
-        cursor.execute("CREATE TABLE IF NOT EXISTS usuarios_temp (id INTEGER PRIMARY KEY AUTOINCREMENT, agencia TEXT UNIQUE, clave TEXT)")
-        cursor.execute("INSERT OR IGNORE INTO usuarios_temp (id, agencia, clave) SELECT id, agencia, clave FROM usuarios")
-        cursor.execute("DROP TABLE usuarios")
-        cursor.execute("ALTER TABLE usuarios_temp RENAME TO usuarios")
-    except Exception:
-        pass
+    # Si la tabla no existe o le falta la columna agencia, la creamos desde cero correctamente
+    if not columnas or 'agencia' not in columnas:
+        cursor.execute("DROP TABLE IF EXISTS usuarios")
+        cursor.execute('''
+            CREATE TABLE usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agencia TEXT UNIQUE,
+                clave TEXT
+            )
+        ''')
     
-    # Crear la tabla reportes
+    # Crear la tabla reportes si no existe
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,7 +54,7 @@ def init_db():
         )
     ''')
     
-    # Asegurar columnas en reportes
+    # Asegurar que exista la columna estado en reportes
     try:
         cursor.execute("ALTER TABLE reportes ADD COLUMN estado TEXT DEFAULT 'PENDIENTE'")
     except sqlite3.OperationalError:
