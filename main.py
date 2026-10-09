@@ -37,54 +37,40 @@ def init_db():
     cursor = conn.cursor()
     
     # Tabla usuarios
-    cursor.execute("PRAGMA table_info(usuarios)")
-    columnas_u = [col[1] for col in cursor.fetchall()]
-    if not columnas_u or 'agencia' not in columnas_u:
-        cursor.execute("DROP TABLE IF EXISTS usuarios")
-        cursor.execute('''
-            CREATE TABLE usuarios (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                agencia TEXT UNIQUE,
-                clave TEXT
-            )
-        ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agencia TEXT UNIQUE,
+            clave TEXT
+        )
+    ''')
     
-    # Tabla reportes
-    cursor.execute("PRAGMA table_info(reportes)")
-    columnas_r = [col[1] for col in cursor.fetchall()]
-    
-    if not columnas_r:
-        cursor.execute('''
-            CREATE TABLE reportes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                agencia TEXT,
-                fecha TEXT,
-                monto REAL,
-                ventas REAL DEFAULT 0,
-                premios REAL DEFAULT 0,
-                detalle_html TEXT,
-                factura TEXT,
-                comprobante TEXT,
-                estado TEXT DEFAULT 'PENDIENTE'
-            )
-        ''')
-    else:
-        try:
-            cursor.execute("ALTER TABLE reportes ADD COLUMN ventas REAL DEFAULT 0")
-        except sqlite3.OperationalError:
-            pass
-        try:
-            cursor.execute("ALTER TABLE reportes ADD COLUMN premios REAL DEFAULT 0")
-        except sqlite3.OperationalError:
-            pass
-        try:
-            cursor.execute("ALTER TABLE reportes ADD COLUMN detalle_html TEXT")
-        except sqlite3.OperationalError:
-            pass
-        try:
-            cursor.execute("ALTER TABLE reportes ADD COLUMN estado TEXT DEFAULT 'PENDIENTE'")
-        except sqlite3.OperationalError:
-            pass
+    # Tabla reportes (Enviados por el Colab - Informativos / Auditoría)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS reportes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agencia TEXT,
+            fecha TEXT,
+            monto REAL,
+            ventas REAL DEFAULT 0,
+            premios REAL DEFAULT 0,
+            detalle_html TEXT
+        )
+    ''')
+
+    # Tabla pagos (Enviados por las taquillas o solicitudes al Admin)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS pagos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agencia TEXT,
+            fecha TEXT,
+            monto REAL,
+            factura TEXT,
+            comprobante TEXT,
+            tipo TEXT DEFAULT 'PAGO_TAQUILLA', -- PAGO_TAQUILLA o SOLICITUD_SALDO
+            estado TEXT DEFAULT 'EN ESPERA'
+        )
+    ''')
         
     conn.commit()
     conn.close()
@@ -134,6 +120,9 @@ def get_admin(request: Request):
     cursor.execute("SELECT * FROM reportes ORDER BY id DESC")
     reportes = [dict(row) for row in cursor.fetchall()]
     
+    cursor.execute("SELECT * FROM pagos ORDER BY id DESC")
+    pagos = [dict(row) for row in cursor.fetchall()]
+
     cursor.execute("SELECT * FROM usuarios ORDER BY id DESC")
     agencias = [dict(row) for row in cursor.fetchall()]
     conn.close()
@@ -141,7 +130,7 @@ def get_admin(request: Request):
     return templates.TemplateResponse(
         request=request, 
         name="admin.html", 
-        context={"reportes": reportes, "agencias": agencias}
+        context={"reportes": reportes, "pagos": pagos, "agencias": agencias}
     )
 
 @app.post("/admin/crear-agencia")
@@ -149,24 +138,16 @@ def crear_agencia(agencia: str = Form(...), clave: str = Form(...)):
     agencia_norm = normalizar(agencia)
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    
-    cursor.execute("SELECT agencia FROM usuarios WHERE agencia = ?", (agencia_norm,))
-    existe = cursor.fetchone()
-    
-    if existe:
-        cursor.execute("UPDATE usuarios SET clave = ? WHERE agencia = ?", (clave, agencia_norm))
-    else:
-        cursor.execute("INSERT INTO usuarios (agencia, clave) VALUES (?, ?)", (agencia_norm, clave))
-        
+    cursor.execute("INSERT OR REPLACE INTO usuarios (agencia, clave) VALUES (?, ?)", (agencia_norm, clave))
     conn.commit()
     conn.close()
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
-@app.post("/admin/cambiar-estado")
-def cambiar_estado(reporte_id: int = Form(...), nuevo_estado: str = Form(...)):
+@app.post("/admin/cambiar-estado-pago")
+def cambiar_estado_pago(pago_id: int = Form(...), nuevo_estado: str = Form(...)):
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    cursor.execute("UPDATE reportes SET estado = ? WHERE id = ?", (nuevo_estado, reporte_id))
+    cursor.execute("UPDATE pagos SET estado = ? WHERE id = ?", (nuevo_estado, pago_id))
     conn.commit()
     conn.close()
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
@@ -177,14 +158,21 @@ def get_agencia(request: Request, nombre: str = ""):
     conn = sqlite3.connect("database.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    
+    # Reportes del Colab (informativos)
     cursor.execute("SELECT * FROM reportes WHERE agencia = ? ORDER BY id DESC", (nombre_norm,))
     mis_reportes = [dict(row) for row in cursor.fetchall()]
+    
+    # Pagos y gestiones de dinero
+    cursor.execute("SELECT * FROM pagos WHERE agencia = ? ORDER BY id DESC", (nombre_norm,))
+    mis_pagos = [dict(row) for row in cursor.fetchall()]
+
     conn.close()
 
     return templates.TemplateResponse(
         request=request, 
         name="agencia.html", 
-        context={"agencia": nombre_norm, "reportes": mis_reportes}
+        context={"agencia": nombre_norm, "reportes": mis_reportes, "pagos": mis_pagos}
     )
 
 @app.post("/reportar")
@@ -199,20 +187,40 @@ async def reportar_pago(
     monto_val = float(monto.replace(',', '')) if monto else 0.0
 
     ruta_archivo = f"uploads/{agencia_norm}_{factura}_{comprobante.filename}"
-    
     with open(ruta_archivo, "wb") as buffer:
         buffer.write(await comprobante.read())
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO reportes (agencia, fecha, monto, factura, comprobante, estado)
-        VALUES (?, ?, ?, ?, ?, 'EN ESPERA')
+        INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+        VALUES (?, ?, ?, ?, ?, 'PAGO_TAQUILLA', 'EN ESPERA')
     ''', (agencia_norm, fecha, monto_val, factura, ruta_archivo))
     conn.commit()
     conn.close()
 
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&exito=1", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/solicitar-saldo")
+def solicitar_saldo(
+    agencia: str = Form(...),
+    fecha: str = Form(...),
+    monto: str = Form(...),
+    observacion: str = Form(...)
+):
+    agencia_norm = normalizar(agencia)
+    monto_val = float(monto.replace(',', '')) if monto else 0.0
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+        VALUES (?, ?, ?, ?, 'Solicitud: ' || ?, 'SOLICITUD_SALDO', 'EN ESPERA')
+    ''', (agencia_norm, fecha, monto_val, observacion))
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&solicitud=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/api/guardar-reporte-colab")
 def guardar_reporte_colab(
@@ -226,10 +234,22 @@ def guardar_reporte_colab(
     agencia_norm = normalizar(agencia)
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html, estado)
-        VALUES (?, ?, ?, ?, ?, ?, 'PENDIENTE')
-    ''', (agencia_norm, fecha, monto, ventas, premios, detalle_html))
+    
+    cursor.execute("SELECT id FROM reportes WHERE agencia = ? AND fecha = ?", (agencia_norm, fecha))
+    existente = cursor.fetchone()
+    
+    if existente:
+        cursor.execute('''
+            UPDATE reportes 
+            SET monto = ?, ventas = ?, premios = ?, detalle_html = ?
+            WHERE agencia = ? AND fecha = ?
+        ''', (monto, ventas, premios, detalle_html, agencia_norm, fecha))
+    else:
+        cursor.execute('''
+            INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (agencia_norm, fecha, monto, ventas, premios, detalle_html))
+        
     conn.commit()
     conn.close()
     return {"status": "ok", "mensaje": f"Reporte sincronizado para {agencia_norm}"}
