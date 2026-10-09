@@ -26,12 +26,10 @@ def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
-    # Verificamos si la tabla usuarios ya existe y si tiene la columna agencia
+    # Tabla usuarios
     cursor.execute("PRAGMA table_info(usuarios)")
-    columnas = [col[1] for col in cursor.fetchall()]
-    
-    # Si la tabla no existe o le falta la columna agencia, la creamos desde cero correctamente
-    if not columnas or 'agencia' not in columnas:
+    columnas_u = [col[1] for col in cursor.fetchall()]
+    if not columnas_u or 'agencia' not in columnas_u:
         cursor.execute("DROP TABLE IF EXISTS usuarios")
         cursor.execute('''
             CREATE TABLE usuarios (
@@ -41,24 +39,38 @@ def init_db():
             )
         ''')
     
-    # Crear la tabla reportes si no existe
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS reportes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            agencia TEXT,
-            fecha TEXT,
-            monto REAL,
-            factura TEXT,
-            comprobante TEXT,
-            estado TEXT DEFAULT 'PENDIENTE'
-        )
-    ''')
+    # Tabla reportes mejorada con ventas, premios y control de estado
+    cursor.execute("PRAGMA table_info(reportes)")
+    columnas_r = [col[1] for col in cursor.fetchall()]
     
-    # Asegurar que exista la columna estado en reportes
-    try:
-        cursor.execute("ALTER TABLE reportes ADD COLUMN estado TEXT DEFAULT 'PENDIENTE'")
-    except sqlite3.OperationalError:
-        pass
+    if not columnas_r:
+        cursor.execute('''
+            CREATE TABLE reportes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agencia TEXT,
+                fecha TEXT,
+                monto REAL,
+                ventas REAL DEFAULT 0,
+                premios REAL DEFAULT 0,
+                factura TEXT,
+                comprobante TEXT,
+                estado TEXT DEFAULT 'PENDIENTE'
+            )
+        ''')
+    else:
+        # Asegurar columnas necesarias si la tabla ya existía
+        try:
+            cursor.execute("ALTER TABLE reportes ADD COLUMN ventas REAL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE reportes ADD COLUMN premios REAL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE reportes ADD COLUMN estado TEXT DEFAULT 'PENDIENTE'")
+        except sqlite3.OperationalError:
+            pass
         
     conn.commit()
     conn.close()
@@ -166,6 +178,8 @@ async def reportar_pago(
     agencia: str = Form(...),
     fecha: str = Form(...),
     monto: float = Form(...),
+    ventas: float = Form(0.0),
+    premios: float = Form(0.0),
     factura: str = Form(...),
     comprobante: UploadFile = File(...)
 ):
@@ -178,10 +192,31 @@ async def reportar_pago(
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO reportes (agencia, fecha, monto, factura, comprobante, estado)
-        VALUES (?, ?, ?, ?, ?, 'PENDIENTE')
-    ''', (agencia_norm, fecha, monto, factura, ruta_archivo))
+        INSERT INTO reportes (agencia, fecha, monto, ventas, premios, factura, comprobante, estado)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDIENTE')
+    ''', (agencia_norm, fecha, monto, ventas, premios, factura, ruta_archivo))
     conn.commit()
     conn.close()
 
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&exito=1", status_code=status.HTTP_303_SEE_OTHER)
+
+# Nueva ruta para que la taquilla edite ventas/premios con alerta al admin
+@app.post("/agencia/editar-reporte")
+def editar_reporte(
+    reporte_id: int = Form(...),
+    agencia: str = Form(...),
+    ventas: float = Form(...),
+    premios: float = Form(...)
+):
+    agencia_norm = normalizar(agencia)
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE reportes 
+        SET ventas = ?, premios = ?, estado = 'MODIFICADO - REVISAR'
+        WHERE id = ? AND agencia = ?
+    ''', (ventas, premios, reporte_id, agencia_norm))
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
