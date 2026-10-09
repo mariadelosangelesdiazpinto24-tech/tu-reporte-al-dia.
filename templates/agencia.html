@@ -24,22 +24,23 @@
 
     <div class="container my-4">
 
-        <!-- Obtener el saldo del último reporte para mostrar dinámicamente el menú superior -->
+        <!-- Obtener el saldo y fecha del último reporte -->
         {% set ultimo_monto = 0.0 %}
+        {% set ultima_fecha = '' %}
         {% if reportes %}
             {% set ultimo_monto = reportes[0].monto|float %}
+            {% set ultima_fecha = reportes[0].fecha %}
         {% endif %}
 
-        <!-- Fila Superior Dinámica según el saldo -->
+        <!-- Fila Superior Dinámica con Colores Intuitivos -->
         <div class="row">
             {% if ultimo_monto >= 0 %}
-            <!-- MOSTRAR PAGO / ABONO (Saldo Positivo: Deben pagar) -->
             <div class="col-md-12 mb-4">
-                <div class="card bg-white border-start border-primary border-4">
-                    <div class="card-header bg-primary text-white py-3" style="border-radius: 12px 12px 0 0;">
+                <div class="card bg-white border-start border-success border-4 shadow">
+                    <div class="card-header bg-success text-white py-3" style="border-radius: 12px 12px 0 0;">
                         <h5 class="mb-0 d-flex justify-content-between align-items-center">
                             <span><i class="fas fa-file-invoice-dollar"></i> Cargar Pago o Abono a Admin</span>
-                            <span class="badge bg-light text-primary fs-6">Por Pagar: Bs. {{ "%.2f"|format(ultimo_monto) }}</span>
+                            <span class="badge bg-light text-success fs-6">Cuenta Pendiente: Bs. {{ "%.2f"|format(ultimo_monto) }}</span>
                         </h5>
                     </div>
                     <div class="card-body">
@@ -47,7 +48,7 @@
                             <input type="hidden" name="agencia" value="{{ agencia }}">
                             <div class="col-md-3">
                                 <label class="form-label fw-bold text-secondary">Fecha</label>
-                                <input type="date" class="form-control" name="fecha" required>
+                                <input type="date" class="form-control" name="fecha" value="{{ ultima_fecha }}" required>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label fw-bold text-secondary">N° Referencia (4 dígitos)</label>
@@ -62,16 +63,15 @@
                                 <input type="file" class="form-control" name="comprobante" accept="image/*" required>
                             </div>
                             <div class="col-12 text-end mt-3">
-                                <button type="submit" class="btn btn-primary btn-custom shadow-sm"><i class="fas fa-paper-plane"></i> Registrar Abono / Pago</button>
+                                <button type="submit" class="btn btn-success btn-custom shadow-sm"><i class="fas fa-paper-plane"></i> Registrar Abono / Pago</button>
                             </div>
                         </form>
                     </div>
                 </div>
             </div>
             {% else %}
-            <!-- MOSTRAR SALDO A FAVOR / NOTIFICAR (Saldo Negativo: Pasaron de más) -->
             <div class="col-md-12 mb-4">
-                <div class="card bg-white border-start border-danger border-4">
+                <div class="card bg-white border-start border-danger border-4 shadow">
                     <div class="card-header bg-danger text-white py-3" style="border-radius: 12px 12px 0 0;">
                         <h5 class="mb-0 d-flex justify-content-between align-items-center">
                             <span><i class="fas fa-hand-holding-usd"></i> Saldo a Favor / Notificar a Admin</span>
@@ -83,7 +83,7 @@
                             <input type="hidden" name="agencia" value="{{ agencia }}">
                             <div class="col-md-4">
                                 <label class="form-label fw-bold text-secondary">Fecha</label>
-                                <input type="date" class="form-control" name="fecha" required>
+                                <input type="date" class="form-control" name="fecha" value="{{ ultima_fecha }}" required>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label fw-bold text-secondary">Monto a Favor (Bs.)</label>
@@ -137,7 +137,7 @@
                                     <tr>
                                         <th>Fecha</th>
                                         <th>Ventas (Bs.)</th>
-                                        <th>Total a Pagar (Bs.)</th>
+                                        <th>Cuenta / Saldo Restante (Bs.)</th>
                                         <th class="text-center">Acciones</th>
                                     </tr>
                                 </thead>
@@ -149,12 +149,12 @@
                                         <td>
                                             {% set monto_val = r.monto|float %}
                                             {% if monto_val >= 0 %}
-                                                <span class="badge bg-success fs-6 px-3 py-2">
-                                                    <i class="fas fa-arrow-up"></i> Bs. {{ "%.2f"|format(monto_val) }} (Por Pagar)
+                                                <span class="badge bg-danger fs-6 px-3 py-2">
+                                                    <i class="fas fa-exclamation-circle"></i> Bs. {{ "%.2f"|format(monto_val) }} (Por Pagar)
                                                 </span>
                                             {% else %}
-                                                <span class="badge bg-danger fs-6 px-3 py-2">
-                                                    <i class="fas fa-arrow-down"></i> Bs. {{ "%.2f"|format(monto_val) }} (Saldo a Favor)
+                                                <span class="badge bg-success fs-6 px-3 py-2">
+                                                    <i class="fas fa-check-circle"></i> Bs. {{ "%.2f"|format(monto_val) }} (Saldo a Favor)
                                                 </span>
                                             {% endif %}
                                         </td>
@@ -237,58 +237,48 @@
 
             <!-- 3. Adelantos -->
             <div class="tab-pane fade" id="adelantos" role="tabpanel">
-                <div class="card shadow-sm border-success">
-                    <div class="card-header bg-success text-white py-3">
-                        <h5 class="mb-0"><i class="fas fa-hand-holding-usd"></i> Solicitar Adelanto</h5>
+                <div class="card shadow-sm border-warning">
+                    <div class="card-header bg-warning text-dark py-3">
+                        <h5 class="mb-0"><i class="fas fa-hand-holding-usd"></i> Registrar Adelanto (Plata entregada a Taquilla)</h5>
                     </div>
                     <div class="card-body p-4">
                         <form action="/solicitar-adelanto" method="POST" class="row g-3">
                             <input type="hidden" name="agencia" value="{{ agencia }}">
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">Fecha</label>
-                                <input type="date" class="form-control" name="fecha" required>
+                                <input type="date" class="form-control" name="fecha" value="{{ ultima_fecha }}" required>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-bold">Monto Solicitado (Bs.)</label>
+                                <label class="form-label fw-bold">Monto del Adelanto (Bs.)</label>
                                 <input type="text" class="form-control" name="monto" placeholder="Ej: 10000.00" required>
                             </div>
                             <div class="col-12">
-                                <label class="form-label fw-bold">Motivo / Observación del Adelanto</label>
-                                <input type="text" class="form-control" name="observacion" placeholder="Ej: Adelanto para cambio de premios" required>
+                                <label class="form-label fw-bold">Motivo / Observación</label>
+                                <input type="text" class="form-control" name="observacion" placeholder="Ej: Adelanto entregado para cambio de premios" required>
                             </div>
                             <div class="col-12 text-end mt-4">
-                                <button type="submit" class="btn btn-success btn-custom shadow"><i class="fas fa-check-circle"></i> Solicitar Adelanto</button>
+                                <button type="submit" class="btn btn-warning btn-custom text-dark shadow"><i class="fas fa-check-circle"></i> Registrar Adelanto</button>
                             </div>
                         </form>
                     </div>
                 </div>
             </div>
 
-            <!-- 4. Pendiente -->
+            <!-- 4. Pendiente (Estado de cuenta exacto sincronizado) -->
             <div class="tab-pane fade" id="pendientes" role="tabpanel">
                 <div class="card shadow-sm border-info">
                     <div class="card-header bg-info text-white py-3">
-                        <h5 class="mb-0"><i class="fas fa-clock"></i> Registrar Pendiente / Diferencia</h5>
+                        <h5 class="mb-0"><i class="fas fa-clock"></i> Estado de Cuenta Pendiente</h5>
                     </div>
                     <div class="card-body p-4">
-                        <form action="/reportar-pendiente" method="POST" class="row g-3">
-                            <input type="hidden" name="agencia" value="{{ agencia }}">
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold">Fecha</label>
-                                <input type="date" class="form-control" name="fecha" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold">Monto (Ej: -10000 si pagaron de menos o 10000 si deben)</label>
-                                <input type="text" class="form-control" name="monto" placeholder="Ej: -10000.00" required>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label fw-bold">Detalle del Pendiente</label>
-                                <input type="text" class="form-control" name="observacion" placeholder="Ej: Diferencia por reporte anterior" required>
-                            </div>
-                            <div class="col-12 text-end mt-4">
-                                <button type="submit" class="btn btn-info btn-custom text-white shadow"><i class="fas fa-paper-plane"></i> Registrar Pendiente</button>
-                            </div>
-                        </form>
+                        <div class="alert alert-info text-center py-4">
+                            <h4 class="alert-heading fw-bold">Fecha del Reporte: {{ ultima_fecha }}</h4>
+                            <hr>
+                            <h3 class="{% if ultimo_monto >= 0 %}text-danger{% else %}text-success{% %} fw-bold mb-3">
+                                Saldo Actual: Bs. {{ "%.2f"|format(ultimo_monto) }}
+                            </h3>
+                            <p class="mb-0 text-secondary fs-6">Este monto muestra exactamente lo que falta por cubrir hasta registrar tu próximo pago o abono.</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -304,7 +294,7 @@
                             <input type="hidden" name="agencia" value="{{ agencia }}">
                             <div class="col-md-3">
                                 <label class="form-label fw-bold">Fecha del ticket</label>
-                                <input type="date" class="form-control" name="fecha" required>
+                                <input type="date" class="form-control" name="fecha" value="{{ ultima_fecha }}" required>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label fw-bold">Sistema</label>
@@ -314,7 +304,7 @@
                                     <option value="LUCKY">LUCKY</option>
                                     <option value="GATO">GATO</option>
                                     <option value="LOTIPOS">LOTIPOS</option>
-                                    <option value="MAXPLAY">MAXPLAY</option>
+                                    <option >MAXPLAY</option>
                                     <option value="BETSOL">BETSOL</option>
                                     <option value="PREMIER">PREMIER</option>
                                     <option value="WINBIG">WINBIG</option>
