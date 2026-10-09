@@ -36,6 +36,7 @@ def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
+    # 1. Verificar y recrear tabla usuarios si es necesario
     cursor.execute("PRAGMA table_info(usuarios)")
     columnas_u = [col[1] for col in cursor.fetchall()]
     if not columnas_u or 'agencia' not in columnas_u:
@@ -48,6 +49,7 @@ def init_db():
             )
         ''')
     
+    # 2. Tabla reportes
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,6 +62,7 @@ def init_db():
         )
     ''')
 
+    # 3. Tabla pagos (asegurando columnas faltantes)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS pagos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,6 +75,14 @@ def init_db():
             estado TEXT DEFAULT 'EN ESPERA'
         )
     ''')
+    
+    # Auto-revisión de columnas en pagos por si la tabla ya existía vieja
+    cursor.execute("PRAGMA table_info(pagos)")
+    columnas_p = [col[1] for col in cursor.fetchall()]
+    if 'tipo' not in columnas_p:
+        cursor.execute("ALTER TABLE pagos ADD COLUMN tipo TEXT DEFAULT 'PAGO_TAQUILLA'")
+    if 'estado' not in columnas_p:
+        cursor.execute("ALTER TABLE pagos ADD COLUMN estado TEXT DEFAULT 'EN ESPERA'")
         
     conn.commit()
     conn.close()
