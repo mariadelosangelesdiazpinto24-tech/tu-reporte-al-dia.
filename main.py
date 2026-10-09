@@ -221,7 +221,7 @@ def guardar_reporte_colab(
     monto: float = Form(...),
     ventas: float = Form(0.0),
     premios: float = Form(0.0),
-    detalle_html: str = Form("")
+    detalle_html: Optional[str] = Form("")
 ):
     agencia_norm = normalizar(agencia)
     conn = sqlite3.connect("database.db")
