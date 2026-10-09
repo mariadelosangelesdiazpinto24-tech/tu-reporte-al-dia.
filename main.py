@@ -22,17 +22,14 @@ def normalizar(texto: str) -> str:
     texto = ''.join(c for c in texto if unicodedata.category(c) != 'Mn')
     return texto.strip().upper()
 
-# Función para formatear montos sin comas de miles y con punto decimal fijo
 def formatear_monto(valor):
     try:
-        # Reemplazar comas por nada por si el usuario las escribe, y convertir a float
         if isinstance(valor, str):
             valor = valor.replace(',', '')
         return f"{float(valor):.2f}"
     except (ValueError, TypeError):
         return "0.00"
 
-# Registrar el filtro personalizado en Jinja2 para usarlo en el HTML si se desea
 templates.env.filters["dinero"] = formatear_monto
 
 def init_db():
@@ -52,7 +49,7 @@ def init_db():
             )
         ''')
     
-    # Tabla reportes mejorada con ventas, premios y control de estado
+    # Tabla reportes
     cursor.execute("PRAGMA table_info(reportes)")
     columnas_r = [col[1] for col in cursor.fetchall()]
     
@@ -190,17 +187,11 @@ async def reportar_pago(
     agencia: str = Form(...),
     fecha: str = Form(...),
     monto: str = Form(...),
-    ventas: str = Form("0"),
-    premios: str = Form("0"),
     factura: str = Form(...),
     comprobante: UploadFile = File(...)
 ):
     agencia_norm = normalizar(agencia)
-    
-    # Limpiar montos de comas de miles si las tuviera antes de guardar
     monto_val = float(monto.replace(',', '')) if monto else 0.0
-    ventas_val = float(ventas.replace(',', '')) if ventas else 0.0
-    premios_val = float(premios.replace(',', '')) if premios else 0.0
 
     ruta_archivo = f"uploads/{agencia_norm}_{factura}_{comprobante.filename}"
     
@@ -210,34 +201,30 @@ async def reportar_pago(
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO reportes (agencia, fecha, monto, ventas, premios, factura, comprobante, estado)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDIENTE')
-    ''', (agencia_norm, fecha, monto_val, ventas_val, premios_val, factura, ruta_archivo))
+        INSERT INTO reportes (agencia, fecha, monto, factura, comprobante, estado)
+        VALUES (?, ?, ?, ?, ?, 'PENDIENTE')
+    ''', (agencia_norm, fecha, monto_val, factura, ruta_archivo))
     conn.commit()
     conn.close()
 
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&exito=1", status_code=status.HTTP_303_SEE_OTHER)
 
-@app.post("/agencia/editar-reporte")
-def editar_reporte(
-    reporte_id: int = Form(...),
+# NUEVA RUTA: Recibe los datos directamente desde Google Colab sin usar correo
+@app.post("/api/guardar-reporte-colab")
+def guardar_reporte_colab(
     agencia: str = Form(...),
-    ventas: str = Form(...),
-    premios: str = Form(...)
+    fecha: str = Form(...),
+    monto: float = Form(...),
+    ventas: float = Form(0.0),
+    premios: float = Form(0.0)
 ):
     agencia_norm = normalizar(agencia)
-    
-    ventas_val = float(ventas.replace(',', '')) if ventas else 0.0
-    premios_val = float(premios.replace(',', '')) if premios else 0.0
-
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute('''
-        UPDATE reportes 
-        SET ventas = ?, premios = ?, estado = 'MODIFICADO - REVISAR'
-        WHERE id = ? AND agencia = ?
-    ''', (ventas_val, premios_val, reporte_id, agencia_norm))
+        INSERT INTO reportes (agencia, fecha, monto, ventas, premios, estado)
+        VALUES (?, ?, ?, ?, ?, 'PENDIENTE')
+    ''', (agencia_norm, fecha, monto, ventas, premios))
     conn.commit()
     conn.close()
-
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
+    return {"status": "ok", "mensaje": f"Reporte sincronizado para {agencia_norm}"}
