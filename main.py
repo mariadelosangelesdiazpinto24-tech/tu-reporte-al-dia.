@@ -36,7 +36,6 @@ def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
-    # 1. Verificar y recrear tabla usuarios si es necesario
     cursor.execute("PRAGMA table_info(usuarios)")
     columnas_u = [col[1] for col in cursor.fetchall()]
     if not columnas_u or 'agencia' not in columnas_u:
@@ -49,7 +48,6 @@ def init_db():
             )
         ''')
     
-    # 2. Tabla reportes
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,7 +60,6 @@ def init_db():
         )
     ''')
 
-    # 3. Tabla pagos (asegurando columnas faltantes)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS pagos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,7 +73,6 @@ def init_db():
         )
     ''')
     
-    # Auto-revisión de columnas en pagos por si la tabla ya existía vieja
     cursor.execute("PRAGMA table_info(pagos)")
     columnas_p = [col[1] for col in cursor.fetchall()]
     if 'tipo' not in columnas_p:
@@ -233,7 +229,7 @@ def solicitar_saldo(
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-        VALUES (?, ?, ?, ?, 'Solicitud: ' || ?, 'SOLICITUD_SALDO', 'EN ESPERA')
+        VALUES (?, ?, ?, ?, ?, 'SOLICITUD_SALDO', 'EN ESPERA')
     ''', (agencia_norm, fecha, monto_val, observacion))
     conn.commit()
     conn.close()
@@ -254,7 +250,7 @@ def solicitar_adelanto(
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-        VALUES (?, ?, ?, ?, 'Adelanto: ' || ?, 'ADELANTO', 'EN ESPERA')
+        VALUES (?, ?, ?, ?, ?, 'ADELANTO', 'EN ESPERA')
     ''', (agencia_norm, fecha, monto_val, observacion))
     conn.commit()
     conn.close()
@@ -275,7 +271,7 @@ def reportar_pendiente(
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-        VALUES (?, ?, ?, ?, 'Pendiente: ' || ?, 'PENDIENTE_POR_COBRAR', 'EN ESPERA')
+        VALUES (?, ?, ?, ?, ?, 'PENDIENTE_POR_COBRAR', 'EN ESPERA')
     ''', (agencia_norm, fecha, monto_val, observacion))
     conn.commit()
     conn.close()
@@ -299,7 +295,7 @@ def reportar_tripleta(
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
         VALUES (?, ?, ?, ?, ?, 'TRIPLETA', 'EN ESPERA')
-    ''', (agencia_norm, fecha, monto_val, ticket, detalle_str))
+    ''', (agencia_norm, fecha, monto_val, detalle_str, 'N/A'))
     conn.commit()
     conn.close()
 
