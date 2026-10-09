@@ -103,11 +103,11 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     total_tripletas = 0.0
     total_adelantos = 0.0
-    total_pendientes = 0.0
+    total_pagos_taquilla = 0.0
     
     tripletas_rows_html = ""
     adelantos_rows_html = ""
-    pendientes_rows_html = ""
+    pagos_rows_html = ""
 
     for p in todos_pagos:
         monto_p = p['monto'] or 0.0
@@ -126,56 +126,63 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             <tr style="font-size: 11px;">
                 <td>{p['fecha']}</td>
                 <td>{p['comprobante']}</td>
-                <td style="text-align: right; color: #81c784; font-weight: bold;">Bs. {monto_p:,.2f}</td>
+                <td style="text-align: right; color: #e57373; font-weight: bold;">- Bs. {monto_p:,.2f}</td>
             </tr>
             '''
-        elif p['tipo'] == 'PENDIENTE_POR_COBRAR' or p['tipo'] == 'SOLICITUD_SALDO':
-            total_pendientes += monto_p
-            pendientes_rows_html += f'''
+        elif p['tipo'] == 'PAGO_TAQUILLA':
+            total_pagos_taquilla += monto_p
+            pagos_rows_html += f'''
             <tr style="font-size: 11px;">
                 <td>{p['fecha']}</td>
-                <td>{p['comprobante']}</td>
-                <td style="text-align: right; color: {'#81c784' if monto_p >= 0 else '#e57373'}; font-weight: bold;">Bs. {monto_p:,.2f}</td>
+                <td>Ref: {p['factura']}</td>
+                <td style="text-align: right; color: #81c784; font-weight: bold;">Bs. {monto_p:,.2f}</td>
             </tr>
             '''
 
     monto_base = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
-    monto_final = monto_base - total_tripletas + total_adelantos + total_pendientes
+    
+    # FÓRMULA FINANCIERA CORREGIDA: 
+    # (Ventas/Reporte) - Tripletas - Pagos Taquilla Realizados - Adelantos (plata dada por admin)
+    monto_final = monto_base - total_tripletas - total_pagos_taquilla - total_adelantos
 
-    # Bloques HTML limpios con 0 por defecto si no hay registros
+    # Bloques HTML detallados
     bloque_tripletas = f'''
     <div class="mb-3">
         <h6 class="text-warning border-bottom border-secondary pb-2 mb-2"><i class="fas fa-star"></i> TRIPLETAS REGISTRADAS</h6>
         <table class="table table-dark table-sm table-bordered align-middle text-nowrap" style="font-size: 11px; width: 100%;">
             <tr style="background-color: #003366; color: white;"><th>FECHA TICKET</th><th>DETALLE</th><th style="text-align: right;">MONTO</th></tr>
-            {tripletas_rows_html if tripletas_rows_html else '<tr><td colspan="3" class="text-center text-muted">Ninguna</td></tr>'}
+            {tripletas_rows_html if tripletas_rows_html else '<tr><td colspan="3" class="text-center text-muted">Ninguna (0)</td></tr>'}
         </table>
     </div>
     '''
 
     bloque_adelantos = f'''
     <div class="mb-3">
-        <h6 class="text-success border-bottom border-secondary pb-2 mb-2"><i class="fas fa-hand-holding-usd"></i> ADELANTOS SOLICITADOS</h6>
+        <h6 class="text-danger border-bottom border-secondary pb-2 mb-2"><i class="fas fa-hand-holding-usd"></i> ADELANTOS (Plata entregada por Admin)</h6>
         <table class="table table-dark table-sm table-bordered align-middle text-nowrap" style="font-size: 11px; width: 100%;">
-            <tr style="background-color: #1b5e20; color: white;"><th>FECHA</th><th>MOTIVO</th><th style="text-align: right;">MONTO</th></tr>
-            {adelantos_rows_html if adelantos_rows_html else '<tr><td colspan="3" class="text-center text-muted">Adelanto: 0</td></tr>'}
+            <tr style="background-color: #b71c1c; color: white;"><th>FECHA</th><th>MOTIVO</th><th style="text-align: right;">MONTO</th></tr>
+            {adelantos_rows_html if adelantos_rows_html else '<tr><td colspan="3" class="text-center text-muted">Adelanto: 0.00 Bs.</td></tr>'}
         </table>
     </div>
     '''
 
     bloque_pendientes = f'''
     <div class="mb-3">
-        <h6 class="text-info border-bottom border-secondary pb-2 mb-2"><i class="fas fa-clock"></i> PENDIENTES / SALDO A FAVOR</h6>
+        <h6 class="text-info border-bottom border-secondary pb-2 mb-2"><i class="fas fa-clock"></i> PENDIENTE / CUENTA POR COBRAR O PAGAR</h6>
         <table class="table table-dark table-sm table-bordered align-middle text-nowrap" style="font-size: 11px; width: 100%;">
-            <tr style="background-color: #0d47a1; color: white;"><th>FECHA</th><th>DETALLE</th><th style="text-align: right;">MONTO</th></tr>
-            {pendientes_rows_html if pendientes_rows_html else '<tr><td colspan="3" class="text-center text-muted">Pendiente: 0</td></tr>'}
+            <tr style="background-color: #0d47a1; color: white;"><th>ESTADO</th><th>DESCRIPCIÓN</th><th style="text-align: right;">SALDO RESTANTE</th></tr>
+            <tr style="font-size: 11px;">
+                <td>{fecha_reporte}</td>
+                <td>{("Pendiente por pagar" if monto_final >= 0 else "Saldo a favor / Pagado de más")}</td>
+                <td style="text-align: right; color: {('#81c784' if monto_final < 0 else '#ff8a80')}; font-weight: bold;">Bs. {monto_final:,.2f}</td>
+            </tr>
         </table>
     </div>
     '''
 
     detalle_original = rep['detalle_html'] or ""
     import re
-    detalle_limpio = re.sub(r'<div class="mb-3">\s*<h6 class="text-(warning|success|info).*?<\/div>', '', detalle_original, flags=re.DOTALL)
+    detalle_limpio = re.sub(r'<div class="mb-3">\s*<h6 class="text-(warning|danger|info).*?<\/div>', '', detalle_original, flags=re.DOTALL)
     detalle_actualizado = detalle_limpio + bloque_tripletas + bloque_adelantos + bloque_pendientes
 
     conn = sqlite3.connect("database.db")
@@ -338,7 +345,7 @@ def solicitar_saldo(
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
         VALUES (?, ?, ?, ?, ?, 'SOLICITUD_SALDO', 'APROBADO')
-    ''', (agencia_norm, fecha, monto_val, observacion, "SALDO A FAVOR"))
+    ''', (agencia_norm, fecha, monto_val, observacion))
     conn.commit()
     conn.close()
 
@@ -360,7 +367,7 @@ def solicitar_adelanto(
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
         VALUES (?, ?, ?, ?, ?, 'ADELANTO', 'APROBADO')
-    ''', (agencia_norm, fecha, monto_val, observacion, "ADELANTO"))
+    ''', (agencia_norm, fecha, monto_val, observacion))
     conn.commit()
     conn.close()
 
@@ -382,7 +389,7 @@ def reportar_pendiente(
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
         VALUES (?, ?, ?, ?, ?, 'PENDIENTE_POR_COBRAR', 'APROBADO')
-    ''', (agencia_norm, fecha, monto_val, observacion, "PENDIENTE"))
+    ''', (agencia_norm, fecha, monto_val, observacion))
     conn.commit()
     conn.close()
 
