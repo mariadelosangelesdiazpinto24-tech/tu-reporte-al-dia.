@@ -274,7 +274,7 @@
                         <div class="alert alert-info text-center py-4">
                             <h4 class="alert-heading fw-bold">Fecha del Reporte: {{ ultima_fecha }}</h4>
                             <hr>
-                            <h3 class="{% if ultimo_monto >= 0 %}text-danger{% else %}text-success{% %} fw-bold mb-3">
+                            <h3 class="{% if ultimo_monto >= 0 %}text-danger{% else %}text-success{% endif %} fw-bold mb-3">
                                 Saldo Actual: Bs. {{ "%.2f"|format(ultimo_monto) }}
                             </h3>
                             <p class="mb-0 text-secondary fs-6">Este monto muestra exactamente lo que falta por cubrir hasta registrar tu próximo pago o abono.</p>
@@ -304,7 +304,7 @@
                                     <option value="LUCKY">LUCKY</option>
                                     <option value="GATO">GATO</option>
                                     <option value="LOTIPOS">LOTIPOS</option>
-                                    <option >MAXPLAY</option>
+                                    <option value="MAXPLAY">MAXPLAY</option>
                                     <option value="BETSOL">BETSOL</option>
                                     <option value="PREMIER">PREMIER</option>
                                     <option value="WINBIG">WINBIG</option>
