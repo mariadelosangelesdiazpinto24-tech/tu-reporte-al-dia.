@@ -71,7 +71,7 @@
                                 <input type="text" class="form-control" name="observacion" placeholder="Ej: Saldo a favor por premios o saldo negativo" required>
                             </div>
                             <div class="col-12 text-end">
-                                <button type="submit" class="btn btn-warning btn-sm px-4 text-dark fw-bold"><i class="fasbell"></i> Notificar a Admin</button>
+                                <button type="submit" class="btn btn-warning btn-sm px-4 text-dark fw-bold"><i class="fas fa-bell"></i> Notificar a Admin</button>
                             </div>
                         </form>
                     </div>
@@ -131,9 +131,7 @@
                                                 </div>
                                                 <div class="modal-body">
                                                     <div class="table-responsive">
-                                                        <table class="table table-dark table-sm table-bordered align-middle" style="font-size: 11px;">
-                                                            {{ r.detalle_html | safe }}
-                                                        </table>
+                                                        {{ r.detalle_html | safe }}
                                                     </div>
                                                 </div>
                                                 <div class="modal-footer border-secondary">
