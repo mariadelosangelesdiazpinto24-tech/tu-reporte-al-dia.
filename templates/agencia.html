@@ -17,10 +17,10 @@
 
     <div class="container my-4">
 
-        <!-- Formulario principal para Cargar Comprobante -->
+        <!-- Formulario para Cargar Comprobante de Pago -->
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-primary text-white">
-                <h5 class="mb-0"><i class="fas fa-file-invoice-dollar"></i> Cargar Nuevo Comprador / Reporte de Pago</h5>
+                <h5 class="mb-0"><i class="fas fa-file-invoice-dollar"></i> Cargar Comprobante / Reporte de Pago</h5>
             </div>
             <div class="card-body">
                 <form action="/reportar" method="POST" enctype="multipart/form-data" class="row g-3">
@@ -35,8 +35,8 @@
                         <input type="text" class="form-control" name="factura" placeholder="Ej: 88492" required>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label">Monto Total ($)</label>
-                        <input type="text" class="form-control" name="monto" placeholder="Ej: 52000.00" required>
+                        <label class="form-label">Monto Total (Bs.)</label>
+                        <input type="text" class="form-control" name="monto" placeholder="Ej: 64000.00" required>
                     </div>
 
                     <div class="col-md-12">
@@ -51,7 +51,7 @@
             </div>
         </div>
 
-        <!-- Sistema de Pestañas de Navegación -->
+        <!-- Sistema de Pestañas -->
         <ul class="nav nav-tabs mb-3" id="taquillaTabs" role="tablist">
             <li class="nav-item" role="presentation">
                 <button class="nav-link active fw-bold" id="reportes-tab" data-bs-toggle="tab" data-bs-target="#reportes" type="button" role="tab"><i class="fas fa-receipt"></i> Mis Reportes</button>
@@ -77,7 +77,7 @@
             <div class="tab-pane fade show active" id="reportes" role="tabpanel">
                 <div class="card shadow-sm">
                     <div class="card-body">
-                        <h5 class="card-title mb-3"><i class="fas fa-list text-primary"></i> Historial de Reportes Enviados</h5>
+                        <h5 class="card-title mb-3"><i class="fas fa-list text-primary"></i> Historial de Reportes</h5>
                         {% if reportes %}
                         <div class="table-responsive">
                             <table class="table table-striped align-middle">
@@ -85,22 +85,68 @@
                                     <tr>
                                         <th>Fecha</th>
                                         <th>Factura</th>
-                                        <th>Monto ($)</th>
+                                        <th>Monto (Bs.)</th>
                                         <th>Estado</th>
+                                        <th class="text-center">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for r in reportes %}
                                     <tr>
                                         <td>{{ r.fecha }}</td>
-                                        <td>{{ r.factura }}</td>
-                                        <td>${{ r.monto }}</td>
+                                        <td>{{ r.factura or 'Sin factura' }}</td>
+                                        <td>Bs. {{ "%.2f"|format(r.monto|float) }}</td>
                                         <td>
-                                            <span class="badge {% if r.estado == 'APROBADO' %}bg-success{% elif r.estado == 'RECHAZADO' %}bg-danger{% elif 'MODIFICADO' in r.estado %}bg-warning text-dark{% else %}bg-info text-dark{% endif %}">
+                                            <span class="badge 
+                                                {% if r.estado == 'PAGADO' %}bg-success
+                                                {% elif r.estado == 'EN ESPERA' %}bg-warning text-dark
+                                                {% elif r.estado == 'RECHAZADO' %}bg-danger
+                                                {% else %}bg-secondary{% endif %}">
                                                 {{ r.estado }}
                                             </span>
                                         </td>
+                                        <td class="text-center">
+                                            <!-- Botón para ver el detalle del reporte -->
+                                            <button class="instances btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalDetalle{{ r.id }}">
+                                                <i class="fas fa-eye"></i> Ver Detalle
+                                            </button>
+                                        </td>
                                     </tr>
+
+                                    <!-- Modal de Detalle Desglosado para cada Reporte -->
+                                    <div class="modal fade" id="modalDetalle{{ r.id }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog modal-dialog-centered">
+                                            <div class="modal-content">
+                                                <div class="modal-header bg-primary text-white">
+                                                    <h5 class="modal-title"><i class="fas fa-info-circle"></i> Detalle del Reporte - {{ r.fecha }}</h5>
+                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <p><strong>Agencia:</strong> {{ r.agencia }}</p>
+                                                    <p><strong>Fecha del Reporte:</strong> {{ r.fecha }}</p>
+                                                    <hr>
+                                                    <ul class="list-group mb-3">
+                                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                            Ventas Registradas:
+                                                            <span class="fw-bold text-success">Bs. {{ "%.2f"|format(r.ventas|float) }}</span>
+                                                        </li>
+                                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                            Premios Pagados:
+                                                            <span class="fw-bold text-danger">Bs. {{ "%.2f"|format(r.premios|float) }}</span>
+                                                        </li>
+                                                        <li class="list-group-item d-flex justify-content-between align-items-center bg-light">
+                                                            <strong>Monto Neto a Pagar:</strong>
+                                                            <strong class="text-primary fs-5">Bs. {{ "%.2f"|format(r.monto|float) }}</strong>
+                                                        </li>
+                                                    </ul>
+                                                    <p class="text-muted small mb-0"><i class="fas fa-shield-alt"></i> Este monto proviene directamente de la sincronización automatizada con tu Google Sheet oficial.</p>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                     {% endfor %}
                                 </tbody>
                             </table>
@@ -114,47 +160,22 @@
 
             <!-- 2. Mis Pagos -->
             <div class="tab-pane fade" id="pagos" role="tabpanel">
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title mb-3"><i class="fas fa-wallet text-success"></i> Soportes y Comprobantes de Pagos</h5>
-                        <p class="text-muted">Aquí se concentrarán los comprobantes validados y procesados de tus pagos.</p>
-                        <!-- Espacio reservado para listado de pagos aprobados -->
-                        <div class="alert alert-secondary text-center mb-0">No hay pagos registrados en esta sección por los momentos.</div>
-                    </div>
-                </div>
+                <div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">No hay pagos registrados.</p></div></div>
             </div>
 
             <!-- 3. Modificaciones -->
             <div class="tab-pane fade" id="modificaciones" role="tabpanel">
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title mb-3"><i class="fas fa-edit text-warning"></i> Historial de Modificaciones</h5>
-                        <p class="text-muted">Reportes que han tenido ajustes o revisión por parte de la administración.</p>
-                        <div class="alert alert-secondary text-center mb-0">No hay modificaciones pendientes.</div>
-                    </div>
-                </div>
+                <div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">No hay modificaciones.</p></div></div>
             </div>
 
             <!-- 4. Adelantos -->
             <div class="tab-pane fade" id="adelantos" role="tabpanel">
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title mb-3"><i class="fas fa-hand-holding-usd text-info"></i> Control de Adelantos</h5>
-                        <p class="text-muted">Registro de los adelantos de dinero solicitados o entregados.</p>
-                        <div class="alert alert-secondary text-center mb-0">No hay adelantos registrados.</div>
-                    </div>
-                </div>
+                <div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">No hay adelantos registrados.</p></div></div>
             </div>
 
-            <!-- 5. Tripletas del Día Anterior -->
+            <!-- 5. Tripletas -->
             <div class="tab-pane fade" id="tripletas" role="tabpanel">
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title mb-3"><i class="fas fa-star text-danger"></i> Detalle de Tripletas del Día Anterior</h5>
-                        <p class="text-muted">Consulta el desglose de las tripletas correspondientes al cierre de ayer.</p>
-                        <div class="alert alert-secondary text-center mb-0">Información de tripletas disponible próximamente.</div>
-                    </div>
-                </div>
+                <div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">Información de tripletas próximamente.</p></div></div>
             </div>
 
         </div>
