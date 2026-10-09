@@ -2,65 +2,147 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Panel Agencia</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Taquilla - {{ agencia }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="bg-gray-50 p-6">
-    <div class="max-w-4xl mx-auto space-y-6">
-        <div class="flex justify-between items-center bg-white p-4 rounded-lg shadow">
-            <h1 class="text-xl font-bold text-gray-800">Agencia: {{ nombre }}</h1>
-            <a href="/" class="text-red-500 font-semibold">Cerrar Sesión</a>
+<body class="bg-light">
+
+    <nav class="navbar navbar-dark bg-dark px-4">
+        <span class="navbar-brand mb-0 h1"><i class="fas fa-cash-register"></i> Taquilla: {{ agencia }}</span>
+        <a href="/login" class="btn btn-outline-light btn-sm">Salir</a>
+    </nav>
+
+    <div class="container my-4">
+        <!-- Formulario para Cargar Comprobante -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-file-invoice-dollar"></i> Cargar Nuevo Comprobante de Pago</h5>
+            </div>
+            <div class="card-body">
+                <form action="/reportar" method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="agencia" value="{{ agencia }}">
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Fecha de Pago</label>
+                            <input type="date" class="form-control" name="fecha" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">N° Factura / Referencia</label>
+                            <input type="text" class="form-control" name="factura" placeholder="Ej: 88492" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Monto Total ($)</label>
+                            <input type="number" step="0.01" class="form-control" name="monto" placeholder="0.00" required>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Ventas Registradas ($)</label>
+                            <input type="number" step="0.01" class="form-control" name="ventas" placeholder="0.00">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Premios Pagados ($)</label>
+                            <input type="number" step="0.01" class="form-control" name="premios" placeholder="0.00">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Foto del Comprobante</label>
+                        <input type="file" class="form-control" name="comprobante" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100"><i class="fas fa-paper-plane"></i> Enviar Reporte de Pago</button>
+                </form>
+            </div>
         </div>
 
-        <!-- Formulario Carga -->
-        <div class="bg-white p-6 rounded-lg shadow">
-            <h2 class="text-lg font-bold mb-4">Cargar Nuevo Pago</h2>
-            <form action="/agencia/guardar_pago" method="POST" enctype="multipart/form-data" class="grid grid-cols-2 gap-4">
-                <input type="hidden" name="agencia" value="{{ nombre }}">
-                <div>
-                    <label class="block text-sm">Fecha</label>
-                    <input type="date" name="fecha" required class="w-full border p-2 rounded">
-                </div>
-                <div>
-                    <label class="block text-sm">Factura / Referencia</label>
-                    <input type="text" name="factura" placeholder="Ej: C1734" required class="w-full border p-2 rounded">
-                </div>
-                <div>
-                    <label class="block text-sm">Monto (Bs)</label>
-                    <input type="number" step="0.01" name="monto" required class="w-full border p-2 rounded">
-                </div>
-                <div>
-                    <label class="block text-sm">Comprobante (Foto/PDF)</label>
-                    <input type="file" name="comprobante" required class="w-full border p-1 rounded">
-                </div>
-                <button type="submit" class="col-span-2 bg-green-600 text-white p-2 rounded font-bold hover:bg-green-700">Enviar Pago</button>
-            </form>
-        </div>
+        <!-- Historial y Verificación de Reportes -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0"><i class="fas fa-list-alt"></i> Mis Reportes Enviados y Verificación</h5>
+            </div>
+            <div class="card-body">
+                {% if reportes %}
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Factura</th>
+                                <th>Monto</th>
+                                <th>Ventas</th>
+                                <th>Premios</th>
+                                <th>Estado</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in reportes %}
+                            <tr>
+                                <td>{{ r.fecha }}</td>
+                                <td>{{ r.factura }}</td>
+                                <td>${{ r.monto }}</td>
+                                <td>${{ r.ventas }}</td>
+                                <td>${{ r.premios }}</td>
+                                <td>
+                                    <span class="badge {% if r.estado == 'APROBADO' %}bg-success{% elif r.estado == 'RECHAZADO' %}bg-danger{% elif 'MODIFICADO' in r.estado %}bg-warning text-dark{% else %}bg-info text-dark{% endif %}">
+                                        {{ r.estado }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <!-- Botón con Lápiz para Editar Ventas/Premios -->
+                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editarModal{{ r.id }}" title="Modificar reporte">
+                                        <i class="fas fa-pencil-alt"></i>
+                                    </button>
+                                </td>
+                            </tr>
 
-        <!-- Historial -->
-        <div class="bg-white p-6 rounded-lg shadow">
-            <h2 class="text-lg font-bold mb-4">Mis Pagos Registrados</h2>
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="border-b bg-gray-100">
-                        <th class="p-2">Fecha</th>
-                        <th class="p-2">Factura</th>
-                        <th class="p-2">Monto</th>
-                        <th class="p-2">Estado</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for p in historial %}
-                    <tr class="border-b">
-                        <td class="p-2">{{ p[0] }}</td>
-                        <td class="p-2">{{ p[1] }}</td>
-                        <td class="p-2">{{ p[2] }} Bs</td>
-                        <td class="p-2 font-bold {% if p[3] == 'PENDIENTE' %}text-yellow-600{% else %}text-green-600{% endif %}">{{ p[3] }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                            <!-- Modal de Edición por Reporte -->
+                            <div class="modal fade" id="editarModal{{ r.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <form action="/agencia/editar-reporte" method="POST">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">Ajustar Reporte - Factura {{ r.factura }}</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <input type="hidden" name="reporte_id" value="{{ r.id }}">
+                                                <input type="hidden" name="agencia" value="{{ agencia }}">
+                                                
+                                                <div class="mb-3">
+                                                    <label class="form-label">Ventas ($)</label>
+                                                    <input type="number" step="0.01" class="form-control" name="ventas" value="{{ r.ventas }}" required>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Premios ($)</label>
+                                                    <input type="number" step="0.01" class="form-control" name="premios" value="{{ r.premios }}" required>
+                                                </div>
+                                                <small class="text-muted">Al guardar, se notificará al administrador que este reporte fue ajustado.</small>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                                <button type="submit" class="btn btn-success">Guardar Cambios</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-center text-muted my-3">Aún no has registrado ningún pago.</p>
+                {% endif %}
+            </div>
         </div>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
