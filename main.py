@@ -85,6 +85,43 @@ def init_db():
 
 init_db()
 
+def aplicar_formula_y_actualizar(agencia: str, fecha: str):
+    conn = sqlite3.connect("database.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # 1. Obtener el reporte base de esa agencia y fecha
+    cursor.execute("SELECT * FROM reportes WHERE agencia = ? AND fecha = ?", (agencia, fecha))
+    rep = cursor.fetchone()
+    
+    if not rep:
+        conn.close()
+        return
+
+    # 2. Sumar transacciones de la tabla pagos para esa fecha y agencia
+    cursor.execute("SELECT tipo, SUM(monto) as total FROM pagos WHERE agencia = ? AND fecha = ? GROUP BY tipo", (agencia, fecha))
+    movimientos = {row['tipo']: row['total'] for row in cursor.fetchall()}
+    conn.close()
+
+    total_tripletas = movimientos.get('TRIPLETA', 0.0)
+    total_adelantos = movimientos.get('ADELANTO', 0.0)
+    total_pendientes = movimientos.get('PENDIENTE_POR_COBRAR', 0.0)
+    
+    # Supongamos que el reporte base (ventas netas o total sistemas) es rep['ventas'] o rep['monto'] original
+    # Fórmula: Reporte - Tripletas - Cashea + Adelantos + Pendientes
+    # Como Cashea ya suele venir descontado o en los pagos, aplicamos la estructura:
+    monto_base = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
+    
+    # Aplicar fórmula exacta
+    monto_final = monto_base - total_tripletas + total_adelantos + total_pendientes
+
+    # Actualizar en la base de datos el monto recalculado
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE reportes SET monto = ? WHERE id = ?", (monto_final, rep['id']))
+    conn.commit()
+    conn.close()
+
 @app.get("/", response_class=HTMLResponse)
 @app.get("/login", response_class=HTMLResponse)
 def get_login(request: Request):
@@ -162,10 +199,18 @@ def crear_agencia(agencia: str = Form(...), clave: str = Form(...)):
 @app.post("/admin/cambiar-estado-pago")
 def cambiar_estado_pago(pago_id: int = Form(...), nuevo_estado: str = Form(...)):
     conn = sqlite3.connect("database.db")
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = ?", (pago_id,))
+    pago = cursor.fetchone()
+    
     cursor.execute("UPDATE pagos SET estado = ? WHERE id = ?", (nuevo_estado, pago_id))
     conn.commit()
     conn.close()
+
+    if pago:
+        aplicar_formula_y_actualizar(pago['agencia'], pago['fecha'])
+
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/agencia", response_class=HTMLResponse)
@@ -213,6 +258,7 @@ async def reportar_pago(
     conn.commit()
     conn.close()
 
+    aplicar_formula_y_actualizar(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&exito=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/solicitar-saldo")
@@ -234,6 +280,7 @@ def solicitar_saldo(
     conn.commit()
     conn.close()
 
+    aplicar_formula_y_actualizar(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&solicitud=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/solicitar-adelanto")
@@ -255,6 +302,7 @@ def solicitar_adelanto(
     conn.commit()
     conn.close()
 
+    aplicar_formula_y_actualizar(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&adelanto=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/reportar-pendiente")
@@ -276,6 +324,7 @@ def reportar_pendiente(
     conn.commit()
     conn.close()
 
+    aplicar_formula_y_actualizar(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&pendiente=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/reportar-tripleta")
@@ -299,6 +348,7 @@ def reportar_tripleta(
     conn.commit()
     conn.close()
 
+    aplicar_formula_y_actualizar(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tripleta=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/api/guardar-reporte-colab")
@@ -314,18 +364,12 @@ def guardar_reporte_colab(
     
     if not detalle_html or len(detalle_html.strip()) < 5:
         detalle_html = f'''
-        <table class="table table-dark table-sm table-bordered align-middle" style="font-size: 11px; width: 100%;">
-            <tr style="background-color: #003366; color: white; font-weight: bold;">
-                <th>CONCEPTO</th>
-                <th style="text-align: right;">VALOR (Bs.)</th>
-            </tr>
-            <tr><td>Ventas Totales</td><td style="text-align: right;">{ventas:.2f}</td></tr>
-            <tr><td>Premios Pagados</td><td style="text-align: right;">{premios:.2f}</td></tr>
-            <tr style="background-color: #003366; color: white; font-weight: bold;">
-                <td>TOTAL A PAGAR</td>
-                <td style="text-align: right;">{monto:.2f}</td>
-            </tr>
-        </table>
+        <div class="card bg-dark text-white p-3 border-info shadow">
+            <h5 class="text-info border-bottom pb-2"><i class="fas fa-chart-pie"></i> Resumen General</h5>
+            <p class="mb-1"><b>Ventas Totales:</b> Bs. {ventas:.2f}</p>
+            <p class="mb-1"><b>Premios Pagados:</b> Bs. {premios:.2f}</p>
+            <h4 class="text-warning mt-2"><b>TOTAL A PAGAR:</b> Bs. {monto:.2f}</h4>
+        </div>
         '''
 
     conn = sqlite3.connect("database.db")
@@ -348,4 +392,8 @@ def guardar_reporte_colab(
         
     conn.commit()
     conn.close()
+
+    # Aplicar la fórmula inmediatamente
+    aplicar_formula_y_actualizar(agencia_norm, fecha)
+
     return {"status": "ok", "mensaje": f"Reporte sincronizado para {agencia_norm}"}
