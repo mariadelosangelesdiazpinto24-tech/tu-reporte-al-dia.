@@ -24,67 +24,83 @@
 
     <div class="container my-4">
 
-        <!-- Fila Superior -->
+        <!-- Obtener el saldo del último reporte para mostrar dinámicamente el menú superior -->
+        {% set ultimo_monto = 0.0 %}
+        {% if reportes %}
+            {% set ultimo_monto = reportes[0].monto|float %}
+        {% endif %}
+
+        <!-- Fila Superior Dinámica según el saldo -->
         <div class="row">
-            <div class="col-md-6 mb-4">
-                <div class="card h-100 bg-white">
-                    <div class="card-header bg-gradient bg-primary text-white py-3" style="border-radius: 12px 12px 0 0;">
-                        <h5 class="mb-0"><i class="fas fa-file-invoice-dollar"></i> Cargar Pago Realizado a Admin</h5>
+            {% if ultimo_monto >= 0 %}
+            <!-- MOSTRAR PAGO / ABONO (Saldo Positivo: Deben pagar) -->
+            <div class="col-md-12 mb-4">
+                <div class="card bg-white border-start border-primary border-4">
+                    <div class="card-header bg-primary text-white py-3" style="border-radius: 12px 12px 0 0;">
+                        <h5 class="mb-0 d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-file-invoice-dollar"></i> Cargar Pago o Abono a Admin</span>
+                            <span class="badge bg-light text-primary fs-6">Por Pagar: Bs. {{ "%.2f"|format(ultimo_monto) }}</span>
+                        </h5>
                     </div>
                     <div class="card-body">
                         <form action="/reportar" method="POST" enctype="multipart/form-data" class="row g-3">
                             <input type="hidden" name="agencia" value="{{ agencia }}">
-                            <div class="col-md-6">
+                            <div class="col-md-3">
                                 <label class="form-label fw-bold text-secondary">Fecha</label>
                                 <input type="date" class="form-control" name="fecha" required>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold text-secondary">N° Referencia</label>
-                                <input type="text" class="form-control" name="factura" placeholder="Ej: 88492" required>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold text-secondary">N° Referencia (4 dígitos)</label>
+                                <input type="text" class="form-control" name="factura" maxlength="4" placeholder="Ej: 8492" required>
                             </div>
-                            <div class="col-12">
-                                <label class="form-label fw-bold text-secondary">Monto (Bs.)</label>
-                                <input type="text" class="form-control" name="monto" placeholder="Ej: 64000.00" required>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold text-secondary">Monto Abono / Pago (Bs.)</label>
+                                <input type="text" class="form-control" name="monto" placeholder="Ej: 20000.00" required>
                             </div>
-                            <div class="col-12">
-                                <label class="form-label fw-bold text-secondary">Comprobante</label>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold text-secondary">Comprobante (Imagen)</label>
                                 <input type="file" class="form-control" name="comprobante" accept="image/*" required>
                             </div>
                             <div class="col-12 text-end mt-3">
-                                <button type="submit" class="btn btn-primary btn-custom shadow-sm"><i class="fas fa-paper-plane"></i> Enviar Pago</button>
+                                <button type="submit" class="btn btn-primary btn-custom shadow-sm"><i class="fas fa-paper-plane"></i> Registrar Abono / Pago</button>
                             </div>
                         </form>
                     </div>
                 </div>
             </div>
-
-            <div class="col-md-6 mb-4">
-                <div class="card h-100 bg-white border-start border-warning border-4">
-                    <div class="card-header bg-warning text-dark py-3 fw-bold" style="border-radius: 12px 12px 0 0;">
-                        <h5 class="mb-0"><i class="fas fa-hand-holding-usd"></i> Notificar si Admin Debe Pagar</h5>
+            {% else %}
+            <!-- MOSTRAR SALDO A FAVOR / NOTIFICAR (Saldo Negativo: Pasaron de más) -->
+            <div class="col-md-12 mb-4">
+                <div class="card bg-white border-start border-danger border-4">
+                    <div class="card-header bg-danger text-white py-3" style="border-radius: 12px 12px 0 0;">
+                        <h5 class="mb-0 d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-hand-holding-usd"></i> Saldo a Favor / Notificar a Admin</span>
+                            <span class="badge bg-light text-danger fs-6">Saldo a Favor: Bs. {{ "%.2f"|format(ultimo_monto * -1) }}</span>
+                        </h5>
                     </div>
                     <div class="card-body">
                         <form action="/solicitar-saldo" method="POST" class="row g-3">
                             <input type="hidden" name="agencia" value="{{ agencia }}">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <label class="form-label fw-bold text-secondary">Fecha</label>
                                 <input type="date" class="form-control" name="fecha" required>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <label class="form-label fw-bold text-secondary">Monto a Favor (Bs.)</label>
-                                <input type="text" class="form-control" name="monto" placeholder="Ej: 15000.00" required>
+                                <input type="text" class="form-control" name="monto" value="{{ ultimo_monto * -1 }}" required>
                             </div>
-                            <div class="col-12">
-                                <label class="form-label fw-bold text-secondary">Observación / Detalle</label>
-                                <input type="text" class="form-control" name="observacion" placeholder="Ej: Saldo a favor por premios" required>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold text-secondary">Observación</label>
+                                <input type="text" class="form-control" name="observacion" value="Saldo a favor por pago excedente" required>
                             </div>
                             <div class="col-12 text-end mt-3">
-                                <button type="submit" class="btn btn-warning btn-custom text-dark shadow-sm"><i class="fas fa-bell"></i> Notificar a Admin</button>
+                                <button type="submit" class="btn btn-danger btn-custom shadow-sm"><i class="fas fa-bell"></i> Notificar Saldo a Favor</button>
                             </div>
                         </form>
                     </div>
                 </div>
             </div>
+            {% endif %}
         </div>
 
         <!-- Pestañas -->
@@ -133,12 +149,10 @@
                                         <td>
                                             {% set monto_val = r.monto|float %}
                                             {% if monto_val >= 0 %}
-                                                <!-- CUADRO 1: Positivo (Deben pagar) -->
                                                 <span class="badge bg-success fs-6 px-3 py-2">
                                                     <i class="fas fa-arrow-up"></i> Bs. {{ "%.2f"|format(monto_val) }} (Por Pagar)
                                                 </span>
                                             {% else %}
-                                                <!-- CUADRO 2: Negativo (Saldo a favor / Pasaron de más) -->
                                                 <span class="badge bg-danger fs-6 px-3 py-2">
                                                     <i class="fas fa-arrow-down"></i> Bs. {{ "%.2f"|format(monto_val) }} (Saldo a Favor)
                                                 </span>
@@ -225,7 +239,7 @@
             <div class="tab-pane fade" id="adelantos" role="tabpanel">
                 <div class="card shadow-sm border-success">
                     <div class="card-header bg-success text-white py-3">
-                        <h5 class="mb-0"><i class="fas fa-hand-holding-usd"></i> Solicitar Adelanto (Dinero Pedido a Admin)</h5>
+                        <h5 class="mb-0"><i class="fas fa-hand-holding-usd"></i> Solicitar Adelanto</h5>
                     </div>
                     <div class="card-body p-4">
                         <form action="/solicitar-adelanto" method="POST" class="row g-3">
@@ -250,11 +264,11 @@
                 </div>
             </div>
 
-            <!-- 4. Pendiente (Por si deben o pasaron de más) -->
+            <!-- 4. Pendiente -->
             <div class="tab-pane fade" id="pendientes" role="tabpanel">
                 <div class="card shadow-sm border-info">
                     <div class="card-header bg-info text-white py-3">
-                        <h5 class="mb-0"><i class="fas fa-clock"></i> Registrar Pendiente / Ajuste (Positivo si deben, Negativo si pasaron de más)</h5>
+                        <h5 class="mb-0"><i class="fas fa-clock"></i> Registrar Pendiente / Diferencia</h5>
                     </div>
                     <div class="card-body p-4">
                         <form action="/reportar-pendiente" method="POST" class="row g-3">
@@ -264,12 +278,12 @@
                                 <input type="date" class="form-control" name="fecha" required>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-bold">Monto (Usa negativo ej: -5000 o positivo ej: 5000)</label>
-                                <input type="text" class="form-control" name="monto" placeholder="Ej: 5000.00 o -5000.00" required>
+                                <label class="form-label fw-bold">Monto (Ej: -10000 si pagaron de menos o 10000 si deben)</label>
+                                <input type="text" class="form-control" name="monto" placeholder="Ej: -10000.00" required>
                             </div>
                             <div class="col-12">
-                                <label class="form-label fw-bold">Detalle del Pendiente / Ajuste</label>
-                                <input type="text" class="form-control" name="observacion" placeholder="Ej: Diferencia a favor o en contra del reporte anterior" required>
+                                <label class="form-label fw-bold">Detalle del Pendiente</label>
+                                <input type="text" class="form-control" name="observacion" placeholder="Ej: Diferencia por reporte anterior" required>
                             </div>
                             <div class="col-12 text-end mt-4">
                                 <button type="submit" class="btn btn-info btn-custom text-white shadow"><i class="fas fa-paper-plane"></i> Registrar Pendiente</button>
