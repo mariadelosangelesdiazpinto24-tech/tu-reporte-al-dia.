@@ -97,7 +97,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         conn.close()
         return
 
-    # Obtener todos los pagos/movimientos aprobados de esta agencia
     cursor.execute("SELECT * FROM pagos WHERE agencia = ? AND estado = 'APROBADO'", (agencia,))
     todos_pagos = cursor.fetchall()
     conn.close()
@@ -107,12 +106,13 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     total_pendientes = 0.0
     
     tripletas_rows_html = ""
+    adelantos_rows_html = ""
+    pendientes_rows_html = ""
 
     for p in todos_pagos:
         monto_p = p['monto'] or 0.0
         if p['tipo'] == 'TRIPLETA':
             total_tripletas += monto_p
-            # p['comprobante'] guarda el detalle (ej: Sistema: LUCKY | Ticket: 455546)
             tripletas_rows_html += f'''
             <tr style="font-size: 11px;">
                 <td>{p['fecha']}</td>
@@ -120,47 +120,67 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
                 <td style="text-align: right; color: #ffca28; font-weight: bold;">Bs. {monto_p:,.2f}</td>
             </tr>
             '''
+        elif p['tipo'] == 'ADELANTO':
+            total_adelantos += monto_p
+            adelantos_rows_html += f'''
+            <tr style="font-size: 11px;">
+                <td>{p['fecha']}</td>
+                <td>{p['comprobante']}</td>
+                <td style="text-align: right; color: #81c784; font-weight: bold;">Bs. {monto_p:,.2f}</td>
+            </tr>
+            '''
+        elif p['tipo'] == 'PENDIENTE_POR_COBRAR':
+            total_pendientes += monto_p  # Si es positivo suma (deben), si es negativo resta (pagaron de más / saldo a favor)
+            pendientes_rows_html += f'''
+            <tr style="font-size: 11px;">
+                <td>{p['fecha']}</td>
+                <td>{p['comprobante']}</td>
+                <td style="text-align: right; color: {'#81c784' if monto_p >= 0 else '#e57373'}; font-weight: bold;">Bs. {monto_p:,.2f}</td>
+            </tr>
+            '''
 
     monto_base = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
     
-    # Extraer el total de Cashea desde el propio detalle_html almacenado por el Colab o sumar si está presente
-    # La fórmula exacta: Reporte (ventas/total) - Tripletas - Cashea + Adelantos + Pendientes
-    # Buscamos en el HTML del reporte o calculamos extrayendo los montos de Cashea si fuera necesario.
-    # Como el Colab ya trae el total bruto de sistemas, restamos tripletas y sumamos adelantos/pendientes:
+    # FÓRMULA EXACTA: Reporte - Tripletas + Adelantos + Pendientes
     monto_final = monto_base - total_tripletas + total_adelantos + total_pendientes
 
-    # Generar el bloque HTML detallado para las Tripletas
-    bloque_tripletas_html = ""
-    if tripletas_rows_html:
-        bloque_tripletas_html = f'''
-        <div class="mb-3">
-            <h6 class="text-warning border-bottom border-secondary pb-2 mb-2"><i class="fas fa-star"></i> TRIPLETAS DEL DÍA ANTERIOR</h6>
-            <table class="table table-dark table-sm table-bordered align-middle text-nowrap" style="font-size: 11px; width: 100%;">
-                <tr style="background-color: #003366; color: white; font-weight: bold;">
-                    <th>FECHA TICKET</th>
-                    <th>DETALLE (SISTEMA Y TICKET)</th>
-                    <th style="text-align: right;">MONTO</th>
-                </tr>
-                {tripletas_rows_html}
-            </table>
-        </div>
-        '''
+    # Bloques HTML para el modal
+    bloque_tripletas = f'''
+    <div class="mb-3">
+        <h6 class="text-warning border-bottom border-secondary pb-2 mb-2"><i class="fas fa-star"></i> TRIPLETAS REGISTRADAS</h6>
+        <table class="table table-dark table-sm table-bordered align-middle text-nowrap" style="font-size: 11px; width: 100%;">
+            <tr style="background-color: #003366; color: white;"><th>FECHA TICKET</th><th>DETALLE</th><th style="text-align: right;">MONTO</th></tr>
+            {tripletas_rows_html if tripletas_rows_html else '<tr><td colspan="3" class="text-center text-muted">No hay tripletas</td></tr>'}
+        </table>
+    </div>
+    ''' if tripletas_rows_html else ""
 
-    # Actualizar o reconstruir el detalle manteniendo sistemas y Cashea, e insertando las tripletas detalladas
+    bloque_adelantos = f'''
+    <div class="mb-3">
+        <h6 class="text-success border-bottom border-secondary pb-2 mb-2"><i class="fas fa-hand-holding-usd"></i> ADELANTOS SOLICITADOS</h6>
+        <table class="table table-dark table-sm table-bordered align-middle text-nowrap" style="font-size: 11px; width: 100%;">
+            <tr style="background-color: #1b5e20; color: white;"><th>FECHA</th><th>MOTIVO</th><th style="text-align: right;">MONTO</th></tr>
+            {adelantos_rows_html}
+        </table>
+    </div>
+    ''' if adelantos_rows_html else ""
+
+    bloque_pendientes = f'''
+    <div class="mb-3">
+        <h6 class="text-info border-bottom border-secondary pb-2 mb-2"><i class="fas fa-clock"></i> PENDIENTES / AJUSTES</h6>
+        <table class="table table-dark table-sm table-bordered align-middle text-nowrap" style="font-size: 11px; width: 100%;">
+            <tr style="background-color: #0d47a1; color: white;"><th>FECHA</th><th>DETALLE</th><th style="text-align: right;">MONTO</th></tr>
+            {pendientes_rows_html}
+        </table>
+    </div>
+    ''' if pendientes_rows_html else ""
+
     detalle_original = rep['detalle_html'] or ""
     
-    # Reemplazar o insertar el bloque de tripletas en el HTML
-    if "TRIPLETAS DEL DÍA ANTERIOR" in detalle_original:
-        # Reemplazar la sección vieja por la nueva detallada
-        import re
-        detalle_actualizado = re.sub(
-            r'<div class="mb-3">\s*<h6 class="text-warning.*?<\/div>', 
-            bloque_tripletas_html, 
-            detalle_original, 
-            flags=re.DOTALL
-        )
-    else:
-        detalle_actualizado = detalle_original + bloque_tripletas_html
+    # Limpiar secciones anteriores si existían y anexar las actualizadas
+    import re
+    detalle_limpio = re.sub(r'<div class="mb-3">\s*<h6 class="text-(warning|success|info).*?<\/div>', '', detalle_original, flags=re.DOTALL)
+    detalle_actualizado = detalle_limpio + bloque_tripletas + bloque_adelantos + bloque_pendientes
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
