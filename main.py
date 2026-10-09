@@ -85,132 +85,6 @@ def init_db():
 
 init_db()
 
-def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
-    conn = sqlite3.connect("database.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT * FROM reportes WHERE agencia = ? AND fecha = ?", (agencia, fecha_reporte))
-    rep = cursor.fetchone()
-    
-    if not rep:
-        conn.close()
-        return
-
-    cursor.execute("SELECT * FROM pagos WHERE agencia = ? AND estado = 'APROBADO'", (agencia,))
-    todos_pagos = cursor.fetchall()
-    conn.close()
-
-    total_tripletas = 0.0
-    total_adelantos = 0.0
-    total_pagos_taquilla = 0.0
-    total_cashea = 0.0
-    
-    tripletas_rows_html = ""
-    adelantos_rows_html = ""
-    cashea_rows_html = ""
-
-    for p in todos_pagos:
-        monto_p = p['monto'] or 0.0
-        if p['tipo'] == 'TRIPLETA':
-            total_tripletas += monto_p
-            tripletas_rows_html += f'''
-            <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['comprobante']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #ffb300; font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
-            </tr>
-            '''
-        elif p['tipo'] == 'ADELANTO':
-            total_adelantos += monto_p
-            adelantos_rows_html += f'''
-            <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['comprobante']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #ffb300; font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
-            </tr>
-            '''
-        elif p['tipo'] == 'CASHEA':
-            total_cashea += monto_p
-            cashea_rows_html += f'''
-            <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">Factura: {p['factura']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #e91e63; font-weight: bold;">Bs. {monto_p:,.2f}</td>
-            </tr>
-            '''
-        elif p['tipo'] == 'PAGO_TAQUILLA':
-            total_pagos_taquilla += monto_p
-
-    monto_base = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
-    monto_final = monto_base - total_pagos_taquilla + total_tripletas + total_adelantos - total_cashea
-
-    bloque_cashea_modal = f'''
-    <div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #e91e63;">
-        <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-shopping-cart" style="color: #e91e63;"></i> CASHEA (Total: Bs. {total_cashea:,.2f})</h5>
-        <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #e3f2fd; color: #0d47a1; font-size: 13px;">
-                <th style="padding: 10px;">FECHA</th>
-                <th style="padding: 10px;">FACTURA</th>
-                <th style="padding: 10px; text-align: right;">MONTO</th>
-            </tr>
-            {cashea_rows_html if cashea_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Sin registros de Cashea</td></tr>'}
-        </table>
-    </div>
-    '''
-
-    bloque_tripletas = f'''
-    <div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ffb300;">
-        <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #ffb300; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-star" style="color: #ffb300;"></i> TRIPLETAS (Premios pagados por taquilla)</h5>
-        <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #e3f2fd; color: #0d47a1; font-size: 13px;">
-                <th style="padding: 10px;">FECHA TICKET</th>
-                <th style="padding: 10px;">DETALLE</th>
-                <th style="padding: 10px; text-align: right;">MONTO A FAVOR</th>
-            </tr>
-            {tripletas_rows_html if tripletas_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Ninguna (0)</td></tr>'}
-        </table>
-    </div>
-    '''
-
-    bloque_adelantos = f'''
-    <div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ffb300;">
-        <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #ffb300; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-hand-holding-usd"></i> ADELANTOS (Plata entregada por Admin)</h5>
-        <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #e3f2fd; color: #0d47a1; font-size: 13px;">
-                <th style="padding: 10px;">FECHA</th>
-                <th style="padding: 10px;">MOTIVO</th>
-                <th style="padding: 10px; text-align: right;">MONTO</th>
-            </tr>
-            {adelantos_rows_html if adelantos_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Adelanto: 0.00 Bs.</td></tr>'}
-        </table>
-    </div>
-    '''
-
-    bloque_pendientes = f'''
-    <div class="mb-2" style="background: #ffffff; border-radius: 12px; padding: 20px; color: #1a252c; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 6px solid #0d47a1; border: 1px solid #e0e0e0;">
-        <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; margin-bottom: 12px;"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h5>
-        <div class="d-flex justify-content-between align-items-center">
-            <span style="font-size: 14px; color: #555;">Fecha: {fecha_reporte}</span>
-            <span style="font-size: 14px; font-weight: bold; color: #333;">{("Total a Pagar" if monto_final >= 0 else "Saldo a favor / Solicitar")}</span>
-            <span style="font-size: 18px; font-weight: bold; color: {('#2e7d32' if monto_final < 0 else '#e91e63')};">Bs. {monto_final:,.2f}</span>
-        </div>
-    </div>
-    '''
-
-    detalle_original = rep['detalle_html'] or ""
-    import re
-    match_tabla = re.search(r'(<div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px;.*?<\/div>\s*<\/div>)', detalle_original, re.DOTALL)
-    tabla_sistemas_html = match_tabla.group(1) if match_tabla else detalle_original
-
-    detalle_actualizado = tabla_sistemas_html + bloque_cashea_modal + bloque_tripletas + bloque_adelantos + bloque_pendientes
-
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-    cursor.execute("UPDATE reportes SET monto = ?, detalle_html = ? WHERE id = ?", (monto_final, detalle_actualizado, rep['id']))
-    conn.commit()
-    conn.close()
-
 @app.get("/", response_class=HTMLResponse)
 @app.get("/login", response_class=HTMLResponse)
 def get_login(request: Request):
@@ -288,18 +162,10 @@ def crear_agencia(agencia: str = Form(...), clave: str = Form(...)):
 @app.post("/admin/cambiar-estado-pago")
 def cambiar_estado_pago(pago_id: int = Form(...), nuevo_estado: str = Form(...)):
     conn = sqlite3.connect("database.db")
-    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = ?", (pago_id,))
-    pago = cursor.fetchone()
-    
     cursor.execute("UPDATE pagos SET estado = ? WHERE id = ?", (nuevo_estado, pago_id))
     conn.commit()
     conn.close()
-
-    if pago:
-        recalcular_y_actualizar_reporte(pago['agencia'], pago['fecha'])
-
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/agencia", response_class=HTMLResponse)
@@ -348,8 +214,6 @@ async def reportar_pago(
     ''', (agencia_norm, fecha, monto_val, factura, ruta_archivo))
     conn.commit()
     conn.close()
-
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&exito=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/solicitar-saldo")
@@ -370,8 +234,6 @@ def solicitar_saldo(
     ''', (agencia_norm, fecha, monto_val, observacion))
     conn.commit()
     conn.close()
-
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&solicitud=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/solicitar-adelanto")
@@ -392,8 +254,6 @@ def solicitar_adelanto(
     ''', (agencia_norm, fecha, monto_val, observacion))
     conn.commit()
     conn.close()
-
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&adelanto=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/reportar-tripleta")
@@ -416,8 +276,6 @@ def reportar_tripleta(
     ''', (agencia_norm, fecha, monto_val, ticket, detalle_str))
     conn.commit()
     conn.close()
-
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tripleta=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/actualizar-reporte-sistema")
@@ -429,64 +287,6 @@ def actualizar_reporte_sistema(
     premio: str = Form(...)
 ):
     agencia_norm = normalizar(agencia)
-    venta_val = float(venta.replace(',', '')) if venta else 0.0
-    premio_val = float(premio.replace(',', '')) if premio else 0.0
-
-    # 1. Actualizar directamente en la Google Sheet de la taquilla
-    try:
-        import gspread
-        from google.auth import default
-        creds, _ = default()
-        gc = gspread.authorize(creds)
-        
-        SHEETS_TAQUILLAS = {
-            "GEGE": "1wzIJFtVe0rtSySUrwleTCZBU0wso4-lyAQ1Vbn0yJso"
-        }
-        
-        if agencia_norm in SHEETS_TAQUILLAS:
-            sh = gc.open_by_key(SHEETS_TAQUILLAS[agencia_norm])
-            hoja = sh.worksheet("Sheet1")
-            celda = hoja.find(sistema)
-            if celda:
-                fila = celda.row
-                hoja.update_cell(fila, 4, venta_val)  # Venta
-                hoja.update_cell(fila, 6, premio_val) # Premio
-    except Exception as e:
-        print(f"Error actualizando Google Sheet: {e}")
-
-    # 2. Actualizar visualmente en el HTML local de la app
-    conn = sqlite3.connect("database.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM reportes WHERE agencia = ? AND fecha = ?", (agencia_norm, fecha))
-    rep = cursor.fetchone()
-
-    if rep:
-        detalle_html = rep['detalle_html'] or ""
-        import re
-        comision_val = venta_val * 0.14
-        total_sistema = venta_val - comision_val - premio_val
-
-        patron_fila = re.compile(rf'(<tr>\s*<td[^>]*>\s*(?:<b>)?{sistema}(?:<\/b>)?<\/td>.*?<\/tr>)', re.IGNORECASE | re.DOTALL)
-        
-        nueva_fila = f'''
-        <tr style="border-bottom: 1px solid #e0e0e0; font-size: 12px; color: #1a252c;">
-          <td style="padding: 8px; text-align: left; font-weight: bold;">{sistema}</td>
-          <td style="padding: 8px; text-align: right; color: #333;">{venta_val:,.2f}</td>
-          <td style="padding: 8px; text-align: right; color: #333;">{comision_val:,.2f}</td>
-          <td style="padding: 8px; text-align: right; color: #333;">{premio_val:,.2f}</td>
-          <td style="padding: 8px; text-align: right; font-weight: bold; color: #0d47a1;">{total_sistema:,.2f}</td>
-        </tr>
-        '''
-
-        if patron_fila.search(detalle_html):
-            detalle_html = patron_fila.sub(nueva_fila, detalle_html)
-        
-        cursor.execute("UPDATE reportes SET detalle_html = ? WHERE id = ?", (detalle_html, rep['id']))
-        conn.commit()
-
-    conn.close()
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&modificado=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/api/guardar-reporte-colab")
@@ -520,7 +320,5 @@ def guardar_reporte_colab(
         
     conn.commit()
     conn.close()
-
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
 
     return {"status": "ok", "mensaje": f"Reporte sincronizado para {agencia_norm}"}
