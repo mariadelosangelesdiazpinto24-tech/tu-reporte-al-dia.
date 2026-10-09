@@ -16,7 +16,7 @@
 
     <div class="container my-4">
 
-        <!-- Fila Superior: Cargar Comprobante o Solicitar Saldo (Negativo/Pago del Admin) -->
+        <!-- Fila Superior: Cargar Comprobante o Solicitar Saldo -->
         <div class="row">
             <div class="col-md-6 mb-4">
                 <div class="card shadow-sm h-100">
@@ -79,24 +79,33 @@
             </div>
         </div>
 
-        <!-- Pestañas -->
+        <!-- Pestañas Originales Restauradas -->
         <ul class="nav nav-tabs mb-3" id="taquillaTabs" role="tablist">
             <li class="nav-item">
-                <button class="nav-link active fw-bold" id="reportes-tab" data-bs-toggle="tab" data-bs-target="#reportes" type="button"><i class="fas fa-receipt"></i> Mis Reportes (Colab)</button>
+                <button class="nav-link active fw-bold" id="reportes-tab" data-bs-toggle="tab" data-bs-target="#reportes" type="button"><i class="fas fa-receipt"></i> Mis Reportes</button>
             </li>
             <li class="nav-item">
                 <button class="nav-link fw-bold" id="pagos-tab" data-bs-toggle="tab" data-bs-target="#pagos" type="button"><i class="fas fa-wallet"></i> Mis Pagos y Solicitudes</button>
             </li>
+            <li class="nav-item">
+                <button class="nav-link fw-bold" id="modificaciones-tab" data-bs-toggle="tab" data-bs-target="#modificaciones" type="button"><i class="fas fa-edit"></i> Modificaciones</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link fw-bold" id="adelantos-tab" data-bs-toggle="tab" data-bs-target="#adelantos" type="button"><i class="fas fa-hand-holding-usd"></i> Adelantos</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link fw-bold" id="tripletas-tab" data-bs-toggle="tab" data-bs-target="#tripletas" type="button"><i class="fas fa-star"></i> Tripletas del Día Anterior</button>
+            </li>
         </ul>
 
-        <!-- Contenido -->
+        <!-- Contenido de las Pestañas -->
         <div class="tab-content" id="taquillaTabsContent">
             
-            <!-- 1. Mis Reportes (Informativos del Colab) -->
+            <!-- 1. Mis Reportes -->
             <div class="tab-pane fade show active" id="reportes" role="tabpanel">
                 <div class="card shadow-sm">
                     <div class="card-body">
-                        <h5 class="card-title mb-3"><i class="fas fa-chart-line text-primary"></i> Reportes Diarios Automatizados</h5>
+                        <h5 class="card-title mb-3"><i class="fas fa-chart-line text-primary"></i> Historial de Reportes</h5>
                         {% if reportes %}
                         <div class="table-responsive">
                             <table class="table table-striped align-middle">
@@ -116,12 +125,12 @@
                                         <td class="fw-bold text-primary">Bs. {{ "%.2f"|format(r.monto|float) }}</td>
                                         <td class="text-center">
                                             <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalDetalle{{ r.id }}">
-                                                <i class="fas fa-eye"></i> Ver Detalle de Sistemas
+                                                <i class="fas fa-eye"></i> Ver Detalle
                                             </button>
                                         </td>
                                     </tr>
 
-                                    <!-- Modal -->
+                                    <!-- Modal de Detalle Robusto -->
                                     <div class="modal fade" id="modalDetalle{{ r.id }}" tabindex="-1" aria-hidden="true">
                                         <div class="modal-dialog modal-lg modal-dialog-centered">
                                             <div class="modal-content bg-dark text-white">
@@ -131,7 +140,11 @@
                                                 </div>
                                                 <div class="modal-body">
                                                     <div class="table-responsive">
-                                                        {{ r.detalle_html | safe }}
+                                                        {% if r.detalle_html %}
+                                                            {{ r.detalle_html | safe }}
+                                                        {% else %}
+                                                            <p class="text-center text-warning my-3">Cargando o actualizando detalle de sistemas...</p>
+                                                        {% endif %}
                                                     </div>
                                                 </div>
                                                 <div class="modal-footer border-secondary">
@@ -145,7 +158,7 @@
                             </table>
                         </div>
                         {% else %}
-                        <p class="text-center text-muted my-3">No hay reportes automatizados todavía.</p>
+                        <p class="text-center text-muted my-3">No hay reportes registrados todavía.</p>
                         {% endif %}
                     </div>
                 </div>
@@ -155,7 +168,7 @@
             <div class="tab-pane fade" id="pagos" role="tabpanel">
                 <div class="card shadow-sm">
                     <div class="card-body">
-                        <h5 class="card-title mb-3"><i class="fas fa-money-check-alt text-success"></i> Historial de Pagos y Solicitudes</h5>
+                        <h5 class="card-title mb-3"><i class="fas fa-money-check-alt text-success"></i> Mis Pagos y Solicitudes</h5>
                         {% if pagos %}
                         <div class="table-responsive">
                             <table class="table table-striped align-middle">
@@ -194,6 +207,11 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Otras pestañas funcionales -->
+            <div class="tab-pane fade" id="modificaciones" role="tabpanel"><div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">No hay modificaciones registradas.</p></div></div></div>
+            <div class="tab-pane fade" id="adelantos" role="tabpanel"><div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">No hay adelantos registrados.</p></div></div></div>
+            <div class="tab-pane fade" id="tripletas" role="tabpanel"><div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">Tripletas del día anterior próximamente.</p></div></div></div>
 
         </div>
 
