@@ -22,6 +22,19 @@ def normalizar(texto: str) -> str:
     texto = ''.join(c for c in texto if unicodedata.category(c) != 'Mn')
     return texto.strip().upper()
 
+# Función para formatear montos sin comas de miles y con punto decimal fijo
+def formatear_monto(valor):
+    try:
+        # Reemplazar comas por nada por si el usuario las escribe, y convertir a float
+        if isinstance(valor, str):
+            valor = valor.replace(',', '')
+        return f"{float(valor):.2f}"
+    except (ValueError, TypeError):
+        return "0.00"
+
+# Registrar el filtro personalizado en Jinja2 para usarlo en el HTML si se desea
+templates.env.filters["dinero"] = formatear_monto
+
 def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
@@ -58,7 +71,6 @@ def init_db():
             )
         ''')
     else:
-        # Asegurar columnas necesarias si la tabla ya existía
         try:
             cursor.execute("ALTER TABLE reportes ADD COLUMN ventas REAL DEFAULT 0")
         except sqlite3.OperationalError:
@@ -177,13 +189,19 @@ def get_agencia(request: Request, nombre: str = ""):
 async def reportar_pago(
     agencia: str = Form(...),
     fecha: str = Form(...),
-    monto: float = Form(...),
-    ventas: float = Form(0.0),
-    premios: float = Form(0.0),
+    monto: str = Form(...),
+    ventas: str = Form("0"),
+    premios: str = Form("0"),
     factura: str = Form(...),
     comprobante: UploadFile = File(...)
 ):
     agencia_norm = normalizar(agencia)
+    
+    # Limpiar montos de comas de miles si las tuviera antes de guardar
+    monto_val = float(monto.replace(',', '')) if monto else 0.0
+    ventas_val = float(ventas.replace(',', '')) if ventas else 0.0
+    premios_val = float(premios.replace(',', '')) if premios else 0.0
+
     ruta_archivo = f"uploads/{agencia_norm}_{factura}_{comprobante.filename}"
     
     with open(ruta_archivo, "wb") as buffer:
@@ -194,28 +212,31 @@ async def reportar_pago(
     cursor.execute('''
         INSERT INTO reportes (agencia, fecha, monto, ventas, premios, factura, comprobante, estado)
         VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDIENTE')
-    ''', (agencia_norm, fecha, monto, ventas, premios, factura, ruta_archivo))
+    ''', (agencia_norm, fecha, monto_val, ventas_val, premios_val, factura, ruta_archivo))
     conn.commit()
     conn.close()
 
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&exito=1", status_code=status.HTTP_303_SEE_OTHER)
 
-# Nueva ruta para que la taquilla edite ventas/premios con alerta al admin
 @app.post("/agencia/editar-reporte")
 def editar_reporte(
     reporte_id: int = Form(...),
     agencia: str = Form(...),
-    ventas: float = Form(...),
-    premios: float = Form(...)
+    ventas: str = Form(...),
+    premios: str = Form(...)
 ):
     agencia_norm = normalizar(agencia)
+    
+    ventas_val = float(ventas.replace(',', '')) if ventas else 0.0
+    premios_val = float(premios.replace(',', '')) if premios else 0.0
+
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute('''
         UPDATE reportes 
         SET ventas = ?, premios = ?, estado = 'MODIFICADO - REVISAR'
         WHERE id = ? AND agencia = ?
-    ''', (ventas, premios, reporte_id, agencia_norm))
+    ''', (ventas_val, premios_val, reporte_id, agencia_norm))
     conn.commit()
     conn.close()
 
