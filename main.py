@@ -129,8 +129,8 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
                 <td style="text-align: right; color: #81c784; font-weight: bold;">Bs. {monto_p:,.2f}</td>
             </tr>
             '''
-        elif p['tipo'] == 'PENDIENTE_POR_COBRAR':
-            total_pendientes += monto_p  # Si es positivo suma (deben), si es negativo resta (pagaron de más / saldo a favor)
+        elif p['tipo'] == 'PENDIENTE_POR_COBRAR' or p['tipo'] == 'SOLICITUD_SALDO':
+            total_pendientes += monto_p
             pendientes_rows_html += f'''
             <tr style="font-size: 11px;">
                 <td>{p['fecha']}</td>
@@ -140,44 +140,40 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             '''
 
     monto_base = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
-    
-    # FÓRMULA EXACTA: Reporte - Tripletas + Adelantos + Pendientes
     monto_final = monto_base - total_tripletas + total_adelantos + total_pendientes
 
-    # Bloques HTML para el modal
+    # Bloques HTML limpios con 0 por defecto si no hay registros
     bloque_tripletas = f'''
     <div class="mb-3">
         <h6 class="text-warning border-bottom border-secondary pb-2 mb-2"><i class="fas fa-star"></i> TRIPLETAS REGISTRADAS</h6>
         <table class="table table-dark table-sm table-bordered align-middle text-nowrap" style="font-size: 11px; width: 100%;">
             <tr style="background-color: #003366; color: white;"><th>FECHA TICKET</th><th>DETALLE</th><th style="text-align: right;">MONTO</th></tr>
-            {tripletas_rows_html if tripletas_rows_html else '<tr><td colspan="3" class="text-center text-muted">No hay tripletas</td></tr>'}
+            {tripletas_rows_html if tripletas_rows_html else '<tr><td colspan="3" class="text-center text-muted">Ninguna</td></tr>'}
         </table>
     </div>
-    ''' if tripletas_rows_html else ""
+    '''
 
     bloque_adelantos = f'''
     <div class="mb-3">
         <h6 class="text-success border-bottom border-secondary pb-2 mb-2"><i class="fas fa-hand-holding-usd"></i> ADELANTOS SOLICITADOS</h6>
         <table class="table table-dark table-sm table-bordered align-middle text-nowrap" style="font-size: 11px; width: 100%;">
             <tr style="background-color: #1b5e20; color: white;"><th>FECHA</th><th>MOTIVO</th><th style="text-align: right;">MONTO</th></tr>
-            {adelantos_rows_html}
+            {adelantos_rows_html if adelantos_rows_html else '<tr><td colspan="3" class="text-center text-muted">Adelanto: 0</td></tr>'}
         </table>
     </div>
-    ''' if adelantos_rows_html else ""
+    '''
 
     bloque_pendientes = f'''
     <div class="mb-3">
-        <h6 class="text-info border-bottom border-secondary pb-2 mb-2"><i class="fas fa-clock"></i> PENDIENTES / AJUSTES</h6>
+        <h6 class="text-info border-bottom border-secondary pb-2 mb-2"><i class="fas fa-clock"></i> PENDIENTES / SALDO A FAVOR</h6>
         <table class="table table-dark table-sm table-bordered align-middle text-nowrap" style="font-size: 11px; width: 100%;">
             <tr style="background-color: #0d47a1; color: white;"><th>FECHA</th><th>DETALLE</th><th style="text-align: right;">MONTO</th></tr>
-            {pendientes_rows_html}
+            {pendientes_rows_html if pendientes_rows_html else '<tr><td colspan="3" class="text-center text-muted">Pendiente: 0</td></tr>'}
         </table>
     </div>
-    ''' if pendientes_rows_html else ""
+    '''
 
     detalle_original = rep['detalle_html'] or ""
-    
-    # Limpiar secciones anteriores si existían y anexar las actualizadas
     import re
     detalle_limpio = re.sub(r'<div class="mb-3">\s*<h6 class="text-(warning|success|info).*?<\/div>', '', detalle_original, flags=re.DOTALL)
     detalle_actualizado = detalle_limpio + bloque_tripletas + bloque_adelantos + bloque_pendientes
@@ -324,6 +320,7 @@ async def reportar_pago(
     conn.commit()
     conn.close()
 
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&exito=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/solicitar-saldo")
@@ -340,11 +337,12 @@ def solicitar_saldo(
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-        VALUES (?, ?, ?, ?, ?, 'SOLICITUD_SALDO', 'EN ESPERA')
-    ''', (agencia_norm, fecha, monto_val, observacion))
+        VALUES (?, ?, ?, ?, ?, 'SOLICITUD_SALDO', 'APROBADO')
+    ''', (agencia_norm, fecha, monto_val, observacion, "SALDO A FAVOR"))
     conn.commit()
     conn.close()
 
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&solicitud=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/solicitar-adelanto")
@@ -362,16 +360,11 @@ def solicitar_adelanto(
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
         VALUES (?, ?, ?, ?, ?, 'ADELANTO', 'APROBADO')
-    ''', (agencia_norm, fecha, monto_val, observacion))
+    ''', (agencia_norm, fecha, monto_val, observacion, "ADELANTO"))
     conn.commit()
     conn.close()
 
-    cursor = sqlite3.connect("database.db").cursor()
-    cursor.execute("SELECT fecha FROM reportes WHERE agencia = ? ORDER BY id DESC LIMIT 1", (agencia_norm,))
-    ult_rep = cursor.fetchone()
-    if ult_rep:
-        recalcular_y_actualizar_reporte(agencia_norm, ult_rep[0])
-
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&adelanto=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/reportar-pendiente")
@@ -389,16 +382,11 @@ def reportar_pendiente(
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
         VALUES (?, ?, ?, ?, ?, 'PENDIENTE_POR_COBRAR', 'APROBADO')
-    ''', (agencia_norm, fecha, monto_val, observacion))
+    ''', (agencia_norm, fecha, monto_val, observacion, "PENDIENTE"))
     conn.commit()
     conn.close()
 
-    cursor = sqlite3.connect("database.db").cursor()
-    cursor.execute("SELECT fecha FROM reportes WHERE agencia = ? ORDER BY id DESC LIMIT 1", (agencia_norm,))
-    ult_rep = cursor.fetchone()
-    if ult_rep:
-        recalcular_y_actualizar_reporte(agencia_norm, ult_rep[0])
-
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&pendiente=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/reportar-tripleta")
@@ -422,12 +410,7 @@ def reportar_tripleta(
     conn.commit()
     conn.close()
 
-    cursor = sqlite3.connect("database.db").cursor()
-    cursor.execute("SELECT fecha FROM reportes WHERE agencia = ? ORDER BY id DESC LIMIT 1", (agencia_norm,))
-    ult_rep = cursor.fetchone()
-    if ult_rep:
-        recalcular_y_actualizar_reporte(agencia_norm, ult_rep[0])
-
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tripleta=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/api/guardar-reporte-colab")
