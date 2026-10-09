@@ -36,16 +36,18 @@ def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
-    # Tabla usuarios
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            agencia TEXT UNIQUE,
-            clave TEXT
-        )
-    ''')
+    cursor.execute("PRAGMA table_info(usuarios)")
+    columnas_u = [col[1] for col in cursor.fetchall()]
+    if not columnas_u or 'agencia' not in columnas_u:
+        cursor.execute("DROP TABLE IF EXISTS usuarios")
+        cursor.execute('''
+            CREATE TABLE usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agencia TEXT UNIQUE,
+                clave TEXT
+            )
+        ''')
     
-    # Tabla reportes (Enviados por el Colab - Informativos / Auditoría)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,7 +60,6 @@ def init_db():
         )
     ''')
 
-    # Tabla pagos (Enviados por las taquillas o solicitudes al Admin)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS pagos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
