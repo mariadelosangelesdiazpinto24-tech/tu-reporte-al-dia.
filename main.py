@@ -90,7 +90,6 @@ def aplicar_formula_y_actualizar(agencia: str, fecha: str):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # 1. Obtener el reporte base de esa agencia y fecha
     cursor.execute("SELECT * FROM reportes WHERE agencia = ? AND fecha = ?", (agencia, fecha))
     rep = cursor.fetchone()
     
@@ -98,8 +97,8 @@ def aplicar_formula_y_actualizar(agencia: str, fecha: str):
         conn.close()
         return
 
-    # 2. Sumar transacciones de la tabla pagos para esa fecha y agencia
-    cursor.execute("SELECT tipo, SUM(monto) as total FROM pagos WHERE agencia = ? AND fecha = ? GROUP BY tipo", (agencia, fecha))
+    # Sumar solo movimientos aprobados o automáticos (como tripletas y pendientes directos)
+    cursor.execute("SELECT tipo, SUM(monto) as total FROM pagos WHERE agencia = ? AND fecha = ? AND estado = 'APROBADO' GROUP BY tipo", (agencia, fecha))
     movimientos = {row['tipo']: row['total'] for row in cursor.fetchall()}
     conn.close()
 
@@ -107,15 +106,11 @@ def aplicar_formula_y_actualizar(agencia: str, fecha: str):
     total_adelantos = movimientos.get('ADELANTO', 0.0)
     total_pendientes = movimientos.get('PENDIENTE_POR_COBRAR', 0.0)
     
-    # Supongamos que el reporte base (ventas netas o total sistemas) es rep['ventas'] o rep['monto'] original
-    # Fórmula: Reporte - Tripletas - Cashea + Adelantos + Pendientes
-    # Como Cashea ya suele venir descontado o en los pagos, aplicamos la estructura:
     monto_base = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
     
-    # Aplicar fórmula exacta
+    # Fórmula: Reporte - Tripletas + Adelantos + Pendientes
     monto_final = monto_base - total_tripletas + total_adelantos + total_pendientes
 
-    # Actualizar en la base de datos el monto recalculado
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE reportes SET monto = ? WHERE id = ?", (monto_final, rep['id']))
@@ -258,7 +253,6 @@ async def reportar_pago(
     conn.commit()
     conn.close()
 
-    aplicar_formula_y_actualizar(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&exito=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/solicitar-saldo")
@@ -280,7 +274,6 @@ def solicitar_saldo(
     conn.commit()
     conn.close()
 
-    aplicar_formula_y_actualizar(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&solicitud=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/solicitar-adelanto")
@@ -302,7 +295,6 @@ def solicitar_adelanto(
     conn.commit()
     conn.close()
 
-    aplicar_formula_y_actualizar(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&adelanto=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/reportar-pendiente")
@@ -317,9 +309,10 @@ def reportar_pendiente(
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
+    # Entra AUTOMÁTICAMENTE APROBADO para que afecte la cuenta de inmediato
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-        VALUES (?, ?, ?, ?, ?, 'PENDIENTE_POR_COBRAR', 'EN ESPERA')
+        VALUES (?, ?, ?, ?, 'Automático', 'PENDIENTE_POR_COBRAR', 'APROBADO')
     ''', (agencia_norm, fecha, monto_val, observacion))
     conn.commit()
     conn.close()
@@ -341,10 +334,11 @@ def reportar_tripleta(
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
+    # Entra AUTOMÁTICAMENTE APROBADO para que entre directo a la cuenta
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-        VALUES (?, ?, ?, ?, ?, 'TRIPLETA', 'EN ESPERA')
-    ''', (agencia_norm, fecha, monto_val, detalle_str, 'N/A'))
+        VALUES (?, ?, ?, ?, 'Automático', 'TRIPLETA', 'APROBADO')
+    ''', (agencia_norm, fecha, monto_val, detalle_str))
     conn.commit()
     conn.close()
 
@@ -393,7 +387,6 @@ def guardar_reporte_colab(
     conn.commit()
     conn.close()
 
-    # Aplicar la fórmula inmediatamente
     aplicar_formula_y_actualizar(agencia_norm, fecha)
 
     return {"status": "ok", "mensaje": f"Reporte sincronizado para {agencia_norm}"}
