@@ -134,7 +134,7 @@
                             </table>
                         </div>
 
-                        <!-- MODALES FUERA DE LA TABLA (SECCIONADOS) -->
+                        <!-- MODALES FUERA DE LA TABLA -->
                         {% for r in reportes %}
                         <div class="modal fade" id="modalDetalle{{ r.id }}" tabindex="-1" aria-hidden="true">
                             <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -169,46 +169,7 @@
 
             <!-- 2. Mis Pagos y Solicitudes -->
             <div class="tab-pane fade" id="pagos" role="tabpanel">
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title mb-3"><i class="fas fa-money-check-alt text-success"></i> Mis Pagos y Solicitudes</h5>
-                        {% if pagos %}
-                        <div class="table-responsive">
-                            <table class="table table-striped align-middle">
-                                <thead>
-                                    <tr>
-                                        <th>Fecha</th>
-                                        <th>Tipo</th>
-                                        <th>Referencia / Detalle</th>
-                                        <th>Monto (Bs.)</th>
-                                        <th>Estado</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for p in pagos %}
-                                    <tr>
-                                        <td>{{ p.fecha }}</td>
-                                        <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
-                                        <td>{{ p.factura }}</td>
-                                        <td>Bs. {{ "%.2f"|format(p.monto|float) }}</td>
-                                        <td>
-                                            <span class="badge 
-                                                {% if p.estado == 'APROBADO' %}bg-success
-                                                {% elif p.estado == 'EN ESPERA' %}bg-warning text-dark
-                                                {% else %}bg-danger{% endif %}">
-                                                {{ p.estado }}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                        {% else %}
-                        <p class="text-center text-muted my-3">No hay pagos o solicitudes registradas.</p>
-                        {% endif %}
-                    </div>
-                </div>
+                <div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">No hay pagos o solicitudes registradas.</p></div></div>
             </div>
 
             <!-- 3. Modificaciones -->
@@ -221,26 +182,26 @@
                 <div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">No hay adelantos registrados.</p></div></div>
             </div>
 
-            <!-- 5. Tripletas del Día Anterior (Con Formulario para Cargar Ticket y Monto) -->
+            <!-- 5. Tripletas del Día Anterior (Formulario con Ticket de Texto) -->
             <div class="tab-pane fade" id="tripletas" role="tabpanel">
                 <div class="card shadow-sm">
                     <div class="card-header bg-dark text-white">
                         <h5 class="mb-0"><i class="fas fa-star text-warning"></i> Cargar Tripleta del Día Anterior</h5>
                     </div>
                     <div class="card-body">
-                        <form action="/reportar-tripleta" method="POST" enctype="multipart/form-data" class="row g-3">
+                        <form action="/reportar-tripleta" method="POST" class="row g-3">
                             <input type="hidden" name="agencia" value="{{ agencia }}">
-                            <div class="col-md-6">
-                                <label class="form-label">Fecha del Reporte</label>
+                            <div class="col-md-4">
+                                <label class="form-label">Fecha</label>
                                 <input type="date" class="form-control" name="fecha" required>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-4">
+                                <label class="form-label">N° de Ticket</label>
+                                <input type="text" class="form-control" name="ticket" placeholder="Ej: T-99382" required>
+                            </div>
+                            <div class="col-md-4">
                                 <label class="form-label">Monto (Bs.)</label>
                                 <input type="text" class="form-control" name="monto" placeholder="Ej: 5000.00" required>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Pegar / Subir Ticket de Tripleta</label>
-                                <input type="file" class="form-control" name="comprobante" accept="image/*" required>
                             </div>
                             <div class="col-12 text-end">
                                 <button type="submit" class="btn btn-warning btn-sm px-4 fw-bold text-dark"><i class="fas fa-paper-plane"></i> Enviar Tripleta</button>
