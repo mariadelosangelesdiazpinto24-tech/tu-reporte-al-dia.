@@ -9,7 +9,6 @@
 </head>
 <body class="bg-light">
 
-    <!-- Navbar Superior -->
     <nav class="navbar navbar-dark bg-dark px-4">
         <span class="navbar-brand mb-0 h1"><i class="fas fa-cash-register"></i> Taquilla: {{ agencia }}</span>
         <a href="/login" class="btn btn-outline-light btn-sm"><i class="fas fa-sign-out-alt"></i> Salir</a>
@@ -17,76 +16,95 @@
 
     <div class="container my-4">
 
-        <!-- Formulario para Cargar Comprobante de Pago -->
-        <div class="card shadow-sm mb-4">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0"><i class="fas fa-file-invoice-dollar"></i> Cargar Comprobante / Reporte de Pago</h5>
+        <!-- Fila Superior: Cargar Comprobante o Solicitar Saldo (Negativo/Pago del Admin) -->
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-file-invoice-dollar"></i> Cargar Pago Realizado a Admin</h5>
+                    </div>
+                    <div class="card-body">
+                        <form action="/reportar" method="POST" enctype="multipart/form-data" class="row g-3">
+                            <input type="hidden" name="agencia" value="{{ agencia }}">
+                            <div class="col-md-6">
+                                <label class="form-label">Fecha</label>
+                                <input type="date" class="form-control" name="fecha" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">N° Referencia</label>
+                                <input type="text" class="form-control" name="factura" placeholder="Ej: 88492" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Monto (Bs.)</label>
+                                <input type="text" class="form-control" name="monto" placeholder="Ej: 64000.00" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Comprobante</label>
+                                <input type="file" class="form-control" name="comprobante" accept="image/*" required>
+                            </div>
+                            <div class="col-12 text-end">
+                                <button type="submit" class="btn btn-success btn-sm px-4"><i class="fas fa-paper-plane"></i> Enviar Pago</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <form action="/reportar" method="POST" enctype="multipart/form-data" class="row g-3">
-                    <input type="hidden" name="agencia" value="{{ agencia }}">
-                    
-                    <div class="col-md-4">
-                        <label class="form-label">Fecha de Pago</label>
-                        <input type="date" class="form-control" name="fecha" required>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">N° Factura / Referencia</label>
-                        <input type="text" class="form-control" name="factura" placeholder="Ej: 88492" required>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Monto Total (Bs.)</label>
-                        <input type="text" class="form-control" name="monto" placeholder="Ej: 64000.00" required>
-                    </div>
 
-                    <div class="col-md-12">
-                        <label class="form-label">Foto del Comprobante</label>
-                        <input type="file" class="form-control" name="comprobante" accept="image/*" required>
+            <div class="col-md-6 mb-4">
+                <div class="card shadow-sm h-100 border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0"><i class="fas fa-hand-holding-usd"></i> Solicitar Saldo / Notificar si Admin Debe Pagar</h5>
                     </div>
-
-                    <div class="col-12 text-end">
-                        <button type="submit" class="btn btn-success px-4"><i class="fas fa-paper-plane"></i> Enviar Reporte de Pago</button>
+                    <div class="card-body">
+                        <form action="/solicitar-saldo" method="POST" class="row g-3">
+                            <input type="hidden" name="agencia" value="{{ agencia }}">
+                            <div class="col-md-6">
+                                <label class="form-label">Fecha</label>
+                                <input type="date" class="form-control" name="fecha" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Monto a Favor (Bs.)</label>
+                                <input type="text" class="form-control" name="monto" placeholder="Ej: 15000.00" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Observación / Detalle</label>
+                                <input type="text" class="form-control" name="observacion" placeholder="Ej: Saldo a favor por premios o saldo negativo" required>
+                            </div>
+                            <div class="col-12 text-end">
+                                <button type="submit" class="btn btn-warning btn-sm px-4 text-dark fw-bold"><i class="fasbell"></i> Notificar a Admin</button>
+                            </div>
+                        </form>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
 
-        <!-- Sistema de Pestañas -->
+        <!-- Pestañas -->
         <ul class="nav nav-tabs mb-3" id="taquillaTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link active fw-bold" id="reportes-tab" data-bs-toggle="tab" data-bs-target="#reportes" type="button" role="tab"><i class="fas fa-receipt"></i> Mis Reportes</button>
+            <li class="nav-item">
+                <button class="nav-link active fw-bold" id="reportes-tab" data-bs-toggle="tab" data-bs-target="#reportes" type="button"><i class="fas fa-receipt"></i> Mis Reportes (Colab)</button>
             </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link fw-bold" id="pagos-tab" data-bs-toggle="tab" data-bs-target="#pagos" type="button" role="tab"><i class="fas fa-wallet"></i> Mis Pagos</button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link fw-bold" id="modificaciones-tab" data-bs-toggle="tab" data-bs-target="#modificaciones" type="button" role="tab"><i class="fas fa-edit"></i> Modificaciones</button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link fw-bold" id="adelantos-tab" data-bs-toggle="tab" data-bs-target="#adelantos" type="button" role="tab"><i class="fas fa-hand-holding-usd"></i> Adelantos</button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link fw-bold" id="tripletas-tab" data-bs-toggle="tab" data-bs-target="#tripletas" type="button" role="tab"><i class="fas fa-star"></i> Tripletas del Día Anterior</button>
+            <li class="nav-item">
+                <button class="nav-link fw-bold" id="pagos-tab" data-bs-toggle="tab" data-bs-target="#pagos" type="button"><i class="fas fa-wallet"></i> Mis Pagos y Solicitudes</button>
             </li>
         </ul>
 
-        <!-- Contenido de las Pestañas -->
+        <!-- Contenido -->
         <div class="tab-content" id="taquillaTabsContent">
             
-            <!-- 1. Mis Reportes -->
+            <!-- 1. Mis Reportes (Informativos del Colab) -->
             <div class="tab-pane fade show active" id="reportes" role="tabpanel">
                 <div class="card shadow-sm">
                     <div class="card-body">
-                        <h5 class="card-title mb-3"><i class="fas fa-list text-primary"></i> Historial de Reportes</h5>
+                        <h5 class="card-title mb-3"><i class="fas fa-chart-line text-primary"></i> Reportes Diarios Automatizados</h5>
                         {% if reportes %}
                         <div class="table-responsive">
                             <table class="table table-striped align-middle">
                                 <thead>
                                     <tr>
                                         <th>Fecha</th>
-                                        <th>Factura</th>
-                                        <th>Monto (Bs.)</th>
-                                        <th>Estado</th>
+                                        <th>Ventas (Bs.)</th>
+                                        <th>Monto Neto (Bs.)</th>
                                         <th class="text-center">Acciones</th>
                                     </tr>
                                 </thead>
@@ -94,26 +112,16 @@
                                     {% for r in reportes %}
                                     <tr>
                                         <td>{{ r.fecha }}</td>
-                                        <td>{{ r.factura or 'Sin factura' }}</td>
-                                        <td>Bs. {{ "%.2f"|format(r.monto|float) }}</td>
-                                        <td>
-                                            <span class="badge 
-                                                {% if r.estado == 'PAGADO' %}bg-success
-                                                {% elif r.estado == 'EN ESPERA' %}bg-warning text-dark
-                                                {% elif r.estado == 'RECHAZADO' %}bg-danger
-                                                {% else %}bg-secondary{% endif %}">
-                                                {{ r.estado }}
-                                            </span>
-                                        </td>
+                                        <td>Bs. {{ "%.2f"|format(r.ventas|float) }}</td>
+                                        <td class="fw-bold text-primary">Bs. {{ "%.2f"|format(r.monto|float) }}</td>
                                         <td class="text-center">
-                                            <!-- Botón para ver el detalle detallado (Tabla igual al correo) -->
                                             <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalDetalle{{ r.id }}">
-                                                <i class="fas fa-eye"></i> Ver Detalle
+                                                <i class="fas fa-eye"></i> Ver Detalle de Sistemas
                                             </button>
                                         </td>
                                     </tr>
 
-                                    <!-- Modal de Detalle Desglosado Estilo Correo -->
+                                    <!-- Modal -->
                                     <div class="modal fade" id="modalDetalle{{ r.id }}" tabindex="-1" aria-hidden="true">
                                         <div class="modal-dialog modal-lg modal-dialog-centered">
                                             <div class="modal-content bg-dark text-white">
@@ -122,15 +130,11 @@
                                                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                                                 </div>
                                                 <div class="modal-body">
-                                                    {% if r.detalle_html %}
                                                     <div class="table-responsive">
                                                         <table class="table table-dark table-sm table-bordered align-middle" style="font-size: 11px;">
                                                             {{ r.detalle_html | safe }}
                                                         </table>
                                                     </div>
-                                                    {% else %}
-                                                    <p class="text-center text-muted my-3">Detalle no disponible para este reporte manual.</p>
-                                                    {% endif %}
                                                 </div>
                                                 <div class="modal-footer border-secondary">
                                                     <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
@@ -143,17 +147,55 @@
                             </table>
                         </div>
                         {% else %}
-                        <p class="text-center text-muted my-3">No hay reportes registrados todavía.</p>
+                        <p class="text-center text-muted my-3">No hay reportes automatizados todavía.</p>
                         {% endif %}
                     </div>
                 </div>
             </div>
 
-            <!-- Otras pestañas vacías pero funcionales -->
-            <div class="tab-pane fade" id="pagos" role="tabpanel"><div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">No hay pagos registrados.</p></div></div></div>
-            <div class="tab-pane fade" id="modificaciones" role="tabpanel"><div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">No hay modificaciones.</p></div></div></div>
-            <div class="tab-pane fade" id="adelantos" role="tabpanel"><div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">No hay adelantos registrados.</p></div></div></div>
-            <div class="tab-pane fade" id="tripletas" role="tabpanel"><div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">Información de tripletas próximamente.</p></div></div></div>
+            <!-- 2. Mis Pagos y Solicitudes -->
+            <div class="tab-pane fade" id="pagos" role="tabpanel">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3"><i class="fas fa-money-check-alt text-success"></i> Historial de Pagos y Solicitudes</h5>
+                        {% if pagos %}
+                        <div class="table-responsive">
+                            <table class="table table-striped align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Tipo</th>
+                                        <th>Referencia / Detalle</th>
+                                        <th>Monto (Bs.)</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for p in pagos %}
+                                    <tr>
+                                        <td>{{ p.fecha }}</td>
+                                        <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
+                                        <td>{{ p.factura }}</td>
+                                        <td>Bs. {{ "%.2f"|format(p.monto|float) }}</td>
+                                        <td>
+                                            <span class="badge 
+                                                {% if p.estado == 'APROBADO' %}bg-success
+                                                {% elif p.estado == 'EN ESPERA' %}bg-warning text-dark
+                                                {% else %}bg-danger{% endif %}">
+                                                {{ p.estado }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="text-center text-muted my-3">No hay pagos o solicitudes registradas.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
 
         </div>
 
