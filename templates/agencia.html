@@ -113,7 +113,7 @@
                                     <tr>
                                         <th>Fecha</th>
                                         <th>Ventas (Bs.)</th>
-                                        <th>Total a Pagar (Bs.)</th> <!-- Cambiado aquí -->
+                                        <th>Total a Pagar (Bs.)</th>
                                         <th class="text-center">Acciones</th>
                                     </tr>
                                 </thead>
@@ -129,34 +129,37 @@
                                             </button>
                                         </td>
                                     </tr>
-
-                                    <!-- Modal de Detalle -->
-                                    <div class="modal fade" id="modalDetalle{{ r.id }}" tabindex="-1" aria-hidden="true">
-                                        <div class="modal-dialog modal-lg modal-dialog-centered">
-                                            <div class="modal-content bg-dark text-white">
-                                                <div class="modal-header border-secondary">
-                                                    <h5 class="modal-title"><i class="fas fa-file-invoice"></i> Detalle Completo - {{ r.fecha }}</h5>
-                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                </div>
-                                                <div class="modal-body">
-                                                    <div class="table-responsive">
-                                                        {% if r.detalle_html %}
-                                                            {{ r.detalle_html | safe }}
-                                                        {% else %}
-                                                            <p class="text-center text-warning my-3">Detalle no disponible o pendiente de sincronizar.</p>
-                                                        {% endif %}
-                                                    </div>
-                                                </div>
-                                                <div class="modal-footer border-secondary">
-                                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
                                     {% endfor %}
                                 </tbody>
                             </table>
                         </div>
+
+                        <!-- MODALES COLOCADOS CORRECTAMENTE FUERA DE LA TABLA -->
+                        {% for r in reportes %}
+                        <div class="modal fade" id="modalDetalle{{ r.id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-lg modal-dialog-centered">
+                                <div class="modal-content bg-dark text-white">
+                                    <div class="modal-header border-secondary">
+                                        <h5 class="modal-title"><i class="fas fa-file-invoice"></i> Detalle Completo - {{ r.fecha }}</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="table-responsive">
+                                            {% if r.detalle_html %}
+                                                {{ r.detalle_html | safe }}
+                                            {% else %}
+                                                <p class="text-center text-warning my-3">Detalle no disponible o pendiente de sincronizar.</p>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer border-secondary">
+                                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+
                         {% else %}
                         <p class="text-center text-muted my-3">No hay reportes registrados todavía.</p>
                         {% endif %}
