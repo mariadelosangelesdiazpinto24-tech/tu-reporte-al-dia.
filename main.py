@@ -62,6 +62,7 @@ def init_db():
                 monto REAL,
                 ventas REAL DEFAULT 0,
                 premios REAL DEFAULT 0,
+                detalle_html TEXT,
                 factura TEXT,
                 comprobante TEXT,
                 estado TEXT DEFAULT 'PENDIENTE'
@@ -74,6 +75,10 @@ def init_db():
             pass
         try:
             cursor.execute("ALTER TABLE reportes ADD COLUMN premios REAL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE reportes ADD COLUMN detalle_html TEXT")
         except sqlite3.OperationalError:
             pass
         try:
@@ -215,15 +220,16 @@ def guardar_reporte_colab(
     fecha: str = Form(...),
     monto: float = Form(...),
     ventas: float = Form(0.0),
-    premios: float = Form(0.0)
+    premios: float = Form(0.0),
+    detalle_html: str = Form("")
 ):
     agencia_norm = normalizar(agencia)
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO reportes (agencia, fecha, monto, ventas, premios, estado)
-        VALUES (?, ?, ?, ?, ?, 'PENDIENTE')
-    ''', (agencia_norm, fecha, monto, ventas, premios))
+        INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html, estado)
+        VALUES (?, ?, ?, ?, ?, ?, 'PENDIENTE')
+    ''', (agencia_norm, fecha, monto, ventas, premios, detalle_html))
     conn.commit()
     conn.close()
     return {"status": "ok", "mensaje": f"Reporte sincronizado para {agencia_norm}"}
