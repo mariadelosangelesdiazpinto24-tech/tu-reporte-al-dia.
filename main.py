@@ -145,7 +145,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     monto_base = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
     monto_final = monto_base - total_pagos_taquilla + total_tripletas + total_adelantos - total_cashea
 
-    # Bloques interactivos auxiliares
     bloque_tripletas = f'''
     <div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ffb300;">
         <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #ffb300; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-star" style="color: #ffb300;"></i> TRIPLETAS (Premios pagados por taquilla)</h5>
@@ -174,21 +173,20 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     </div>
     '''
 
-    # CUADRO AZUL OSCURO CON LETRAS BLANCAS PARA MÁXIMA VISIBILIDAD
     bloque_pendientes = f'''
-    <div class="mb-2" style="background: #0d47a1; border-radius: 12px; padding: 20px; color: #ffffff; box-shadow: 0 4px 15px rgba(0,0,0,0.15); border: 2px solid #ffb300;">
-        <h5 style="color: #ffb300; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 10px; margin-bottom: 12px;"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h5>
+    <div class="mb-2" style="background: #ffffff; border-radius: 12px; padding: 20px; color: #1a252c; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 6px solid #0d47a1; border: 1px solid #e0e0e0;">
+        <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; margin-bottom: 12px;"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h5>
         <div class="d-flex justify-content-between align-items-center">
-            <span style="font-size: 14px; color: #e3f2fd;">Fecha: {fecha_reporte}</span>
-            <span style="font-size: 14px; font-weight: bold; color: #ffffff;">{("Pendiente por pagar" if monto_final >= 0 else "Saldo a favor / Pagado de más")}</span>
-            <span style="font-size: 20px; font-weight: bold; color: #ffca28;">Bs. {monto_final:,.2f}</span>
+            <span style="font-size: 14px; color: #555;">Fecha: {fecha_reporte}</span>
+            <span style="font-size: 14px; font-weight: bold; color: #333;">{("Pendiente por pagar" if monto_final >= 0 else "Saldo a favor / Pagado de más")}</span>
+            <span style="font-size: 18px; font-weight: bold; color: {('#2e7d32' if monto_final < 0 else '#e91e63')};">Bs. {monto_final:,.2f}</span>
         </div>
     </div>
     '''
 
     detalle_original = rep['detalle_html'] or ""
     import re
-    detalle_limpio = re.split(r'(<div class="mb-4".*?TRIPLETAS.*?<\/div>\s*<\/div>|<div class="mb-2".*?ESTADO DE CUENTA FINAL.*?<\/div>\s*<\/div>)', detalle_original, flags=re.DOTALL)[0]
+    detalle_limpio = re.split(r'(<div class="mb-4".*?TRIPLETAS.*?<\/div>\s*<\/div>)', detalle_original, flags=re.DOTALL)[0]
     
     if not detalle_limpio.strip():
         detalle_limpio = detalle_original
@@ -233,7 +231,7 @@ def post_login(
         response.set_cookie(key="user", value=usuario_norm)
         return response
 
-    return templates.TemplateResponse(request=request, name="login.html", context={"error": "Usuario or clave incorrectos"})
+    return templates.TemplateResponse(request=request, name="login.html", context={"error": "Usuario o clave incorrectos"})
 
 @app.get("/agencia", response_class=HTMLResponse)
 def get_agencia(request: Request, nombre: str = ""):
@@ -278,4 +276,125 @@ async def reportar_pago(
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
         VALUES (?, ?, ?, ?, ?, 'PAGO_TAQUILLA', 'EN ESPERA')
-    ''', (agencia_norm, fecha,
+    ''', (agencia_norm, fecha, monto_val, factura, ruta_archivo))
+    conn.commit()
+    conn.close()
+
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&exito=1", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/solicitar-saldo")
+def solicitar_saldo(
+    agencia: str = Form(...),
+    fecha: str = Form(...),
+    monto: str = Form(...),
+    observacion: str = Form(...)
+):
+    agencia_norm = normalizar(agencia)
+    monto_val = float(monto.replace(',', '')) if monto else 0.0
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+        VALUES (?, ?, ?, ?, 'SALDO_FAVOR', 'SOLICITUD_SALDO', 'APROBADO')
+    ''', (agencia_norm, fecha, monto_val, observacion))
+    conn.commit()
+    conn.close()
+
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&solicitud=1", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/solicitar-adelanto")
+def solicitar_adelanto(
+    agencia: str = Form(...),
+    fecha: str = Form(...),
+    monto: str = Form(...),
+    observacion: str = Form(...)
+):
+    agencia_norm = normalizar(agencia)
+    monto_val = float(monto.replace(',', '')) if monto else 0.0
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+        VALUES (?, ?, ?, ?, 'ADELANTO_EFECTIVO', 'ADELANTO', 'APROBADO')
+    ''', (agencia_norm, fecha, monto_val, observacion))
+    conn.commit()
+    conn.close()
+
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&adelanto=1", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/reportar-tripleta")
+def reportar_tripleta(
+    agencia: str = Form(...),
+    fecha: str = Form(...),
+    sistema: str = Form(...),
+    ticket: str = Form(...),
+    monto: str = Form(...)
+):
+    agencia_norm = normalizar(agencia)
+    monto_val = float(monto.replace(',', '')) if monto else 0.0
+    detalle_str = f"Sistema: {sistema} | Ticket: {ticket}"
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+        VALUES (?, ?, ?, ?, ?, 'TRIPLETA', 'APROBADO')
+    ''', (agencia_norm, fecha, monto_val, ticket, detalle_str))
+    conn.commit()
+    conn.close()
+
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tripleta=1", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/actualizar-reporte-sistema")
+def actualizar_reporte_sistema(
+    agencia: str = Form(...),
+    fecha: str = Form(...),
+    sistema: str = Form(...),
+    venta: str = Form(...),
+    premio: str = Form(...)
+):
+    agencia_norm = normalizar(agencia)
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&modificado=1", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/api/guardar-reporte-colab")
+def guardar_reporte_colab(
+    agencia: str = Form(...),
+    fecha: str = Form(...),
+    monto: float = Form(...),
+    ventas: float = Form(0.0),
+    premios: float = Form(0.0),
+    detalle_html: Optional[str] = Form("")
+):
+    agencia_norm = normalizar(agencia)
+    
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT id FROM reportes WHERE agencia = ? AND fecha = ?", (agencia_norm, fecha))
+    existente = cursor.fetchone()
+    
+    if existente:
+        cursor.execute('''
+            UPDATE reportes 
+            SET monto = ?, ventas = ?, premios = ?, detalle_html = ?
+            WHERE agencia = ? AND fecha = ?
+        ''', (monto, ventas, premios, detalle_html, agencia_norm, fecha))
+    else:
+        cursor.execute('''
+            INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (agencia_norm, fecha, monto, ventas, premios, detalle_html))
+        
+    conn.commit()
+    conn.close()
+
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
+
+    return {"status": "ok", "mensaje": f"Reporte sincronizado para {agencia_norm}"}
