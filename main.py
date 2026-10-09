@@ -67,7 +67,7 @@ def init_db():
             monto REAL,
             factura TEXT,
             comprobante TEXT,
-            tipo TEXT DEFAULT 'PAGO_TAQUILLA', -- PAGO_TAQUILLA o SOLICITUD_SALDO
+            tipo TEXT DEFAULT 'PAGO_TAQUILLA',
             estado TEXT DEFAULT 'EN ESPERA'
         )
     ''')
@@ -159,11 +159,9 @@ def get_agencia(request: Request, nombre: str = ""):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # Reportes del Colab (informativos)
     cursor.execute("SELECT * FROM reportes WHERE agencia = ? ORDER BY id DESC", (nombre_norm,))
     mis_reportes = [dict(row) for row in cursor.fetchall()]
     
-    # Pagos y gestiones de dinero
     cursor.execute("SELECT * FROM pagos WHERE agencia = ? ORDER BY id DESC", (nombre_norm,))
     mis_pagos = [dict(row) for row in cursor.fetchall()]
 
@@ -232,6 +230,23 @@ def guardar_reporte_colab(
     detalle_html: Optional[str] = Form("")
 ):
     agencia_norm = normalizar(agencia)
+    
+    if not detalle_html or len(detalle_html.strip()) < 5:
+        detalle_html = f'''
+        <table class="table table-dark table-sm table-bordered align-middle" style="font-size: 11px; width: 100%;">
+            <tr style="background-color: #003366; color: white; font-weight: bold;">
+                <th>CONCEPTO</th>
+                <th style="text-align: right;">VALOR (Bs.)</th>
+            </tr>
+            <tr><td>Ventas Totales</td><td style="text-align: right;">{ventas:.2f}</td></tr>
+            <tr><td>Premios Pagados</td><td style="text-align: right;">{premios:.2f}</td></tr>
+            <tr style="background-color: #003366; color: white; font-weight: bold;">
+                <td>TOTAL A PAGAR</td>
+                <td style="text-align: right;">{monto:.2f}</td>
+            </tr>
+        </table>
+        '''
+
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
