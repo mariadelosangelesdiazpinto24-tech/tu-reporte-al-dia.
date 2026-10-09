@@ -13,7 +13,6 @@
             --brand-gold: #ffb300;
             --brand-pink: #e91e63;
             --brand-green: #2e7d32;
-            --bg-sky: #e1f5fe;
         }
         body { background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); min-height: 100vh; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .navbar { background: linear-gradient(90deg, var(--brand-dark-blue), var(--brand-blue)) !important; border-bottom: 4px solid var(--brand-gold); box-shadow: 0 4px 15px rgba(0,0,0,0.25); }
@@ -35,7 +34,6 @@
 
     <div class="container my-4">
 
-        <!-- Obtener el saldo y fecha del último reporte -->
         {% set ultimo_monto = 0.0 %}
         {% set ultima_fecha = '' %}
         {% if reportes %}
@@ -43,7 +41,7 @@
             {% set ultima_fecha = reportes[0].fecha %}
         {% endif %}
 
-        <!-- Fila Superior Dinámica con Colores Vivos -->
+        <!-- Fila Superior -->
         <div class="row">
             {% if ultimo_monto >= 0 %}
             <div class="col-md-12 mb-4">
@@ -126,7 +124,7 @@
                 <button class="nav-link" id="adelantos-tab" data-bs-toggle="tab" data-bs-target="#adelantos" type="button"><i class="fas fa-hand-holding-usd text-warning"></i> Adelantos</button>
             </li>
             <li class="nav-item">
-                <button class="nav-link" id="cashea-tab" data-bs-toggle="tab" data-bs-target="#cashea" type="button"><i class="fas fa-shopping-cart" style="color: var(--brand-pink);"></i> Cashea (Respaldo)</button>
+                <button class="nav-link" id="cashea-tab" data-bs-toggle="tab" data-bs-target="#cashea" type="button"><i class="fas fa-shopping-cart" style="color: var(--brand-pink);"></i> Cashea</button>
             </li>
             <li class="nav-item">
                 <button class="nav-link" id="modificaciones-tab" data-bs-toggle="tab" data-bs-target="#modificaciones" type="button"><i class="fas fa-edit text-info"></i> Modificaciones</button>
@@ -195,7 +193,7 @@
                                         <h5 class="modal-title fw-bold"><i class="fas fa-file-invoice-dollar" style="color: var(--brand-gold);"></i> Reporte Detallado - {{ r.fecha }}</h5>
                                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                                     </div>
-                                    <div class="modal-body p-4 text-dark">
+                                    <div class="modal-body p-4 text-dark" style="background-color: #f8f9fa;">
                                         {{ r.detalle_html | safe }}
                                     </div>
                                     <div class="modal-footer bg-light border-top">
@@ -281,59 +279,89 @@
                 </div>
             </div>
 
-            <!-- 4. Cashea (Respaldo / Detalle manual adicional) -->
+            <!-- 4. Cashea (Solo visualización limpia sincronizada automáticamente) -->
             <div class="tab-pane fade" id="cashea" role="tabpanel">
-                <div class="card shadow-sm">
+                <div class="card shadow-sm mb-4">
                     <div class="card-header text-white py-3" style="background: var(--brand-pink);">
-                        <h5 class="mb-0"><i class="fas fa-shopping-cart"></i> Control Detallado Cashea (Respaldo)</h5>
+                        <h5 class="mb-0"><i class="fas fa-shopping-cart"></i> Registros de Cashea (Sincronizados Automáticamente)</h5>
                     </div>
                     <div class="card-body p-4">
-                        <p class="text-muted small">Nota: Los Cashea se descargan y sincronizan automáticamente con el reporte de Colab. Este espacio sirve como respaldo o registro detallado manual de facturas específicas si lo requieres.</p>
-                        <form action="/registrar-cashea" method="POST" class="row g-3">
-                            <input type="hidden" name="agencia" value="{{ agencia }}">
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold">Fecha</label>
-                                <input type="date" class="form-control" name="fecha" value="{{ ultima_fecha }}" required>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold">N° de Factura / Ticket</label>
-                                <input type="text" class="form-control" name="factura" placeholder="Ej: C1840" required>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold">Monto (Bs.)</label>
-                                <input type="text" class="form-control" name="monto" placeholder="Ej: 8747.32" required>
-                            </div>
-                            <div class="col-12 text-end mt-4">
-                                <button type="submit" class="btn btn-danger rounded-pill px-4 shadow fw-bold"><i class="fas fa-save"></i> Registrar Respaldo Cashea</button>
-                            </div>
-                        </form>
+                        <p class="text-muted small">Los registros de Cashea se descargan y actualizan automáticamente con el reporte general de Colab.</p>
+                        
+                        {% if casheas %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead style="background-color: var(--brand-pink); color: white;">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Factura / Ticket</th>
+                                        <th class="text-end">Monto (Bs.)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for c in casheas %}
+                                    <tr>
+                                        <td class="fw-bold">{{ c.fecha }}</td>
+                                        <td>{{ c.factura }}</td>
+                                        <td class="text-end fw-bold" style="color: var(--brand-pink);">Bs. {{ "%.2f"|format(c.monto|float) }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="text-muted text-center my-4">No hay registros de Cashea en este reporte.</p>
+                        {% endif %}
                     </div>
                 </div>
             </div>
 
-            <!-- 5. Modificaciones (Actualizar ventas/premios si sellaron después) -->
+            <!-- 5. Modificaciones (Por Sistema con barra desplegable) -->
             <div class="tab-pane fade" id="modificaciones" role="tabpanel">
                 <div class="card shadow-sm border-info">
                     <div class="card-header text-white py-3" style="background: var(--brand-blue);">
-                        <h5 class="mb-0"><i class="fas fa-edit"></i> Actualizar Venta y Premio por Sellado Posterior</h5>
+                        <h5 class="mb-0"><i class="fas fa-edit"></i> Actualizar Sistema por Sellado Posterior</h5>
                     </div>
                     <div class="card-body p-4">
-                        <form action="/actualizar-reporte" method="POST" class="row g-3">
+                        <form action="/actualizar-reporte-sistema" method="POST" class="row g-3">
                             <input type="hidden" name="agencia" value="{{ agencia }}">
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold">Fecha a Modificar</label>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Fecha</label>
                                 <input type="date" class="form-control" name="fecha" value="{{ ultima_fecha }}" required>
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold">Nuevas Ventas Totales (Bs.)</label>
-                                <input type="text" class="form-control" name="ventas" placeholder="Ej: 251990.00" required>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Sistema</label>
+                                <select class="form-select" name="sistema" required>
+                                    <option value="" selected disabled>Seleccione...</option>
+                                    <option value="LA IMAGINARIA">LA IMAGINARIA</option>
+                                    <option value="BETSOL">BETSOL</option>
+                                    <option value="GATO">GATO</option>
+                                    <option value="LOTIPOS">LOTIPOS</option>
+                                    <option value="LOTTIPLAY">LOTTIPLAY</option>
+                                    <option value="LOTTOLUCKY">LOTTOLUCKY</option>
+                                    <option value="MAXPLAY">MAXPLAY</option>
+                                    <option value="SRQ">SRQ</option>
+                                    <option value="POSNET">POSNET</option>
+                                    <option value="POZO">POZO</option>
+                                    <option value="PREMIER">PREMIER</option>
+                                    <option value="SRQ POLLA">SRQ POLLA</option>
+                                    <option value="WINBIG VENTAS">WINBIG VENTAS</option>
+                                    <option value="WINBIG BINGO">WINBIG BINGO</option>
+                                    <option value="WINBIG POLLAS">WINBIG POLLAS</option>
+                                    <option value="VENTA ACTIVA">VENTA ACTIVA</option>
+                                    <option value="PARLEY">PARLEY</option>
+                                </select>
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold">Nuevos Premios Totales (Bs.)</label>
-                                <input type="text" class="form-control" name="premios" placeholder="Ej: 345194.00" required>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Venta (Bs.)</label>
+                                <input type="text" class="form-control" name="venta" placeholder="Ej: 207730.00" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Premio (Bs.)</label>
+                                <input type="text" class="form-control" name="premio" placeholder="Ej: 315000.00" required>
                             </div>
                             <div class="col-12 text-end mt-4">
-                                <button type="submit" class="btn btn-primary rounded-pill px-4 shadow fw-bold" style="background-color: var(--brand-blue);"><i class="fas fa-sync-alt"></i> Actualizar y Recalcular</button>
+                                <button type="submit" class="btn btn-primary rounded-pill px-4 shadow fw-bold" style="background-color: var(--brand-blue);"><i class="fas fa-sync-alt"></i> Actualizar Sistema y Recalcular</button>
                             </div>
                         </form>
                     </div>
@@ -347,13 +375,13 @@
                         <h5 class="mb-0"><i class="fas fa-clock" style="color: var(--brand-gold);"></i> Estado de Cuenta Pendiente</h5>
                     </div>
                     <div class="card-body p-4">
-                        <div class="alert text-center py-4 shadow-sm" style="background-color: var(--brand-dark-blue); color: #ffffff; border: 2px solid var(--brand-gold);">
-                            <h4 class="alert-heading fw-bold" style="color: var(--brand-gold);">Fecha del Reporte: {{ ultima_fecha }}</h4>
-                            <hr style="background-color: rgba(255,255,255,0.2);">
+                        <div class="alert text-center py-4 shadow-sm" style="background-color: #ffffff; color: #1a252c; border: 2px solid var(--brand-dark-blue);">
+                            <h4 class="alert-heading fw-bold" style="color: var(--brand-dark-blue);">Fecha del Reporte: {{ ultima_fecha }}</h4>
+                            <hr style="background-color: #e0e0e0;">
                             <h3 class="{% if ultimo_monto >= 0 %}badge-negative text-white px-3 py-2 rounded d-inline-block{% else %}badge-positive text-white px-3 py-2 rounded d-inline-block{% endif %} fw-bold mb-3 fs-3">
                                 Saldo Actual: Bs. {{ "%.2f"|format(ultimo_monto) }}
                             </h3>
-                            <p class="mb-0 text-light fs-6">Este monto muestra exactamente lo que falta por cubrir hasta registrar tu próximo pago o abono.</p>
+                            <p class="mb-0 text-secondary fs-6">Este monto muestra exactamente lo que falta por cubrir hasta registrar tu próximo pago o abono.</p>
                         </div>
                     </div>
                 </div>
