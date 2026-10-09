@@ -85,31 +85,88 @@ def init_db():
 
 init_db()
 
-def aplicar_formula_y_actualizar(agencia: str, fecha: str):
+def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     conn = sqlite3.connect("database.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    cursor.execute("SELECT * FROM reportes WHERE agencia = ? AND fecha = ?", (agencia, fecha))
+    cursor.execute("SELECT * FROM reportes WHERE agencia = ? AND fecha = ?", (agencia, fecha_reporte))
     rep = cursor.fetchone()
     
     if not rep:
         conn.close()
         return
 
-    # Sumar solo movimientos aprobados o automáticos (como tripletas y pendientes directos)
-    cursor.execute("SELECT tipo, SUM(monto) as total FROM pagos WHERE agencia = ? AND fecha = ? AND estado = 'APROBADO' GROUP BY tipo", (agencia, fecha))
-    movimientos = {row['tipo']: row['total'] for row in cursor.fetchall()}
+    # Buscar todas las tripletas aprobadas de esta agencia (independiente de la fecha del ticket, entran al reporte actual o se pueden asociar)
+    # O bien las registradas para esta fecha o sin filtrar estrictamente fecha si se cargan hoy para el reporte activo:
+    cursor.execute("SELECT * FROM pagos WHERE agencia = ? AND estado = 'APROBADO'", (agencia,))
+    todos_pagos = cursor.fetchall()
     conn.close()
 
-    total_tripletas = movimientos.get('TRIPLETA', 0.0)
-    total_adelantos = movimientos.get('ADELANTO', 0.0)
-    total_pendientes = movimientos.get('PENDIENTE_POR_COBRAR', 0.0)
+    total_tripletas = 0.0
+    total_adelantos = 0.0
+    total_pendientes = 0.0
     
+    tripletas_html_rows = ""
+    adelantos_html_rows = ""
+    pendientes_html_rows = ""
+
+    for p in todos_pagos:
+        monto_p = p['monto'] or 0.0
+        if p['tipo'] == 'TRIPLETA':
+            total_tripletas += monto_p
+            tripletas_html_rows += f"<tr><td>{p['fecha']}</td><td>{p['factura']}</td><td style='text-align: right;'>Bs. {monto_p:,.2f}</td></tr>"
+        elif p['tipo'] == 'ADELANTO':
+            total_adelantos += monto_p
+            adelantos_html_rows += f"<tr><td>{p['fecha']}</td><td>{p['comprobante']}</td><td style='text-align: right;'>Bs. {monto_p:,.2f}</td></tr>"
+        elif p['tipo'] == 'PENDIENTE_POR_COBRAR':
+            total_pendientes += monto_p
+            pendientes_html_rows += f"<tr><td>{p['fecha']}</td><td>{p['comprobante']}</td><td style='text-align: right;'>Bs. {monto_p:,.2f}</td></tr>"
+
     monto_base = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
     
-    # Fórmula: Reporte - Tripletas + Adelantos + Pendientes
+    # FÓRMULA EXACTA: Reporte - Tripletas + Adelantos + Pendientes
     monto_final = monto_base - total_tripletas + total_adelantos + total_pendientes
+
+    # Construir bloques HTML dinámicos para el modal
+    detalle_actual = rep['detalle_html'] or ""
+    
+    # Inyectar sección de Tripletas en el HTML si existen
+    seccion_tripletas = ""
+    if tripletas_html_rows:
+        seccion_tripletas = f'''
+        <div class="mb-3">
+            <h6 class="text-warning border-bottom border-secondary pb-2 mb-2"><i class="fas fa-star"></i> TRIPLETAS REGISTRADAS</h6>
+            <table class="table table-dark table-sm table-bordered align-middle text-nowrap" style="font-size: 11px; width: 100%;">
+                <tr style="background-color: #003366; color: white;"><th>FECHA TICKET</th><th>DETALLE / TICKET</th><th style="text-align: right;">MONTO</th></tr>
+                {tripletas_html_rows}
+            </table>
+        </div>
+        '''
+
+    seccion_adelantos = ""
+    if adelantos_html_rows:
+        seccion_adelantos = f'''
+        <div class="mb-3">
+            <h6 class="text-success border-bottom border-secondary pb-2 mb-2"><i class="fas fa-hand-holding-usd"></i> ADELANTOS</h6>
+            <table class="table table-dark table-sm table-bordered align-middle text-nowrap" style="font-size: 11px; width: 100%;">
+                <tr style="background-color: #1b5e20; color: white;"><th>FECHA</th><th>MOTIVO</th><th style="text-align: right;">MONTO</th></tr>
+                {adelantos_html_rows}
+            </table>
+        </div>
+        '''
+
+    seccion_pendientes = ""
+    if pendientes_html_rows:
+        seccion_pendientes = f'''
+        <div class="mb-3">
+            <h6 class="text-info border-bottom border-secondary pb-2 mb-2"><i class="fas fa-clock"></i> PENDIENTES / POR COBRAR</h6>
+            <table class="table table-dark table-sm table-bordered align-middle text-nowrap" style="font-size: 11px; width: 100%;">
+                <tr style="background-color: #0d47a1; color: white;"><th>FECHA</th><th>DETALLE</th><th style="text-align: right;">MONTO</th></tr>
+                {pendientes_html_rows}
+            </table>
+        </div>
+        '''
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
@@ -204,7 +261,7 @@ def cambiar_estado_pago(pago_id: int = Form(...), nuevo_estado: str = Form(...))
     conn.close()
 
     if pago:
-        aplicar_formula_y_actualizar(pago['agencia'], pago['fecha'])
+        recalcular_y_actualizar_reporte(pago['agencia'], pago['fecha'])
 
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -290,10 +347,17 @@ def solicitar_adelanto(
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-        VALUES (?, ?, ?, ?, ?, 'ADELANTO', 'EN ESPERA')
+        VALUES (?, ?, ?, ?, ?, 'ADELANTO', 'APROBADO')
     ''', (agencia_norm, fecha, monto_val, observacion))
     conn.commit()
     conn.close()
+
+    # Recalcular reporte del día activo
+    cursor = sqlite3.connect("database.db").cursor()
+    cursor.execute("SELECT fecha FROM reportes WHERE agencia = ? ORDER BY id DESC LIMIT 1", (agencia_norm,))
+    ult_rep = cursor.fetchone()
+    if ult_rep:
+        recalcular_y_actualizar_reporte(agencia_norm, ult_rep[0])
 
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&adelanto=1", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -309,15 +373,19 @@ def reportar_pendiente(
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    # Entra AUTOMÁTICAMENTE APROBADO para que afecte la cuenta de inmediato
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-        VALUES (?, ?, ?, ?, 'Automático', 'PENDIENTE_POR_COBRAR', 'APROBADO')
+        VALUES (?, ?, ?, ?, ?, 'PENDIENTE_POR_COBRAR', 'APROBADO')
     ''', (agencia_norm, fecha, monto_val, observacion))
     conn.commit()
     conn.close()
 
-    aplicar_formula_y_actualizar(agencia_norm, fecha)
+    cursor = sqlite3.connect("database.db").cursor()
+    cursor.execute("SELECT fecha FROM reportes WHERE agencia = ? ORDER BY id DESC LIMIT 1", (agencia_norm,))
+    ult_rep = cursor.fetchone()
+    if ult_rep:
+        recalcular_y_actualizar_reporte(agencia_norm, ult_rep[0])
+
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&pendiente=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/reportar-tripleta")
@@ -334,7 +402,6 @@ def reportar_tripleta(
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    # Entra AUTOMÁTICAMENTE APROBADO para que entre directo a la cuenta
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
         VALUES (?, ?, ?, ?, 'Automático', 'TRIPLETA', 'APROBADO')
@@ -342,7 +409,13 @@ def reportar_tripleta(
     conn.commit()
     conn.close()
 
-    aplicar_formula_y_actualizar(agencia_norm, fecha)
+    # Recalcular el reporte más reciente de la agencia para que reste la tripleta al instante
+    cursor = sqlite3.connect("database.db").cursor()
+    cursor.execute("SELECT fecha FROM reportes WHERE agencia = ? ORDER BY id DESC LIMIT 1", (agencia_norm,))
+    ult_rep = cursor.fetchone()
+    if ult_rep:
+        recalcular_y_actualizar_reporte(agencia_norm, ult_rep[0])
+
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tripleta=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/api/guardar-reporte-colab")
@@ -387,6 +460,6 @@ def guardar_reporte_colab(
     conn.commit()
     conn.close()
 
-    aplicar_formula_y_actualizar(agencia_norm, fecha)
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
 
     return {"status": "ok", "mensaje": f"Reporte sincronizado para {agencia_norm}"}
