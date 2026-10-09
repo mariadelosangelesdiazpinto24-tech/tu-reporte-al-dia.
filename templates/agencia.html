@@ -79,7 +79,7 @@
             </div>
         </div>
 
-        <!-- Pestañas Originales Restauradas -->
+        <!-- Pestañas -->
         <ul class="nav nav-tabs mb-3" id="taquillaTabs" role="tablist">
             <li class="nav-item">
                 <button class="nav-link active fw-bold" id="reportes-tab" data-bs-toggle="tab" data-bs-target="#reportes" type="button"><i class="fas fa-receipt"></i> Mis Reportes</button>
@@ -113,7 +113,7 @@
                                     <tr>
                                         <th>Fecha</th>
                                         <th>Ventas (Bs.)</th>
-                                        <th>Monto Neto (Bs.)</th>
+                                        <th>Total a Pagar (Bs.)</th> <!-- Cambiado aquí -->
                                         <th class="text-center">Acciones</th>
                                     </tr>
                                 </thead>
@@ -130,7 +130,7 @@
                                         </td>
                                     </tr>
 
-                                    <!-- Modal de Detalle Robusto -->
+                                    <!-- Modal de Detalle -->
                                     <div class="modal fade" id="modalDetalle{{ r.id }}" tabindex="-1" aria-hidden="true">
                                         <div class="modal-dialog modal-lg modal-dialog-centered">
                                             <div class="modal-content bg-dark text-white">
@@ -143,7 +143,7 @@
                                                         {% if r.detalle_html %}
                                                             {{ r.detalle_html | safe }}
                                                         {% else %}
-                                                            <p class="text-center text-warning my-3">Cargando o actualizando detalle de sistemas...</p>
+                                                            <p class="text-center text-warning my-3">Detalle no disponible o pendiente de sincronizar.</p>
                                                         {% endif %}
                                                     </div>
                                                 </div>
