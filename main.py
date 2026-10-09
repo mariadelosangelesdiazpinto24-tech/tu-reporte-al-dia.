@@ -36,6 +36,7 @@ def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
+    # Verificar estructura de tabla usuarios y recrearla si está incompleta
     cursor.execute("PRAGMA table_info(usuarios)")
     columnas_u = [col[1] for col in cursor.fetchall()]
     if not columnas_u or 'agencia' not in columnas_u:
@@ -228,6 +229,71 @@ def solicitar_saldo(
     conn.close()
 
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&solicitud=1", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/solicitar-adelanto")
+def solicitar_adelanto(
+    agencia: str = Form(...),
+    fecha: str = Form(...),
+    monto: str = Form(...),
+    observacion: str = Form(...)
+):
+    agencia_norm = normalizar(agencia)
+    monto_val = float(monto.replace(',', '')) if monto else 0.0
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+        VALUES (?, ?, ?, ?, 'Adelanto: ' || ?, 'ADELANTO', 'EN ESPERA')
+    ''', (agencia_norm, fecha, monto_val, observacion))
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&adelanto=1", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/reportar-pendiente")
+def reportar_pendiente(
+    agencia: str = Form(...),
+    fecha: str = Form(...),
+    monto: str = Form(...),
+    observacion: str = Form(...)
+):
+    agencia_norm = normalizar(agencia)
+    monto_val = float(monto.replace(',', '')) if monto else 0.0
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+        VALUES (?, ?, ?, ?, 'Pendiente: ' || ?, 'PENDIENTE_POR_COBRAR', 'EN ESPERA')
+    ''', (agencia_norm, fecha, monto_val, observacion))
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&pendiente=1", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/reportar-tripleta")
+def reportar_tripleta(
+    agencia: str = Form(...),
+    fecha: str = Form(...),
+    sistema: str = Form(...),
+    ticket: str = Form(...),
+    monto: str = Form(...)
+):
+    agencia_norm = normalizar(agencia)
+    monto_val = float(monto.replace(',', '')) if monto else 0.0
+    detalle_str = f"Sistema: {sistema} | Ticket: {ticket}"
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+        VALUES (?, ?, ?, ?, ?, 'TRIPLETA', 'EN ESPERA')
+    ''', (agencia_norm, fecha, monto_val, ticket, detalle_str))
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tripleta=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/api/guardar-reporte-colab")
 def guardar_reporte_colab(
