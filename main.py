@@ -136,7 +136,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">Factura: {p['factura']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #0d47a1; font-weight: bold;">Bs. {monto_p:,.2f}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #e91e63; font-weight: bold;">Bs. {monto_p:,.2f}</td>
             </tr>
             '''
         elif p['tipo'] == 'PAGO_TAQUILLA':
@@ -144,6 +144,20 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     monto_base = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
     monto_final = monto_base - total_pagos_taquilla + total_tripletas + total_adelantos - total_cashea
+
+    bloque_cashea_modal = f'''
+    <div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #e91e63;">
+        <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-shopping-cart" style="color: #e91e63;"></i> CASHEA (Total: Bs. {total_cashea:,.2f})</h5>
+        <table class="table table-sm align-middle mb-0" style="width: 100%;">
+            <tr style="background-color: #e3f2fd; color: #0d47a1; font-size: 13px;">
+                <th style="padding: 10px;">FECHA</th>
+                <th style="padding: 10px;">FACTURA</th>
+                <th style="padding: 10px; text-align: right;">MONTO</th>
+            </tr>
+            {cashea_rows_html if cashea_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Sin registros de Cashea</td></tr>'}
+        </table>
+    </div>
+    '''
 
     bloque_tripletas = f'''
     <div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ffb300;">
@@ -178,7 +192,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; margin-bottom: 12px;"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h5>
         <div class="d-flex justify-content-between align-items-center">
             <span style="font-size: 14px; color: #555;">Fecha: {fecha_reporte}</span>
-            <span style="font-size: 14px; font-weight: bold; color: #333;">{("Pendiente por pagar" if monto_final >= 0 else "Saldo a favor / Pagado de más")}</span>
+            <span style="font-size: 14px; font-weight: bold; color: #333;">{("Total a Pagar" if monto_final >= 0 else "Saldo a favor / Solicitar")}</span>
             <span style="font-size: 18px; font-weight: bold; color: {('#2e7d32' if monto_final < 0 else '#e91e63')};">Bs. {monto_final:,.2f}</span>
         </div>
     </div>
@@ -186,12 +200,10 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     detalle_original = rep['detalle_html'] or ""
     import re
-    # Limpiar bloques anteriores de control si ya existían para evitar duplicados
-    detalle_limpio = re.split(r'(<div class="mb-4".*?TRIPLETAS.*?<\/div>\s*<\/div>)', detalle_original, flags=re.DOTALL)[0]
-    if not detalle_limpio.strip():
-        detalle_limpio = detalle_original
+    match_tabla = re.search(r'(<div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px;.*?<\/div>\s*<\/div>)', detalle_original, re.DOTALL)
+    tabla_sistemas_html = match_tabla.group(1) if match_tabla else detalle_original
 
-    detalle_actualizado = detalle_limpio + bloque_tripletas + bloque_adelantos + bloque_pendientes
+    detalle_actualizado = tabla_sistemas_html + bloque_cashea_modal + bloque_tripletas + bloque_adelantos + bloque_pendientes
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
@@ -420,6 +432,29 @@ def actualizar_reporte_sistema(
     venta_val = float(venta.replace(',', '')) if venta else 0.0
     premio_val = float(premio.replace(',', '')) if premio else 0.0
 
+    # 1. Actualizar directamente en la Google Sheet de la taquilla
+    try:
+        import gspread
+        from google.auth import default
+        creds, _ = default()
+        gc = gspread.authorize(creds)
+        
+        SHEETS_TAQUILLAS = {
+            "GEGE": "1wzIJFtVe0rtSySUrwleTCZBU0wso4-lyAQ1Vbn0yJso"
+        }
+        
+        if agencia_norm in SHEETS_TAQUILLAS:
+            sh = gc.open_by_key(SHEETS_TAQUILLAS[agencia_norm])
+            hoja = sh.worksheet("Sheet1")
+            celda = hoja.find(sistema)
+            if celda:
+                fila = celda.row
+                hoja.update_cell(fila, 4, venta_val)  # Venta
+                hoja.update_cell(fila, 6, premio_val) # Premio
+    except Exception as e:
+        print(f"Error actualizando Google Sheet: {e}")
+
+    # 2. Actualizar visualmente en el HTML local de la app
     conn = sqlite3.connect("database.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -429,13 +464,10 @@ def actualizar_reporte_sistema(
     if rep:
         detalle_html = rep['detalle_html'] or ""
         import re
-        
-        # Buscar la fila del sistema en la tabla HTML y actualizar sus valores de Venta y Premio
         comision_val = venta_val * 0.14
         total_sistema = venta_val - comision_val - premio_val
 
-        # Patrón para buscar la fila del sistema en el HTML de la tabla de sistemas
-        patron_fila = re.compile(rf'(<tr>\s*<td[^>]*>\s*<b>{sistema}<\/b><\/td>.*?<\/tr>)', re.IGNORECASE | re.DOTALL)
+        patron_fila = re.compile(rf'(<tr>\s*<td[^>]*>\s*(?:<b>)?{sistema}(?:<\/b>)?<\/td>.*?<\/tr>)', re.IGNORECASE | re.DOTALL)
         
         nueva_fila = f'''
         <tr style="border-bottom: 1px solid #e0e0e0; font-size: 12px; color: #1a252c;">
