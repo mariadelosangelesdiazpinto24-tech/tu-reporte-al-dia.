@@ -117,7 +117,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             <tr style="font-size: 11px;">
                 <td>{p['fecha']}</td>
                 <td>{p['comprobante']}</td>
-                <td style="text-align: right; color: #ffca28; font-weight: bold;">Bs. {monto_p:,.2f}</td>
+                <td style="text-align: right; color: #81c784; font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
             </tr>
             '''
         elif p['tipo'] == 'ADELANTO':
@@ -126,7 +126,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             <tr style="font-size: 11px;">
                 <td>{p['fecha']}</td>
                 <td>{p['comprobante']}</td>
-                <td style="text-align: right; color: #e57373; font-weight: bold;">- Bs. {monto_p:,.2f}</td>
+                <td style="text-align: right; color: #81c784; font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
             </tr>
             '''
         elif p['tipo'] == 'PAGO_TAQUILLA':
@@ -135,20 +135,21 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             <tr style="font-size: 11px;">
                 <td>{p['fecha']}</td>
                 <td>Ref: {p['factura']}</td>
-                <td style="text-align: right; color: #81c784; font-weight: bold;">Bs. {monto_p:,.2f}</td>
+                <td style="text-align: right; color: #e57373; font-weight: bold;">- Bs. {monto_p:,.2f}</td>
             </tr>
             '''
 
     monto_base = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
     
-    # FÓRMULA: Ventas - Tripletas - Pagos - Adelantos
-    monto_final = monto_base - total_tripletas - total_pagos_taquilla - total_adelantos
+    # FÓRMULA CONTABLE EXACTA:
+    # Ventas Base - Pagos realizados por la taquilla + Tripletas pagadas por ellos + Adelantos entregados por admin
+    monto_final = monto_base - total_pagos_taquilla + total_tripletas + total_adelantos
 
     bloque_tripletas = f'''
     <div class="mb-3">
-        <h6 class="text-warning border-bottom border-secondary pb-2 mb-2"><i class="fas fa-star"></i> TRIPLETAS REGISTRADAS</h6>
+        <h6 class="text-success border-bottom border-secondary pb-2 mb-2"><i class="fas fa-star"></i> TRIPLETAS (Premios pagados por taquilla)</h6>
         <table class="table table-dark table-sm table-bordered align-middle text-nowrap" style="font-size: 11px; width: 100%;">
-            <tr style="background-color: #003366; color: white;"><th>FECHA TICKET</th><th>DETALLE</th><th style="text-align: right;">MONTO</th></tr>
+            <tr style="background-color: #1b5e20; color: white;"><th>FECHA TICKET</th><th>DETALLE</th><th style="text-align: right;">MONTO A FAVOR</th></tr>
             {tripletas_rows_html if tripletas_rows_html else '<tr><td colspan="3" class="text-center text-muted">Ninguna (0)</td></tr>'}
         </table>
     </div>
@@ -156,9 +157,9 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     bloque_adelantos = f'''
     <div class="mb-3">
-        <h6 class="text-danger border-bottom border-secondary pb-2 mb-2"><i class="fas fa-hand-holding-usd"></i> ADELANTOS (Plata entregada por Admin)</h6>
+        <h6 class="text-success border-bottom border-secondary pb-2 mb-2"><i class="fas fa-hand-holding-usd"></i> ADELANTOS (Plata entregada por Admin)</h6>
         <table class="table table-dark table-sm table-bordered align-middle text-nowrap" style="font-size: 11px; width: 100%;">
-            <tr style="background-color: #b71c1c; color: white;"><th>FECHA</th><th>MOTIVO</th><th style="text-align: right;">MONTO</th></tr>
+            <tr style="background-color: #1b5e20; color: white;"><th>FECHA</th><th>MOTIVO</th><th style="text-align: right;">MONTO</th></tr>
             {adelantos_rows_html if adelantos_rows_html else '<tr><td colspan="3" class="text-center text-muted">Adelanto: 0.00 Bs.</td></tr>'}
         </table>
     </div>
@@ -166,7 +167,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     bloque_pendientes = f'''
     <div class="mb-3">
-        <h6 class="text-info border-bottom border-secondary pb-2 mb-2"><i class="fas fa-clock"></i> PENDIENTE / CUENTA POR COBRAR O PAGAR</h6>
+        <h6 class="text-info border-bottom border-secondary pb-2 mb-2"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h6>
         <table class="table table-dark table-sm table-bordered align-middle text-nowrap" style="font-size: 11px; width: 100%;">
             <tr style="background-color: #0d47a1; color: white;"><th>ESTADO</th><th>DESCRIPCIÓN</th><th style="text-align: right;">SALDO RESTANTE</th></tr>
             <tr style="font-size: 11px;">
@@ -180,7 +181,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     detalle_original = rep['detalle_html'] or ""
     import re
-    detalle_limpio = re.sub(r'<div class="mb-3">\s*<h6 class="text-(warning|danger|info).*?<\/div>', '', detalle_original, flags=re.DOTALL)
+    detalle_limpio = re.sub(r'<div class="mb-3">\s*<h6 class="text-(warning|danger|success|info).*?<\/div>', '', detalle_original, flags=re.DOTALL)
     detalle_actualizado = detalle_limpio + bloque_tripletas + bloque_adelantos + bloque_pendientes
 
     conn = sqlite3.connect("database.db")
