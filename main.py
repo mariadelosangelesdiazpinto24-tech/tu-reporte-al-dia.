@@ -186,8 +186,8 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     detalle_original = rep['detalle_html'] or ""
     import re
+    # Limpiar bloques anteriores de control si ya existían para evitar duplicados
     detalle_limpio = re.split(r'(<div class="mb-4".*?TRIPLETAS.*?<\/div>\s*<\/div>)', detalle_original, flags=re.DOTALL)[0]
-    
     if not detalle_limpio.strip():
         detalle_limpio = detalle_original
 
@@ -232,6 +232,63 @@ def post_login(
         return response
 
     return templates.TemplateResponse(request=request, name="login.html", context={"error": "Usuario o clave incorrectos"})
+
+@app.get("/admin", response_class=HTMLResponse)
+def get_admin(request: Request):
+    try:
+        conn = sqlite3.connect("database.db")
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM reportes ORDER BY id DESC")
+        reportes = [dict(row) for row in cursor.fetchall()]
+        
+        cursor.execute("SELECT * FROM pagos ORDER BY id DESC")
+        pagos = [dict(row) for row in cursor.fetchall()]
+
+        cursor.execute("SELECT * FROM usuarios ORDER BY id DESC")
+        agencias = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+    except Exception as e:
+        reportes, pagos, agencias = [], [], []
+
+    return templates.TemplateResponse(
+        request=request, 
+        name="admin.html", 
+        context={"reportes": reportes, "pagos": pagos, "agencias": agencias}
+    )
+
+@app.post("/admin/crear-agencia")
+def crear_agencia(agencia: str = Form(...), clave: str = Form(...)):
+    agencia_norm = normalizar(agencia)
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM usuarios WHERE agencia = ?", (agencia_norm,))
+    existe = cursor.fetchone()
+    if existe:
+        cursor.execute("UPDATE usuarios SET clave = ? WHERE agencia = ?", (clave, agencia_norm))
+    else:
+        cursor.execute("INSERT INTO usuarios (agencia, clave) VALUES (?, ?)", (agencia_norm, clave))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/cambiar-estado-pago")
+def cambiar_estado_pago(pago_id: int = Form(...), nuevo_estado: str = Form(...)):
+    conn = sqlite3.connect("database.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = ?", (pago_id,))
+    pago = cursor.fetchone()
+    
+    cursor.execute("UPDATE pagos SET estado = ? WHERE id = ?", (nuevo_estado, pago_id))
+    conn.commit()
+    conn.close()
+
+    if pago:
+        recalcular_y_actualizar_reporte(pago['agencia'], pago['fecha'])
+
+    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/agencia", response_class=HTMLResponse)
 def get_agencia(request: Request, nombre: str = ""):
@@ -360,6 +417,43 @@ def actualizar_reporte_sistema(
     premio: str = Form(...)
 ):
     agencia_norm = normalizar(agencia)
+    venta_val = float(venta.replace(',', '')) if venta else 0.0
+    premio_val = float(premio.replace(',', '')) if premio else 0.0
+
+    conn = sqlite3.connect("database.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM reportes WHERE agencia = ? AND fecha = ?", (agencia_norm, fecha))
+    rep = cursor.fetchone()
+
+    if rep:
+        detalle_html = rep['detalle_html'] or ""
+        import re
+        
+        # Buscar la fila del sistema en la tabla HTML y actualizar sus valores de Venta y Premio
+        comision_val = venta_val * 0.14
+        total_sistema = venta_val - comision_val - premio_val
+
+        # Patrón para buscar la fila del sistema en el HTML de la tabla de sistemas
+        patron_fila = re.compile(rf'(<tr>\s*<td[^>]*>\s*<b>{sistema}<\/b><\/td>.*?<\/tr>)', re.IGNORECASE | re.DOTALL)
+        
+        nueva_fila = f'''
+        <tr style="border-bottom: 1px solid #e0e0e0; font-size: 12px; color: #1a252c;">
+          <td style="padding: 8px; text-align: left; font-weight: bold;">{sistema}</td>
+          <td style="padding: 8px; text-align: right; color: #333;">{venta_val:,.2f}</td>
+          <td style="padding: 8px; text-align: right; color: #333;">{comision_val:,.2f}</td>
+          <td style="padding: 8px; text-align: right; color: #333;">{premio_val:,.2f}</td>
+          <td style="padding: 8px; text-align: right; font-weight: bold; color: #0d47a1;">{total_sistema:,.2f}</td>
+        </tr>
+        '''
+
+        if patron_fila.search(detalle_html):
+            detalle_html = patron_fila.sub(nueva_fila, detalle_html)
+        
+        cursor.execute("UPDATE reportes SET detalle_html = ? WHERE id = ?", (detalle_html, rep['id']))
+        conn.commit()
+
+    conn.close()
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&modificado=1", status_code=status.HTTP_303_SEE_OTHER)
 
