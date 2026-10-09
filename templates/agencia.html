@@ -134,7 +134,7 @@
                             </table>
                         </div>
 
-                        <!-- MODALES COLOCADOS CORRECTAMENTE FUERA DE LA TABLA -->
+                        <!-- MODALES FUERA DE LA TABLA (SECCIONADOS) -->
                         {% for r in reportes %}
                         <div class="modal fade" id="modalDetalle{{ r.id }}" tabindex="-1" aria-hidden="true">
                             <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -211,10 +211,44 @@
                 </div>
             </div>
 
-            <!-- Otras pestañas funcionales -->
-            <div class="tab-pane fade" id="modificaciones" role="tabpanel"><div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">No hay modificaciones registradas.</p></div></div></div>
-            <div class="tab-pane fade" id="adelantos" role="tabpanel"><div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">No hay adelantos registrados.</p></div></div></div>
-            <div class="tab-pane fade" id="tripletas" role="tabpanel"><div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">Tripletas del día anterior próximamente.</p></div></div></div>
+            <!-- 3. Modificaciones -->
+            <div class="tab-pane fade" id="modificaciones" role="tabpanel">
+                <div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">No hay modificaciones registradas.</p></div></div>
+            </div>
+
+            <!-- 4. Adelantos -->
+            <div class="tab-pane fade" id="adelantos" role="tabpanel">
+                <div class="card shadow-sm"><div class="card-body"><p class="text-muted text-center my-3">No hay adelantos registrados.</p></div></div>
+            </div>
+
+            <!-- 5. Tripletas del Día Anterior (Con Formulario para Cargar Ticket y Monto) -->
+            <div class="tab-pane fade" id="tripletas" role="tabpanel">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0"><i class="fas fa-star text-warning"></i> Cargar Tripleta del Día Anterior</h5>
+                    </div>
+                    <div class="card-body">
+                        <form action="/reportar-tripleta" method="POST" enctype="multipart/form-data" class="row g-3">
+                            <input type="hidden" name="agencia" value="{{ agencia }}">
+                            <div class="col-md-6">
+                                <label class="form-label">Fecha del Reporte</label>
+                                <input type="date" class="form-control" name="fecha" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Monto (Bs.)</label>
+                                <input type="text" class="form-control" name="monto" placeholder="Ej: 5000.00" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Pegar / Subir Ticket de Tripleta</label>
+                                <input type="file" class="form-control" name="comprobante" accept="image/*" required>
+                            </div>
+                            <div class="col-12 text-end">
+                                <button type="submit" class="btn btn-warning btn-sm px-4 fw-bold text-dark"><i class="fas fa-paper-plane"></i> Enviar Tripleta</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
 
         </div>
 
