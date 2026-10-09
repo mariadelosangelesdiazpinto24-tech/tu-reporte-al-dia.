@@ -115,28 +115,28 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         if p['tipo'] == 'TRIPLETA':
             total_tripletas += monto_p
             tripletas_rows_html += f'''
-            <tr style="font-size: 12px; background-color: #ffffff; color: #1a252c;">
-                <td style="padding: 8px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e0e0e0;">{p['comprobante']}</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #b78103; font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
+            <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['comprobante']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #ffb300; font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
             </tr>
             '''
         elif p['tipo'] == 'ADELANTO':
             total_adelantos += monto_p
             adelantos_rows_html += f'''
-            <tr style="font-size: 12px; background-color: #ffffff; color: #1a252c;">
-                <td style="padding: 8px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e0e0e0;">{p['comprobante']}</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #b78103; font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
+            <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['comprobante']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #ffb300; font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
             </tr>
             '''
         elif p['tipo'] == 'CASHEA':
             total_cashea += monto_p
             cashea_rows_html += f'''
-            <tr style="font-size: 12px; background-color: #ffffff; color: #1a252c;">
-                <td style="padding: 8px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e0e0e0;">Factura: {p['factura']}</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #0d47a1; font-weight: bold;">Bs. {monto_p:,.2f}</td>
+            <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">Factura: {p['factura']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #0d47a1; font-weight: bold;">Bs. {monto_p:,.2f}</td>
             </tr>
             '''
         elif p['tipo'] == 'PAGO_TAQUILLA':
@@ -145,63 +145,58 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     monto_base = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
     monto_final = monto_base - total_pagos_taquilla + total_tripletas + total_adelantos - total_cashea
 
-    bloque_cashea = f'''
-    <div class="mb-4" style="background: #ffffff; border-radius: 10px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid #e91e63;">
-        <h6 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 8px; margin-bottom: 12px;"><i class="fas fa-shopping-cart" style="color: #e91e63;"></i> CASHEA (Total: Bs. {total_cashea:,.2f})</h6>
-        <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #e3f2fd; color: #0d47a1; font-size: 12px;">
-                <th style="padding: 8px;">FECHA</th>
-                <th style="padding: 8px;">FACTURA</th>
-                <th style="padding: 8px; text-align: right;">MONTO</th>
-            </tr>
-            {cashea_rows_html if cashea_rows_html else '<tr><td colspan="3" class="text-center text-muted py-2" style="font-size: 12px;">Sin registros de Cashea</td></tr>'}
-        </table>
-    </div>
-    '''
-
+    # Bloques interactivos de control local (Tripletas, Adelantos y Pendiente)
     bloque_tripletas = f'''
-    <div class="mb-4" style="background: #ffffff; border-radius: 10px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid #ffb300;">
-        <h6 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #ffb300; padding-bottom: 8px; margin-bottom: 12px;"><i class="fas fa-star" style="color: #ffb300;"></i> TRIPLETAS (Premios pagados por taquilla)</h6>
+    <div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ffb300;">
+        <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #ffb300; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-star" style="color: #ffb300;"></i> TRIPLETAS (Premios pagados por taquilla)</h5>
         <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #e3f2fd; color: #0d47a1; font-size: 12px;">
-                <th style="padding: 8px;">FECHA TICKET</th>
-                <th style="padding: 8px;">DETALLE</th>
-                <th style="padding: 8px; text-align: right;">MONTO A FAVOR</th>
+            <tr style="background-color: #e3f2fd; color: #0d47a1; font-size: 13px;">
+                <th style="padding: 10px;">FECHA TICKET</th>
+                <th style="padding: 10px;">DETALLE</th>
+                <th style="padding: 10px; text-align: right;">MONTO A FAVOR</th>
             </tr>
-            {tripletas_rows_html if tripletas_rows_html else '<tr><td colspan="3" class="text-center text-muted py-2" style="font-size: 12px;">Ninguna (0)</td></tr>'}
+            {tripletas_rows_html if tripletas_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Ninguna (0)</td></tr>'}
         </table>
     </div>
     '''
 
     bloque_adelantos = f'''
-    <div class="mb-4" style="background: #ffffff; border-radius: 10px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid #ffb300;">
-        <h6 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #ffb300; padding-bottom: 8px; margin-bottom: 12px;"><i class="fas fa-hand-holding-usd"></i> ADELANTOS (Plata entregada por Admin)</h6>
+    <div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ffb300;">
+        <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #ffb300; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-hand-holding-usd"></i> ADELANTOS (Plata entregada por Admin)</h5>
         <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #e3f2fd; color: #0d47a1; font-size: 12px;">
-                <th style="padding: 8px;">FECHA</th>
-                <th style="padding: 8px;">MOTIVO</th>
-                <th style="padding: 8px; text-align: right;">MONTO</th>
+            <tr style="background-color: #e3f2fd; color: #0d47a1; font-size: 13px;">
+                <th style="padding: 10px;">FECHA</th>
+                <th style="padding: 10px;">MOTIVO</th>
+                <th style="padding: 10px; text-align: right;">MONTO</th>
             </tr>
-            {adelantos_rows_html if adelantos_rows_html else '<tr><td colspan="3" class="text-center text-muted py-2" style="font-size: 12px;">Adelanto: 0.00 Bs.</td></tr>'}
+            {adelantos_rows_html if adelantos_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Adelanto: 0.00 Bs.</td></tr>'}
         </table>
     </div>
     '''
 
     bloque_pendientes = f'''
-    <div class="mb-2" style="background: #ffffff; border-radius: 10px; padding: 15px; color: #1a252c; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-left: 5px solid #0d47a1; border: 1px solid #e0e0e0;">
-        <h6 style="color: #0d47a1; font-weight: bold; border-bottom: 1px solid #e0e0e0; padding-bottom: 8px; margin-bottom: 10px;"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h6>
+    <div class="mb-2" style="background: #ffffff; border-radius: 12px; padding: 20px; color: #1a252c; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 6px solid #0d47a1; border: 1px solid #e0e0e0;">
+        <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; margin-bottom: 12px;"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h5>
         <div class="d-flex justify-content-between align-items-center">
-            <span style="font-size: 13px; color: #555;">Fecha: {fecha_reporte}</span>
-            <span style="font-size: 13px; font-weight: bold; color: #333;">{("Pendiente por pagar" if monto_final >= 0 else "Saldo a favor / Pagado de más")}</span>
-            <span style="font-size: 16px; font-weight: bold; color: {('#2e7d32' if monto_final < 0 else '#e91e63')};">Bs. {monto_final:,.2f}</span>
+            <span style="font-size: 14px; color: #555;">Fecha: {fecha_reporte}</span>
+            <span style="font-size: 14px; font-weight: bold; color: #333;">{("Pendiente por pagar" if monto_final >= 0 else "Saldo a favor / Pagado de más")}</span>
+            <span style="font-size: 18px; font-weight: bold; color: {('#2e7d32' if monto_final < 0 else '#e91e63')};">Bs. {monto_final:,.2f}</span>
         </div>
     </div>
     '''
 
+    # Obtener el HTML base enviado por Colab (Sistemas y Cashea originales de la Sheet)
     detalle_original = rep['detalle_html'] or ""
+    
+    # Si ya contiene los bloques auxiliares al final, limpiarlos para volver a adjuntarlos actualizados
     import re
-    detalle_limpio = re.sub(r'<div class="mb-(3|4)".*?<\/div>\s*<\/div>', '', detalle_original, flags=re.DOTALL)
-    detalle_actualizado = detalle_limpio + bloque_cashea + bloque_tripletas + bloque_adelantos + bloque_pendientes
+    detalle_limpio = re.split(r'(<div class="mb-4".*?TRIPLETAS.*?<\/div>\s*<\/div>)', detalle_original, flags=re.DOTALL)[0]
+    
+    # Si viene vacío o sin la tabla principal, conservar el original
+    if not detalle_limpio.strip():
+        detalle_limpio = detalle_original
+
+    detalle_actualizado = detalle_limpio + bloque_tripletas + bloque_adelantos + bloque_pendientes
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
@@ -242,63 +237,6 @@ def post_login(
         return response
 
     return templates.TemplateResponse(request=request, name="login.html", context={"error": "Usuario o clave incorrectos"})
-
-@app.get("/admin", response_class=HTMLResponse)
-def get_admin(request: Request):
-    conn = sqlite3.connect("database.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT * FROM reportes ORDER BY id DESC")
-    reportes = [dict(row) for row in cursor.fetchall()]
-    
-    cursor.execute("SELECT * FROM pagos ORDER BY id DESC")
-    pagos = [dict(row) for row in cursor.fetchall()]
-
-    cursor.execute("SELECT * FROM usuarios ORDER BY id DESC")
-    agencias = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-
-    return templates.TemplateResponse(
-        request=request, 
-        name="admin.html", 
-        context={"reportes": reportes, "pagos": pagos, "agencias": agencias}
-    )
-
-@app.post("/admin/crear-agencia")
-def crear_agencia(agencia: str = Form(...), clave: str = Form(...)):
-    agencia_norm = normalizar(agencia)
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT id FROM usuarios WHERE agencia = ?", (agencia_norm,))
-    existe = cursor.fetchone()
-    
-    if existe:
-        cursor.execute("UPDATE usuarios SET clave = ? WHERE agencia = ?", (clave, agencia_norm))
-    else:
-        cursor.execute("INSERT INTO usuarios (agencia, clave) VALUES (?, ?)", (agencia_norm, clave))
-        
-    conn.commit()
-    conn.close()
-    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/cambiar-estado-pago")
-def cambiar_estado_pago(pago_id: int = Form(...), nuevo_estado: str = Form(...)):
-    conn = sqlite3.connect("database.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = ?", (pago_id,))
-    pago = cursor.fetchone()
-    
-    cursor.execute("UPDATE pagos SET estado = ? WHERE id = ?", (nuevo_estado, pago_id))
-    conn.commit()
-    conn.close()
-
-    if pago:
-        recalcular_y_actualizar_reporte(pago['agencia'], pago['fecha'])
-
-    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/agencia", response_class=HTMLResponse)
 def get_agencia(request: Request, nombre: str = ""):
@@ -427,49 +365,13 @@ def actualizar_reporte_sistema(
     premio: str = Form(...)
 ):
     agencia_norm = normalizar(agencia)
-    venta_val = float(venta.replace(',', '')) if venta else 0.0
-    premio_val = float(premio.replace(',', '')) if premio else 0.0
-
     conn = sqlite3.connect("database.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM reportes WHERE agencia = ? AND fecha = ?", (agencia_norm, fecha))
     rep = cursor.fetchone()
-
-    if rep:
-        detalle_html = rep['detalle_html'] or ""
-        
-        # Actualizar o insertar la línea del sistema en el HTML del reporte
-        import re
-        patron_fila = re.compile(rf'(<tr>\s*<td>\s*{sistema}\s*<\/td>.*?<\/tr>)', re.IGNORECASE | re.DOTALL)
-        
-        # Calcular nueva comisión (ej: 14% de venta o ajustado a tu lógica de comisión)
-        comision_val = venta_val * 0.14
-        total_sistema = venta_val - comision_val - premio_val
-
-        nueva_fila = f'''
-        <tr>
-            <td style="padding: 8px; border-bottom: 1px solid #e0e0e0;"><b>{sistema}</b></td>
-            <td style="padding: 8px; border-bottom: 1px solid #e0e0e0; text-align: right;">{venta_val:,.2f}</td>
-            <td style="padding: 8px; border-bottom: 1px solid #e0e0e0; text-align: right;">{comision_val:,.2f}</td>
-            <td style="padding: 8px; border-bottom: 1px solid #e0e0e0; text-align: right;">{premio_val:,.2f}</td>
-            <td style="padding: 8px; border-bottom: 1px solid #e0e0e0; text-align: right; font-weight: bold;">{total_sistema:,.2f}</td>
-        </tr>
-        '''
-
-        if patron_fila.search(detalle_html):
-            detalle_html = patron_fila.sub(nueva_fila, detalle_html)
-        else:
-            # Si no existe la tabla de sistemas, la agregamos o la actualizamos
-            detalle_html = nueva_fila + detalle_html
-
-        # Recalcular ventas totales sumando los montos de la tabla o actualizando
-        cursor.execute('''
-            UPDATE reportes SET detalle_html = ? WHERE id = ?
-        ''', (detalle_html, rep['id']))
-        conn.commit()
-
     conn.close()
+    
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&modificado=1", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -484,16 +386,6 @@ def guardar_reporte_colab(
 ):
     agencia_norm = normalizar(agencia)
     
-    if not detalle_html or len(detalle_html.strip()) < 5:
-        detalle_html = f'''
-        <div style="background: #ffffff; border-radius: 10px; padding: 15px; color: #1a252c; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-left: 5px solid #0d47a1; border: 1px solid #e0e0e0;">
-            <h5 style="color: #0d47a1; border-bottom: 1px solid #e0e0e0; padding-bottom: 8px;"><i class="fas fa-chart-pie"></i> Resumen General</h5>
-            <p style="margin-bottom: 5px;"><b>Ventas Totales:</b> Bs. {ventas:,.2f}</p>
-            <p style="margin-bottom: 5px;"><b>Premios Pagados:</b> Bs. {premios:,.2f}</p>
-            <h4 style="color: #e91e63; margin-top: 10px;"><b>TOTAL:</b> Bs. {monto:,.2f}</h4>
-        </div>
-        '''
-
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
