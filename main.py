@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import unicodedata
+import re
 from typing import Optional
 from fastapi import FastAPI, Request, Form, UploadFile, File, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -36,17 +37,13 @@ def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
-    cursor.execute("PRAGMA table_info(usuarios)")
-    columnas_u = [col[1] for col in cursor.fetchall()]
-    if not columnas_u or 'agencia' not in columnas_u:
-        cursor.execute("DROP TABLE IF EXISTS usuarios")
-        cursor.execute('''
-            CREATE TABLE usuarios (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                agencia TEXT UNIQUE,
-                clave TEXT
-            )
-        ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agencia TEXT UNIQUE,
+            clave TEXT
+        )
+    ''')
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
@@ -73,13 +70,6 @@ def init_db():
         )
     ''')
     
-    cursor.execute("PRAGMA table_info(pagos)")
-    columnas_p = [col[1] for col in cursor.fetchall()]
-    if 'tipo' not in columnas_p:
-        cursor.execute("ALTER TABLE pagos ADD COLUMN tipo TEXT DEFAULT 'PAGO_TAQUILLA'")
-    if 'estado' not in columnas_p:
-        cursor.execute("ALTER TABLE pagos ADD COLUMN estado TEXT DEFAULT 'APROBADO'")
-        
     conn.commit()
     conn.close()
 
@@ -112,7 +102,9 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     for p in todos_pagos:
         monto_p = p['monto'] or 0.0
-        if p['tipo'] == 'TRIPLETA':
+        tipo_p = str(p['tipo']).strip().upper()
+        
+        if tipo_p == 'TRIPLETA':
             total_tripletas += monto_p
             tripletas_rows_html += f'''
             <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
@@ -121,7 +113,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #ffb300; font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
             </tr>
             '''
-        elif p['tipo'] == 'ADELANTO':
+        elif tipo_p == 'ADELANTO':
             total_adelantos += monto_p
             adelantos_rows_html += f'''
             <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
@@ -130,7 +122,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #ffb300; font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
             </tr>
             '''
-        elif p['tipo'] == 'CASHEA':
+        elif tipo_p == 'CASHEA':
             total_cashea += monto_p
             cashea_rows_html += f'''
             <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
@@ -139,11 +131,35 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #e91e63; font-weight: bold;">Bs. {monto_p:,.2f}</td>
             </tr>
             '''
-        elif p['tipo'] == 'PAGO_TAQUILLA':
+        elif tipo_p == 'PAGO_TAQUILLA':
             total_pagos_taquilla += monto_p
 
-    monto_base = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
-    monto_final = monto_base - total_pagos_taquilla + total_tripletas + total_adelantos - total_cashea
+    # Extraer la tabla de sistemas del detalle actual para sumar los netos reales
+    detalle_original = rep['detalle_html'] or ""
+    
+    # Aislar únicamente la primera tabla de sistemas limpia
+    match_sistemas = re.search(r'(<div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px;.*?REPORTE DE SISTEMAS.*?<\/div>\s*<\/div>)', detalle_original, re.DOTALL)
+    tabla_sistemas_html = match_sistemas.group(1) if match_sistemas else ""
+    if not tabla_sistemas_html:
+        tabla_sistemas_html = detalle_original.split('<!-- CASHEA -->')[0]
+
+    # Calcular el total de sistemas sumando la última columna de la tabla si es posible, o usando rep['ventas']
+    total_neto_sistemas = 0.0
+    filas_tabla = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_sistemas_html, re.DOTALL)
+    for fila in filas_tabla:
+        if 'TOTALES' in fila.upper():
+            cols = re.findall(r'<td[^>]*>(.*?)<\/td>', fila)
+            if cols:
+                try:
+                    total_neto_sistemas = float(cols[-1].replace(',', '').replace('Bs.', '').strip())
+                except:
+                    pass
+
+    if total_neto_sistemas == 0.0:
+        total_neto_sistemas = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
+
+    # Cálculo final del monto a pagar
+    monto_final = total_neto_sistemas - total_pagos_taquilla + total_tripletas + total_adelantos - total_cashea
 
     bloque_tripletas = f'''
     <div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ffb300;">
@@ -184,18 +200,11 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     </div>
     '''
 
-    detalle_original = rep['detalle_html'] or ""
-    import re
-    
-    match_sistemas = re.search(r'(<div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px;.*?REPORTE DE SISTEMAS.*?<\/div>\s*<\/div>)', detalle_original, re.DOTALL)
-    tabla_sistemas_html = match_sistemas.group(1) if match_sistemas else ""
+    # Mantener el bloque Cashea original que mandó Colab o actualizarlo con los pagos de tipo CASHEA
+    match_cashea_orig = re.search(r'(<div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px;.*?CASHEA.*?<\/div>\s*<\/div>)', detalle_original, re.DOTALL)
+    tabla_cashea_html = match_cashea_orig.group(1) if match_cashea_orig else ""
 
-    match_cashea = re.search(r'(<div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px;.*?CASHEA.*?<\/div>\s*<\/div>)', detalle_original, re.DOTALL)
-    tabla_cashea_html = match_cashea.group(1) if match_cashea else ""
-
-    if not tabla_sistemas_html:
-        tabla_sistemas_html = re.split(r'<div class="mb-4".*?CASHEA', detalle_original, flags=re.DOTALL)[0]
-
+    # Unir todo de forma limpia sin duplicar nada
     detalle_actualizado = tabla_sistemas_html + tabla_cashea_html + bloque_tripletas + bloque_adelantos + bloque_pendientes
 
     conn = sqlite3.connect("database.db")
@@ -308,7 +317,7 @@ def get_agencia(request: Request, nombre: str = ""):
     cursor.execute("SELECT * FROM pagos WHERE agencia = ? ORDER BY id DESC", (nombre_norm,))
     mis_pagos = [dict(row) for row in cursor.fetchall()]
 
-    mis_casheas = [p for p in mis_pagos if p['tipo'] == 'CASHEA']
+    mis_casheas = [p for p in mis_pagos if str(p['tipo']).strip().upper() == 'CASHEA']
 
     conn.close()
 
@@ -354,13 +363,15 @@ def solicitar_saldo(
 ):
     agencia_norm = normalizar(agencia)
     monto_val = float(monto.replace(',', '')) if monto else 0.0
+    
+    tipo_pago = 'CASHEA' if 'CASHEA' in observacion.upper() else 'SOLICITUD_SALDO'
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-        VALUES (?, ?, ?, ?, 'SALDO_FAVOR', 'SOLICITUD_SALDO', 'APROBADO')
-    ''', (agencia_norm, fecha, monto_val, observacion))
+        VALUES (?, ?, ?, ?, ?, ?, 'APROBADO')
+    ''', (agencia_norm, fecha, monto_val, observacion, observacion, tipo_pago))
     conn.commit()
     conn.close()
 
@@ -381,8 +392,8 @@ def solicitar_adelanto(
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-        VALUES (?, ?, ?, ?, 'ADELANTO_EFECTIVO', 'ADELANTO', 'APROBADO')
-    ''', (agencia_norm, fecha, monto_val, observacion))
+        VALUES (?, ?, ?, ?, ?, 'ADELANTO', 'APROBADO')
+    ''', (agencia_norm, fecha, monto_val, observacion, observacion))
     conn.commit()
     conn.close()
 
@@ -433,12 +444,11 @@ def actualizar_reporte_sistema(
 
     if rep:
         detalle_html = rep['detalle_html'] or ""
-        import re
-        
         comision_val = venta_val * 0.14
         total_sistema = venta_val - comision_val - premio_val
 
-        patron_fila = re.compile(rf'(<tr>\s*<td[^>]*>\s*(?:<b>)?{sistema}(?:<\/b>)?<\/td>.*?<\/tr>)', re.IGNORECASE | re.DOTALL)
+        # Buscar y reemplazar la fila exacta del sistema en la tabla HTML
+        patron_fila = re.compile(rf'(<tr>\s*<td[^>]*>\s*(?:<b>)?{re.escape(sistema)}(?:<\/b>)?<\/td>.*?<\/tr>)', re.IGNORECASE | re.DOTALL)
         
         nueva_fila = f'''
         <tr style="border-bottom: 1px solid #e0e0e0; font-size: 12px; color: #1a252c;">
@@ -453,6 +463,7 @@ def actualizar_reporte_sistema(
         if patron_fila.search(detalle_html):
             detalle_html = patron_fila.sub(nueva_fila, detalle_html)
         
+        # Guardar temporalmente el HTML actualizado antes de recalcular
         cursor.execute("UPDATE reportes SET detalle_html = ? WHERE id = ?", (detalle_html, rep['id']))
         conn.commit()
 
