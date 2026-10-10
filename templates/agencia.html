@@ -132,25 +132,25 @@
                         <thead class="table-dark">
                             <tr>
                                 <th>Fecha</th>
-                                <th>Factura / Ref</th>
+                                <th>Tipo</th>
+                                <th>Factura / Ref / Detalle</th>
                                 <th>Monto</th>
                                 <th>Estado</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for p in pagos %}
-                            {% if p.tipo == 'PAGO_TAQUILLA' %}
                             <tr>
                                 <td>{{ p.fecha }}</td>
-                                <td>{{ p.factura }}</td>
-                                <td class="fw-bold text-success">Bs. {{ p.monto | dinero }}</td>
+                                <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
+                                <td>{{ p.factura or p.comprobante }}</td>
+                                <td class="fw-bold {% if p.tipo == 'PAGO_TAQUILLA' %}text-success{% else %}text-dark{% endif %}">Bs. {{ p.monto | dinero }}</td>
                                 <td>
                                     <span class="badge {% if p.estado == 'APROBADO' %}bg-success{% else %}bg-warning text-dark{% endif %}">
                                         {{ p.estado }}
                                     </span>
                                 </td>
                             </tr>
-                            {% endif %}
                             {% endfor %}
                         </tbody>
                     </table>
@@ -263,9 +263,35 @@
         <!-- 6. PENDIENTE -->
         <div id="pendiente" class="tab-content-section card card-custom p-4">
             <h4 class="text-primary fw-bold mb-3"><i class="fas fa-clock"></i> Estado de Cuentas Pendientes (Arrastre Diario)</h4>
-            <div class="alert alert-warning" role="alert">
-                <i class="fas fa-info-circle"></i> Aquí se refleja el saldo neto acumulado. Si realizaste un pago parcial (ej. pagaste 20.000 de un reporte de 30.000), el saldo pendiente de 10.000 se arrastra automáticamente al reporte del día siguiente.
+            <div class="alert alert-warning mb-3" role="alert">
+                <i class="fas fa-info-circle"></i> Aquí se refleja el saldo neto acumulado y el arrastre de deudas del día anterior.
             </div>
+            {% if reportes %}
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Ventas Totales</th>
+                                <th>Saldo Pendiente / Acumulado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rep in reportes %}
+                            <tr>
+                                <td class="fw-bold">{{ rep.fecha }}</td>
+                                <td>Bs. {{ rep.ventas | dinero }}</td>
+                                <td class="fw-bold {% if rep.monto >= 0 %}text-danger{% else %}text-success{% endif %}">
+                                    Bs. {{ rep.monto | dinero }} {% if rep.monto >= 0 %}(Por Pagar / Debe){% else %}(A favor){% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted text-center">No hay cuentas pendientes registradas.</p>
+            {% endif %}
         </div>
 
         <!-- 7. TRIPLETAS -->
