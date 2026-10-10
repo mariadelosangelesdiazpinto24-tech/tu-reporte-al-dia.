@@ -44,7 +44,7 @@ def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
-    # Blindaje total para la tabla usuarios para evitar errores de columnas faltantes
+    # Blindaje total para la tabla usuarios
     cursor.execute("PRAGMA table_info(usuarios)")
     columnas_u = [col[1] for col in cursor.fetchall()]
     if not columnas_u or 'agencia' not in columnas_u or 'clave' not in columnas_u:
@@ -146,7 +146,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             cashea_rows_html += f'''
             <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">Factura: {p['factura']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['factura']}</td>
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #e91e63; font-weight: bold;">Bs. {monto_p:,.2f}</td>
             </tr>
             '''
@@ -438,7 +438,16 @@ def actualizar_reporte_sistema(agencia: str = Form(...), fecha: str = Form(...),
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/api/guardar-reporte-colab")
-def guardar_reporte_colab(agencia: str = Form(...), fecha: str = Form(...), monto: float = Form(...), ventas: float = Form(0.0), premios: float = Form(0.0), detalle_html: Optional[str] = Form("")):
+def guardar_reporte_colab(
+    agencia: str = Form(...), 
+    fecha: str = Form(...), 
+    monto: float = Form(...), 
+    ventas: float = Form(0.0), 
+    premios: float = Form(0.0), 
+    detalle_html: Optional[str] = Form(""),
+    cashea_monto: Optional[float] = Form(0.0),
+    cashea_detalle: Optional[str] = Form("")
+):
     agencia_norm = normalizar(agencia)
     
     conn = sqlite3.connect("database.db")
@@ -451,8 +460,18 @@ def guardar_reporte_colab(agencia: str = Form(...), fecha: str = Form(...), mont
     else:
         cursor.execute("INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html) VALUES (?, ?, ?, ?, ?, ?)", (agencia_norm, fecha, monto, ventas, premios, detalle_html))
         
+    # Inserción automática de Cashea cuando el Colab lo envíe
+    if cashea_monto and cashea_monto > 0:
+        cursor.execute("SELECT id FROM pagos WHERE agencia = ? AND fecha = ? AND tipo = 'CASHEA'", (agencia_norm, fecha))
+        existe_cashea = cursor.fetchone()
+        if not existe_cashea:
+            cursor.execute(
+                "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (?, ?, ?, ?, ?, 'CASHEA', 'APROBADO')",
+                (agencia_norm, fecha, cashea_monto, cashea_detalle or "CASHEA Sincronizado", cashea_detalle or "Automático de Sheet")
+            )
+
     conn.commit()
     conn.close()
 
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    return {"status": "ok", "mensaje": f"Reporte sincronizado para {agencia_norm}"}
+    return {"status": "ok", "mensaje": f"Reporte y Cashea sincronizados para {agencia_norm}"}
