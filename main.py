@@ -16,11 +16,12 @@ os.makedirs("templates", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 templates = Jinja2Templates(directory="templates")
 
-# Lista oficial de sistemas para los menús desplegables
+# Lista oficial de sistemas (desde La Imaginaria hasta Parley)
 SISTEMAS_OFICIALES = [
-    "MAXPLAY", "BETSOL", "VENTACTIVA", "LOTIPOS", "PREMIER", 
-    "WINBIG", "SRQ", "GATO", "POSNET", "LA IMAGINARIA", 
-    "LOTTO LUCKY", "POZO MILLONARIO", "LOTTIPLAY", "CASHEA"
+    "LA IMAGINARIA", "BETSOL", "GATO", "LOTIPOS", "LOTTIPLAY", 
+    "LOTTOLUCKY", "MAXPLAY", "SRQ", "POSNET", "POZO", 
+    "PREMIER", "SRQ POLLA", "WINBIG VENTAS", "WINBIG BINGO", 
+    "WINBIG POLLAS", "VENTA ACTIVA", "PARLEY"
 ]
 
 def normalizar(texto: str) -> str:
@@ -44,7 +45,6 @@ def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
-    # Blindaje total para la tabla usuarios
     cursor.execute("PRAGMA table_info(usuarios)")
     columnas_u = [col[1] for col in cursor.fetchall()]
     if not columnas_u or 'agencia' not in columnas_u or 'clave' not in columnas_u:
@@ -155,7 +155,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     detalle_original = rep['detalle_html'] or ""
     
-    match_sistemas = re.search(r'(<div class="mb-4"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_original, re.DOTALL)
+    match_sistemas = re.search(r'(<div class="mb-3"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_original, re.DOTALL)
     tabla_sistemas_html = match_sistemas.group(1) if match_sistemas else ""
     if not tabla_sistemas_html:
         tabla_sistemas_html = detalle_original.split('<div')[0]
@@ -176,8 +176,22 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     monto_final = total_neto_sistemas - total_pagos_taquilla + total_tripletas - total_adelantos - total_cashea
 
+    bloque_cashea = f'''
+    <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #00bcd4;">
+        <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #00bcd4; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-shopping-cart" style="color: #00bcd4;"></i> CASHEA (Registros absorbidos)</h5>
+        <table class="table table-sm align-middle mb-0" style="width: 100%;">
+            <tr style="background-color: #e0f7fa; color: #006064; font-size: 13px;">
+                <th style="padding: 10px;">FECHA</th>
+                <th style="padding: 10px;">DETALLE / FACTURA</th>
+                <th style="padding: 10px; text-align: right;">MONTO ABSORBIDO</th>
+            </tr>
+            {cashea_rows_html if cashea_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">No hay registros de Cashea.</td></tr>'}
+        </table>
+    </div>
+    '''
+
     bloque_tripletas = f'''
-    <div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ffb300;">
+    <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ffb300;">
         <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #ffb300; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-star" style="color: #ffb300;"></i> TRIPLETAS (Premios pagados por taquilla)</h5>
         <table class="table table-sm align-middle mb-0" style="width: 100%;">
             <tr style="background-color: #e3f2fd; color: #0d47a1; font-size: 13px;">
@@ -191,7 +205,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     '''
 
     bloque_adelantos = f'''
-    <div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #e91e63;">
+    <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #e91e63;">
         <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-hand-holding-usd" style="color: #e91e63;"></i> ADELANTOS (Plata entregada por Admin - Se resta)</h5>
         <table class="table table-sm align-middle mb-0" style="width: 100%;">
             <tr style="background-color: #fce4ec; color: #880e4f; font-size: 13px;">
@@ -200,20 +214,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
                 <th style="padding: 10px; text-align: right;">MONTO DESCONTADO</th>
             </tr>
             {adelantos_rows_html if adelantos_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Adelanto: 0.00 Bs.</td></tr>'}
-        </table>
-    </div>
-    '''
-
-    bloque_cashea = f'''
-    <div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #00bcd4;">
-        <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #00bcd4; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-shopping-cart" style="color: #00bcd4;"></i> CASHEA (Registros absorbidos)</h5>
-        <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #e0f7fa; color: #006064; font-size: 13px;">
-                <th style="padding: 10px;">FECHA</th>
-                <th style="padding: 10px;">DETALLE / FACTURA</th>
-                <th style="padding: 10px; text-align: right;">MONTO ABSORBIDO</th>
-            </tr>
-            {cashea_rows_html if cashea_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">No hay registros de Cashea.</td></tr>'}
         </table>
     </div>
     '''
@@ -229,6 +229,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     </div>
     '''
 
+    # Garantizamos que la tabla de sistemas aparezca PRIMERO en el detalle
     detalle_actualizado = tabla_sistemas_html + bloque_cashea + bloque_tripletas + bloque_adelantos + bloque_pendientes
 
     conn = sqlite3.connect("database.db")
@@ -357,20 +358,6 @@ async def reportar_pago(agencia: str = Form(...), fecha: str = Form(...), monto:
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
-@app.post("/solicitar-saldo")
-def solicitar_saldo(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...), observacion: str = Form(...)):
-    agencia_norm = normalizar(agencia)
-    monto_val = float(monto.replace(',', '')) if monto else 0.0
-    tipo_pago = 'CASHEA' if 'CASHEA' in observacion.upper() else 'SOLICITUD_SALDO'
-
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (?, ?, ?, ?, ?, ?, 'APROBADO')", (agencia_norm, fecha, monto_val, observacion, observacion, tipo_pago))
-    conn.commit()
-    conn.close()
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
-
 @app.post("/solicitar-adelanto")
 def solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...), observacion: str = Form(...)):
     agencia_norm = normalizar(agencia)
@@ -460,14 +447,13 @@ def guardar_reporte_colab(
     else:
         cursor.execute("INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html) VALUES (?, ?, ?, ?, ?, ?)", (agencia_norm, fecha, monto, ventas, premios, detalle_html))
         
-    # Inserción automática de Cashea cuando el Colab lo envíe
     if cashea_monto and cashea_monto > 0:
         cursor.execute("SELECT id FROM pagos WHERE agencia = ? AND fecha = ? AND tipo = 'CASHEA'", (agencia_norm, fecha))
         existe_cashea = cursor.fetchone()
         if not existe_cashea:
             cursor.execute(
                 "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (?, ?, ?, ?, ?, 'CASHEA', 'APROBADO')",
-                (agencia_norm, fecha, cashea_monto, cashea_detalle or "CASHEA Sincronizado", cashea_detalle or "Automático de Sheet")
+                (agencia_norm, fecha, cashea_monto, cashea_detalle or "CASHEA Automático", cashea_detalle or "Sincronizado de Sheet")
             )
 
     conn.commit()
