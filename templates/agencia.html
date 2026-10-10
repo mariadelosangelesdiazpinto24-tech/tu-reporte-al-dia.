@@ -6,26 +6,6 @@
     <title>Panel Taquilla - {{ agencia }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    {% if genero == 'MASCULINO' %}
-    <!-- TEMA MASCULINO: AZUL CORPORATIVO Y DORADO -->
-    <style>
-        body { background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; min-height: 100vh; }
-        .navbar-custom { background: linear-gradient(135deg, #0d47a1, #1976d2); color: white; padding: 15px 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); border-bottom: 4px solid #ffb300; }
-        .card-custom { border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); border: none; margin-bottom: 20px; background: #ffffff; border-top: 5px solid #0d47a1; }
-        .card-pago { border-top: 5px solid #1976d2 !important; }
-        .nav-pills .nav-link { color: #0d47a1; font-weight: 600; background: white; margin-right: 8px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: all 0.3s ease; }
-        .nav-pills .nav-link:hover { background-color: #e3f2fd; color: #0d47a1; }
-        .nav-pills .nav-link.active { background: linear-gradient(135deg, #0d47a1, #1565c0) !important; color: white !important; box-shadow: 0 4px 12px rgba(13,71,161,0.3); }
-        .tab-content-section { display: none; }
-        .tab-content-section.active { display: block; }
-        .btn-solicitar-banca { background: linear-gradient(135deg, #0d47a1, #1565c0); color: white; font-weight: bold; border: none; border-radius: 8px; padding: 6px 16px; }
-        .btn-campanita { position: relative; background: #ffffff; color: #0d47a1; border-radius: 50%; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 10px rgba(0,0,0,0.15); }
-        .badge-notif { position: absolute; top: -2px; right: -2px; background-color: #ffb300; color: black; border-radius: 50%; padding: 3px 7px; font-size: 11px; font-weight: bold; }
-        .titulo-pago { color: #0d47a1 !important; }
-    </style>
-    {% else %}
-    <!-- TEMA FEMENINO: ROSADO TROPICAL, CAYENAS Y TRÉBOLES -->
     <style>
         body { background: linear-gradient(135deg, #fce4ec 0%, #e3f2fd 100%); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; min-height: 100vh; }
         .navbar-custom { background: linear-gradient(135deg, #c2185b, #e91e63); color: white; padding: 15px 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); border-bottom: 4px solid #2e7d32; }
@@ -39,18 +19,16 @@
         .btn-solicitar-banca { background: linear-gradient(135deg, #2e7d32, #1b5e20); color: white; font-weight: bold; border: none; border-radius: 8px; padding: 6px 16px; }
         .btn-campanita { position: relative; background: #ffffff; color: #c2185b; border-radius: 50%; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 10px rgba(0,0,0,0.15); }
         .badge-notif { position: absolute; top: -2px; right: -2px; background-color: #2e7d32; color: white; border-radius: 50%; padding: 3px 7px; font-size: 11px; font-weight: bold; }
-        .titulo-pago { color: #e91e63 !important; }
     </style>
-    {% endif %}
 </head>
 <body>
 
     <div class="navbar-custom d-flex justify-content-between align-items-center">
-        <h3 class="m-0"><i class="fas fa-crown text-warning"></i> Los Ángeles del Dinero <span style="font-size: 16px; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; margin-left: 10px;">Taquilla: {{ agencia }} {% if genero == 'FEMENINO' %}🍀🌺{% else %}💼👑{% endif %}</span></h3>
+        <h3 class="m-0"><i class="fas fa-crown text-warning"></i> Los Ángeles del Dinero <span style="font-size: 16px; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; margin-left: 10px;">Taquilla: {{ agencia }} 🍀🌺</span></h3>
         <div class="d-flex align-items-center gap-3">
             <button class="btn btn-campanita border-0" data-bs-toggle="modal" data-bs-target="#modalNotificaciones">
                 <i class="fas fa-bell fa-lg"></i>
-                {% set total_notifs = notificaciones | length + comunicados_pendientes | length %}
+                {% set total_notifs = (notificaciones | default([])) | length + (comunicados_pendientes | default([])) | length %}
                 {% if total_notifs > 0 %}
                     <span class="badge-notif">{{ total_notifs }}</span>
                 {% endif %}
@@ -62,7 +40,7 @@
     <div class="container my-4">
 
         <div class="card card-custom card-pago p-4 mb-4">
-            <h5 class="fw-bold mb-3 titulo-pago"><i class="fas fa-file-invoice-dollar"></i> Cargar Pago o Abono a Admin {% if genero == 'FEMENINO' %}🌺{% else %}⚡{% endif %}</h5>
+            <h5 class="fw-bold mb-3" style="color: #e91e63;"><i class="fas fa-file-invoice-dollar"></i> Cargar Pago o Abono a Admin 🌺</h5>
             <form action="/reportar" method="POST" enctype="multipart/form-data" class="row g-3 align-items-end">
                 <input type="hidden" name="agencia" value="{{ agencia }}">
                 <div class="col-md-3">
@@ -82,10 +60,308 @@
                     <input type="file" class="form-control" name="comprobante" required>
                 </div>
                 <div class="col-12 text-end mt-3">
-                    <button type="submit" class="btn btn-warning px-4"><i class="fas fa-paper-plane"></i> Registrar Abono / Pago</button>
+                    <button type="submit" class="btn btn-warning px-4 fw-bold"><i class="fas fa-paper-plane"></i> Registrar Abono / Pago</button>
                 </div>
             </form>
         </div>
 
         <ul class="nav nav-pills mb-4 flex-wrap" id="pills-tab" role="tablist">
-            <li class="nav-item mb-2"><button class="nav-link active" onclick="mostrarPestaña('mis-reportes')" id="btn-mis-reportes
+            <li class="nav-item mb-2"><button class="nav-link active" onclick="mostrarPestaña('mis-reportes')" id="btn-mis-reportes"><i class="fas fa-file-alt"></i> Mis Reportes</button></li>
+            <li class="nav-item mb-2"><button class="nav-link" onclick="mostrarPestaña('transacciones')" id="btn-transacciones"><i class="fas fa-exchange-alt"></i> Transacciones</button></li>
+            <li class="nav-item mb-2"><button class="nav-link" onclick="mostrarPestaña('adelantos')" id="btn-adelantos"><i class="fas fa-hand-holding-usd"></i> Adelantos</button></li>
+            <li class="nav-item mb-2"><button class="nav-link" onclick="mostrarPestaña('cashea')" id="btn-cashea"><i class="fas fa-shopping-cart"></i> Cashea</button></li>
+            <li class="nav-item mb-2"><button class="nav-link" onclick="mostrarPestaña('modificaciones')" id="btn-modificaciones"><i class="fas fa-edit"></i> Modificaciones</button></li>
+            <li class="nav-item mb-2"><button class="nav-link" onclick="mostrarPestaña('pendiente')" id="btn-pendiente"><i class="fas fa-clock"></i> Pendiente</button></li>
+            <li class="nav-item mb-2"><button class="nav-link" onclick="mostrarPestaña('tripletas')" id="btn-tripletas"><i class="fas fa-star text-warning"></i> Tripletas</button></li>
+        </ul>
+
+        <!-- 1. MIS REPORTES -->
+        <div id="mis-reportes" class="tab-content-section active card card-custom p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h4 class="fw-bold m-0" style="color: #0d47a1;"><i class="fas fa-chart-line text-success"></i> Historial de Reportes Financieros</h4>
+                <div class="d-flex align-items-center gap-2">
+                    <label class="fw-bold small text-muted m-0">Buscar Fecha:</label>
+                    <input type="date" id="buscadorFecha" class="form-control form-control-sm" onchange="buscarReportePorFecha()">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="limpiarBuscadorFecha()">Ver Todos</button>
+                </div>
+            </div>
+
+            {% if reportes %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead style="background-color: #fce4ec; color: #c2185b;">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Ventas (Bs.)</th>
+                                <th>Cuenta / Saldo Restante (Bs.)</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaReportesTaquilla">
+                            {% for rep in reportes %}
+                            <tr class="fila-reporte" data-fecha="{{ rep.fecha }}">
+                                <td class="fw-bold">{{ rep.fecha }}</td>
+                                <td>Bs. {{ rep.ventas | dinero }}</td>
+                                <td>
+                                    <span class="badge {% if rep.monto >= 0 %}bg-danger{% else %}bg-success{% endif %} p-2">
+                                        Bs. {{ rep.monto | dinero }} {% if rep.monto >= 0 %}(Por Pagar){% else %}(A favor){% endif %}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm fw-bold px-3 text-white" style="background-color: #0d47a1;" data-bs-toggle="modal" data-bs-target="#modalRep{{ rep.id }}">
+                                        <i class="fas fa-eye"></i> Ver Detalle
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted text-center py-4">No hay reportes registrados todavía. 🍀🌺</p>
+            {% endif %}
+        </div>
+
+        <!-- 2. TRANSACCIONES -->
+        <div id="transacciones" class="tab-content-section card card-custom p-4">
+            <h4 class="fw-bold mb-3" style="color: #0d47a1;"><i class="fas fa-history text-success"></i> Historial de Pagos y Abonos</h4>
+            {% if pagos %}
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle">
+                        <thead class="table-dark">
+                            <tr><th>Fecha</th><th>Tipo</th><th>Detalle</th><th>Monto</th><th>Estado</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for p in pagos %}
+                            <tr>
+                                <td>{{ p.fecha }}</td>
+                                <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
+                                <td>{{ p.factura or p.comprobante }}</td>
+                                <td class="fw-bold text-success">Bs. {{ p.monto | dinero }}</td>
+                                <td><span class="badge bg-success">{{ p.estado }}</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted text-center py-3">No hay transacciones registradas.</p>
+            {% endif %}
+        </div>
+
+        <!-- 3. ADELANTOS -->
+        <div id="adelantos" class="tab-content-section card card-custom p-4">
+            <h4 class="fw-bold mb-3" style="color: #e91e63;"><i class="fas fa-hand-holding-usd"></i> Registrar Adelanto Entregado por Admin</h4>
+            <form action="/solicitar-adelanto" method="POST" class="row g-3 mb-4 p-3 rounded border" style="background-color: #fdf2f8;">
+                <input type="hidden" name="agencia" value="{{ agencia }}">
+                <div class="col-md-3"><label class="form-label small fw-bold">Fecha</label><input type="date" class="form-control" name="fecha" required></div>
+                <div class="col-md-3"><label class="form-label small fw-bold">Monto (Bs.)</label><input type="text" class="form-control" name="monto" placeholder="Ej: 10000" required></div>
+                <div class="col-md-4"><label class="form-label small fw-bold">Motivo</label><input type="text" class="form-control" name="observacion" placeholder="Ej: Adelanto cambio" required></div>
+                <div class="col-md-2 d-flex align-items-end"><button type="submit" class="btn text-white w-100 fw-bold" style="background-color: #e91e63;">Registrar</button></div>
+            </form>
+        </div>
+
+        <!-- 4. CASHEA -->
+        <div id="cashea" class="tab-content-section card card-custom p-4">
+            <h4 class="fw-bold mb-3" style="color: #00bcd4;"><i class="fas fa-shopping-cart"></i> Registros de Cashea Absorbidos</h4>
+            {% if casheas %}
+                <table class="table table-bordered align-middle">
+                    <thead style="background-color: #e0f7fa; color: #006064;"><tr><th>Fecha</th><th>Factura</th><th>Monto</th></tr></thead>
+                    <tbody>
+                        {% for c in casheas %}
+                        <tr><td>{{ c.fecha }}</td><td>{{ c.factura }}</td><td class="fw-bold text-danger">Bs. {{ c.monto | dinero }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="text-muted text-center py-3">No hay registros de Cashea.</p>
+            {% endif %}
+        </div>
+
+        <!-- 5. MODIFICACIONES -->
+        <div id="modificaciones" class="tab-content-section card card-custom p-4">
+            <h4 class="fw-bold mb-3" style="color: #2e7d32;"><i class="fas fa-edit"></i> Modificar Venta o Premio de Sistema 🍀</h4>
+            <form action="/actualizar-reporte-sistema" method="POST" class="row g-3 p-3 rounded border" style="background-color: #f1f8e9;">
+                <input type="hidden" name="agencia" value="{{ agencia }}">
+                <div class="col-md-3"><label class="form-label small fw-bold">Fecha</label><input type="date" class="form-control" name="fecha" required></div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Sistema</label>
+                    <select class="form-select" name="sistema" required>
+                        <option value="" disabled selected>Selecciona...</option>
+                        {% for sys in sistemas %}<option value="{{ sys }}">{{ sys }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2"><label class="form-label small fw-bold">Venta</label><input type="text" class="form-control" name="venta" placeholder="0.00" required></div>
+                <div class="col-md-2"><label class="form-label small fw-bold">Premio</label><input type="text" class="form-control" name="premio" placeholder="0.00" required></div>
+                <div class="col-md-2 d-flex align-items-end"><button type="submit" class="btn text-white w-100 fw-bold" style="background-color: #2e7d32;">Actualizar</button></div>
+            </form>
+        </div>
+
+        <!-- 6. PENDIENTE -->
+        <div id="pendiente" class="tab-content-section card card-custom p-4">
+            <h4 class="fw-bold mb-3" style="color: #0d47a1;"><i class="fas fa-clock text-success"></i> Estado de Cuentas Pendientes</h4>
+            {% if reportes %}
+                <table class="table table-striped align-middle">
+                    <thead class="table-dark"><tr><th>Fecha</th><th>Ventas</th><th>Saldo</th><th>Acción</th></tr></thead>
+                    <tbody>
+                        {% for rep in reportes %}
+                        <tr>
+                            <td>{{ rep.fecha }}</td>
+                            <td>Bs. {{ rep.ventas | dinero }}</td>
+                            <td class="fw-bold {% if rep.monto >= 0 %}text-danger{% else %}text-success{% endif %}">Bs. {{ rep.monto | dinero }}</td>
+                            <td>
+                                {% if rep.monto < 0 %}
+                                    <form action="/solicitar-banca" method="POST" style="display:inline;">
+                                        <input type="hidden" name="agencia" value="{{ agencia }}">
+                                        <input type="hidden" name="fecha" value="{{ rep.fecha }}">
+                                        <input type="hidden" name="monto" value="{{ rep.monto }}">
+                                        <button type="submit" class="btn btn-solicitar-banca btn-sm"><i class="fas fa-paper-plane"></i> Solicitar a Banca</button>
+                                    </form>
+                                {% else %}
+                                    <span class="small text-muted">Sin solicitud</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="text-muted text-center py-3">No hay cuentas pendientes.</p>
+            {% endif %}
+        </div>
+
+        <!-- 7. TRIPLETAS -->
+        <div id="tripletas" class="tab-content-section card card-custom p-4">
+            <h4 class="fw-bold mb-3" style="color: #f57f17;"><i class="fas fa-star text-warning"></i> Registrar Premio por Tripleta</h4>
+            <form action="/reportar-tripleta" method="POST" class="row g-3 p-3 rounded border" style="background-color: #fffde7;">
+                <input type="hidden" name="agencia" value="{{ agencia }}">
+                <div class="col-md-2"><label class="form-label small fw-bold">Fecha</label><input type="date" class="form-control" name="fecha" required></div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Sistema</label>
+                    <select class="form-select" name="sistema" required>
+                        <option value="" disabled selected>Sistema...</option>
+                        {% for sys in sistemas %}<option value="{{ sys }}">{{ sys }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3"><label class="form-label small fw-bold">Ticket</label><input type="text" class="form-control" name="ticket" placeholder="N°" required></div>
+                <div class="col-md-2"><label class="form-label small fw-bold">Monto</label><input type="text" class="form-control" name="monto" placeholder="0.00" required></div>
+                <div class="col-md-2 d-flex align-items-end"><button type="submit" class="btn btn-warning w-100 fw-bold">Registrar</button></div>
+            </form>
+        </div>
+
+    </div>
+
+    <!-- MODAL CAMPANITA -->
+    <div class="modal fade" id="modalNotificaciones" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content" style="border-radius: 16px;">
+                <div class="modal-header text-white" style="background: linear-gradient(135deg, #c2185b, #e91e63);">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-bell"></i> Notificaciones y Comunicados 🌺🍀</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <h6 class="fw-bold text-primary mb-3"><i class="fas fa-bullhorn"></i> Comunicados Oficiales</h6>
+                    {% if todos_comunicados %}
+                        <div class="list-group mb-4">
+                            {% for com in todos_comunicados %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div>
+                                    <small class="text-muted d-block">{{ com.fecha }}</small>
+                                    <span class="fw-bold">{{ com.mensaje }}</span>
+                                </div>
+                                {% if com.id in (comunicados_pendientes | default([]) | map(attribute='id') | list) %}
+                                    <form action="/marcar-comunicado-leido" method="POST" class="m-0">
+                                        <input type="hidden" name="agencia" value="{{ agencia }}">
+                                        <input type="hidden" name="comunicado_id" value="{{ com.id }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger fw-bold"><i class="fas fa-check"></i> Marcar como Leído (✓)</button>
+                                    </form>
+                                {% else %}
+                                    <span class="badge bg-success">Leído ✓✓</span>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted small">No hay comunicados.</p>
+                    {% endif %}
+
+                    <h6 class="fw-bold text-success mb-3"><i class="fas fa-receipt"></i> Pagos de Banca</h6>
+                    {% if notificaciones %}
+                        <div class="list-group">
+                            {% for n in notificaciones %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1 fw-bold text-success"><i class="fas fa-check-circle"></i> Pago de Banca Procesado</h6>
+                                    <small class="text-muted">Fecha: {{ n.fecha }} | Monto: Bs. {{ n.monto | dinero }}</small>
+                                </div>
+                                {% if 'uploads/' in n.comprobante %}
+                                    <a href="/{{ n.comprobante }}" target="_blank" class="btn btn-sm btn-outline-success fw-bold"><i class="fas fa-image"></i> Ver Capture</a>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">{{ n.estado }}</span>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted small">No hay notificaciones de pago pendientes.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALES DETALLE REPORTES -->
+    {% for rep in reportes %}
+    <div class="modal fade" id="modalRep{{ rep.id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 16px;">
+                <div class="modal-header text-white" style="background: linear-gradient(135deg, #c2185b, #2e7d32);">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-file-invoice"></i> Reporte Financiero - {{ rep.fecha }} 🍀🌺</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body bg-light">{{ rep.detalle_html | safe }}</div>
+                <div class="modal-footer bg-white d-flex justify-content-between">
+                    {% if rep.monto < 0 %}
+                        <form action="/solicitar-banca" method="POST" class="m-0">
+                            <input type="hidden" name="agencia" value="{{ agencia }}">
+                            <input type="hidden" name="fecha" value="{{ rep.fecha }}">
+                            <input type="hidden" name="monto" value="{{ rep.monto }}">
+                            <button type="submit" class="btn btn-solicitar-banca"><i class="fas fa-paper-plane"></i> Solicitar a Banca</button>
+                        </form>
+                    {% else %}<div></div>{% endif %}
+                    <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <script>
+        function mostrarPestaña(id) {
+            document.querySelectorAll('.tab-content-section').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            document.getElementById('btn-' + id).classList.add('active');
+        }
+
+        function buscarReportePorFecha() {
+            var fechaBusqueda = document.getElementById("buscadorFecha").value;
+            var filas = document.querySelectorAll(".fila-reporte");
+            filas.forEach(function(fila) {
+                var fechaFila = fila.getAttribute("data-fecha");
+                if (!fechaBusqueda || fechaFila === fechaBusqueda) {
+                    fila.style.display = "";
+                } else {
+                    fila.style.display = "none";
+                }
+            });
+        }
+
+        function limpiarBuscadorFecha() {
+            document.getElementById("buscadorFecha").value = "";
+            buscarReportePorFecha();
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
