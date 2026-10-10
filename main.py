@@ -16,7 +16,7 @@ os.makedirs("templates", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 templates = Jinja2Templates(directory="templates")
 
-SISTEMAS_OFICIALES = [
+SISTEMAS OFICIALES = [
     "LA IMAGINARIA", "BETSOL", "GATO", "LOTIPOS", "LOTTIPLAY", 
     "LOTTOLUCKY", "MAXPLAY", "SRQ", "POSNET", "POZO", 
     "PREMIER", "SRQ POLLA", "WINBIG VENTAS", "WINBIG BINGO", 
@@ -86,6 +86,16 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             mensaje TEXT,
             fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS lecturas_comunicados (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            comunicado_id INTEGER,
+            agencia TEXT,
+            leido INTEGER DEFAULT 1,
+            UNIQUE(comunicado_id, agencia)
         )
     ''')
 
@@ -285,23 +295,33 @@ def get_admin(request: Request):
         cursor.execute("SELECT * FROM usuarios ORDER BY id DESC")
         agencias = [dict(row) for row in cursor.fetchall()]
         
-        cursor.execute("SELECT * FROM comunicados ORDER BY id DESC LIMIT 1")
-        comunicado_row = cursor.fetchone()
-        comunicado = comunicado_row['mensaje'] if comunicado_row else ""
+        cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
+        comunicados = [dict(row) for row in cursor.fetchall()]
 
-        # Clasificación de Saldos: Positivos (Por Cobrar) y Negativos (A favor / Por Pagar)
+        # Lecturas para el historial estilo WhatsApp
+        historial_comunicados = []
+        for com in comunicados:
+            c_dict = dict(com)
+            cursor.execute("SELECT agencia FROM lecturas_comunicados WHERE comunicado_id = ?", (com['id'],))
+            leidos = [row['agencia'] for row in cursor.fetchall()]
+            
+            no_leidos = [ag['agencia'] for ag in agencias if ag['agencia'] not in leidos]
+            c_dict['leidos'] = leidos
+            c_dict['no_leidos'] = no_leidos
+            historial_comunicados.append(c_dict)
+
         positivos = [r for r in reportes if r['monto'] > 0]
         negativos = [r for r in reportes if r['monto'] < 0]
 
         conn.close()
     except:
-        reportes, pagos, agencias, comunicado, positivos, negativos = [], [], [], "", [], []
+        reportes, pagos, agencias, historial_comunicados, positivos, negativos = [], [], [], [], [], []
 
     return templates.TemplateResponse(request=request, name="admin.html", context={
         "reportes": reportes, 
         "pagos": pagos, 
         "agencias": agencias, 
-        "comunicado": comunicado,
+        "comunicados": historial_comunicados,
         "positivos": positivos,
         "negativos": negativos
     })
@@ -366,16 +386,24 @@ def get_agencia(request: Request, nombre: str = ""):
     conn = sqlite3.connect("database.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    
     cursor.execute("SELECT * FROM reportes WHERE agencia = ? ORDER BY id DESC", (nombre_norm,))
     mis_reportes = [dict(row) for row in cursor.fetchall()]
+    
     cursor.execute("SELECT * FROM pagos WHERE agencia = ? ORDER BY id DESC", (nombre_norm,))
     mis_pagos = [dict(row) for row in cursor.fetchall()]
     mis_casheas = [p for p in mis_pagos if str(p['tipo']).strip().upper() == 'CASHEA']
     notificaciones_banca = [p for p in mis_pagos if str(p['tipo']).strip().upper() in ['PAGO_BANCA', 'SOLICITUD_BANCA']]
     
+    # Comunicado más reciente y marcar como leído
     cursor.execute("SELECT * FROM comunicados ORDER BY id DESC LIMIT 1")
     comunicado_row = cursor.fetchone()
-    comunicado = comunicado_row['mensaje'] if comunicado_row else ""
+    comunicado = ""
+    if comunicado_row:
+        comunicado = comunicado_row['mensaje']
+        cursor.execute("INSERT OR IGNORE INTO lecturas_comunicados (comunicado_id, agencia, leido) VALUES (?, ?, 1)", (comunicado_row['id'], nombre_norm))
+        conn.commit()
+
     conn.close()
 
     return templates.TemplateResponse(request=request, name="agencia.html", context={
@@ -560,7 +588,6 @@ def actualizar_reporte_sistema(agencia: str = Form(...), fecha: str = Form(...),
         cursor.execute("UPDATE reportes SET detalle_html = ? WHERE id = ?", (detalle_html, rep['id']))
         conn.commit()
 
-    # REGISTRO AUTOMÁTICO EN LA TABLA DE TRANSACCIONES DE LA TAQUILLA
     detalle_transaccion = f"Modificación {sistema} - Venta: {venta_val:,.2f} | Premio: {premio_val:,.2f}"
     cursor = conn.cursor()
     cursor.execute(
