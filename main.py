@@ -16,7 +16,6 @@ os.makedirs("templates", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 templates = Jinja2Templates(directory="templates")
 
-# Lista oficial de sistemas (desde La Imaginaria hasta Parley)
 SISTEMAS_OFICIALES = [
     "LA IMAGINARIA", "BETSOL", "GATO", "LOTIPOS", "LOTTIPLAY", 
     "LOTTOLUCKY", "MAXPLAY", "SRQ", "POSNET", "POZO", 
@@ -81,13 +80,14 @@ def init_db():
             estado TEXT DEFAULT 'APROBADO'
         )
     ''')
-    
-    cursor.execute("PRAGMA table_info(pagos)")
-    cols = [col[1] for col in cursor.fetchall()]
-    if 'tipo' not in cols:
-        cursor.execute("ALTER TABLE pagos ADD COLUMN tipo TEXT DEFAULT 'PAGO_TAQUILLA'")
-    if 'estado' not in cols:
-        cursor.execute("ALTER TABLE pagos ADD COLUMN estado TEXT DEFAULT 'APROBADO'")
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS comunicados (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            mensaje TEXT,
+            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
 
     conn.commit()
     conn.close()
@@ -114,6 +114,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     total_adelantos = 0.0
     total_pagos_taquilla = 0.0
     total_cashea = 0.0
+    total_pagos_banca = 0.0
     
     tripletas_rows_html = ""
     adelantos_rows_html = ""
@@ -152,6 +153,8 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             '''
         elif tipo_p == 'PAGO_TAQUILLA':
             total_pagos_taquilla += monto_p
+        elif tipo_p == 'PAGO_BANCA':
+            total_pagos_banca += monto_p
 
     detalle_original = rep['detalle_html'] or ""
     
@@ -174,7 +177,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
 
-    monto_final = total_neto_sistemas - total_pagos_taquilla + total_tripletas - total_adelantos - total_cashea
+    monto_final = total_neto_sistemas - total_pagos_taquilla + total_tripletas - total_adelantos - total_cashea + total_pagos_banca
 
     bloque_cashea = f'''
     <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #00bcd4;">
@@ -272,17 +275,36 @@ def get_admin(request: Request):
         conn = sqlite3.connect("database.db")
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
+        
         cursor.execute("SELECT * FROM reportes ORDER BY id DESC")
         reportes = [dict(row) for row in cursor.fetchall()]
+        
         cursor.execute("SELECT * FROM pagos ORDER BY id DESC")
         pagos = [dict(row) for row in cursor.fetchall()]
+        
         cursor.execute("SELECT * FROM usuarios ORDER BY id DESC")
         agencias = [dict(row) for row in cursor.fetchall()]
+        
+        cursor.execute("SELECT * FROM comunicados ORDER BY id DESC LIMIT 1")
+        comunicado_row = cursor.fetchone()
+        comunicado = comunicado_row['mensaje'] if comunicado_row else ""
+
+        # Clasificación de Saldos: Positivos (Por Cobrar) y Negativos (A favor / Por Pagar)
+        positivos = [r for r in reportes if r['monto'] > 0]
+        negativos = [r for r in reportes if r['monto'] < 0]
+
         conn.close()
     except:
-        reportes, pagos, agencias = [], [], []
+        reportes, pagos, agencias, comunicado, positivos, negativos = [], [], [], "", [], []
 
-    return templates.TemplateResponse(request=request, name="admin.html", context={"reportes": reportes, "pagos": pagos, "agencias": agencias})
+    return templates.TemplateResponse(request=request, name="admin.html", context={
+        "reportes": reportes, 
+        "pagos": pagos, 
+        "agencias": agencias, 
+        "comunicado": comunicado,
+        "positivos": positivos,
+        "negativos": negativos
+    })
 
 @app.post("/admin/crear-agencia")
 def crear_agencia(agencia: str = Form(...), clave: str = Form(...)):
@@ -299,25 +321,43 @@ def crear_agencia(agencia: str = Form(...), clave: str = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
-@app.post("/admin/cambiar-estado")
-@app.post("/admin/cambiar-estado-pago")
-def cambiar_estado_pago(reporte_id: Optional[int] = Form(None), pago_id: Optional[int] = Form(None), nuevo_estado: str = Form(...)):
-    target_id = reporte_id if reporte_id else pago_id
-    if not target_id:
-        return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
-        
+@app.post("/admin/publicar-comunicado")
+def publicar_comunicado(mensaje: str = Form(...)):
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO comunicados (mensaje) VALUES (?)", (mensaje,))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/pagar-solicitud-banca")
+async def pagar_solicitud_banca(pago_id: int = Form(...), comprobante: UploadFile = File(...)):
     conn = sqlite3.connect("database.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = ?", (target_id,))
+    cursor.execute("SELECT * FROM pagos WHERE id = ?", (pago_id,))
     pago = cursor.fetchone()
+
     if pago:
-        cursor.execute("UPDATE pagos SET estado = ? WHERE id = ?", (nuevo_estado, target_id))
+        agencia_norm = pago['agencia']
+        fecha_pago = pago['fecha']
+        monto_pago = pago['monto']
+        
+        ruta_archivo = f"uploads/BANCA_{agencia_norm}_{pago_id}_{comprobante.filename}"
+        with open(ruta_archivo, "wb") as buffer:
+            buffer.write(await comprobante.read())
+
+        cursor.execute("UPDATE pagos SET estado = 'APROBADO', comprobante = ? WHERE id = ?", (ruta_archivo, pago_id))
+        cursor.execute(
+            "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (?, ?, ?, 'PAGO BANCA', ?, 'PAGO_BANCA', 'APROBADO')",
+            (agencia_norm, fecha_pago, monto_pago, ruta_archivo)
+        )
         conn.commit()
         conn.close()
-        recalcular_y_actualizar_reporte(pago['agencia'], pago['fecha'])
+        recalcular_y_actualizar_reporte(agencia_norm, fecha_pago)
     else:
         conn.close()
+
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/agencia", response_class=HTMLResponse)
@@ -331,6 +371,11 @@ def get_agencia(request: Request, nombre: str = ""):
     cursor.execute("SELECT * FROM pagos WHERE agencia = ? ORDER BY id DESC", (nombre_norm,))
     mis_pagos = [dict(row) for row in cursor.fetchall()]
     mis_casheas = [p for p in mis_pagos if str(p['tipo']).strip().upper() == 'CASHEA']
+    notificaciones_banca = [p for p in mis_pagos if str(p['tipo']).strip().upper() in ['PAGO_BANCA', 'SOLICITUD_BANCA']]
+    
+    cursor.execute("SELECT * FROM comunicados ORDER BY id DESC LIMIT 1")
+    comunicado_row = cursor.fetchone()
+    comunicado = comunicado_row['mensaje'] if comunicado_row else ""
     conn.close()
 
     return templates.TemplateResponse(request=request, name="agencia.html", context={
@@ -338,6 +383,8 @@ def get_agencia(request: Request, nombre: str = ""):
         "reportes": mis_reportes, 
         "pagos": mis_pagos, 
         "casheas": mis_casheas,
+        "notificaciones": notificaciones_banca,
+        "comunicado": comunicado,
         "sistemas": SISTEMAS_OFICIALES
     })
 
@@ -513,7 +560,16 @@ def actualizar_reporte_sistema(agencia: str = Form(...), fecha: str = Form(...),
         cursor.execute("UPDATE reportes SET detalle_html = ? WHERE id = ?", (detalle_html, rep['id']))
         conn.commit()
 
+    # REGISTRO AUTOMÁTICO EN LA TABLA DE TRANSACCIONES DE LA TAQUILLA
+    detalle_transaccion = f"Modificación {sistema} - Venta: {venta_val:,.2f} | Premio: {premio_val:,.2f}"
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (?, ?, ?, 'MODIFICACION', ?, 'MODIFICACION', 'APROBADO')",
+        (agencia_norm, fecha, 0.0, detalle_transaccion)
+    )
+    conn.commit()
     conn.close()
+
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
