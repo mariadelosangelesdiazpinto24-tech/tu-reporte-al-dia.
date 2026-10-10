@@ -8,23 +8,36 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body { background-color: #f0f4f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .navbar-custom { background: linear-gradient(135deg, #0d47a1, #1976d2); color: white; padding: 15px 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+        .navbar-custom { background: linear-gradient(135deg, #0d47a1, #1976d2); color: white; padding: 15px 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); border-bottom: 4px solid #ffb300; }
         .card-custom { border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: none; margin-bottom: 20px; background: #ffffff; }
-        .btn-warning { background-color: #ffb300; border-color: #ffb300; color: #1a252c; font-weight: bold; }
-        .btn-warning:hover { background-color: #ffa000; border-color: #ffa000; }
+        .nav-tabs .nav-link { color: #0d47a1; font-weight: bold; }
+        .nav-tabs .nav-link.active { background-color: #0d47a1 !important; color: white !important; }
     </style>
 </head>
 <body>
 
     <div class="navbar-custom d-flex justify-content-between align-items-center">
-        <h3 class="m-0"><i class="fas fa-user-shield text-warning"></i> Panel de Administración - Los Ángeles del Dinero</h3>
+        <h3 class="m-0"><i class="fas fa-user-shield text-warning"></i> Panel de Administración - Los Ángeles del Dinero 👑</h3>
         <a href="/login" class="btn btn-light btn-sm fw-bold text-danger"><i class="fas fa-sign-out-alt"></i> Salir</a>
     </div>
 
     <div class="container my-4">
-        
-        <!-- Sección para Crear / Gestionar Agencias -->
-        <div class="card card-custom p-4 mb-4 border-top border-4 border-warning">
+
+        <!-- Publicar Comunicado Importante -->
+        <div class="card card-custom p-4 mb-4 border-top border-4 border-info">
+            <h5 class="text-info fw-bold mb-3"><i class="fas fa-bullhorn"></i> Publicar Comunicado Importante para Taquillas</h5>
+            <form action="/admin/publicar-comunicado" method="POST" class="row g-3">
+                <div class="col-md-10">
+                    <input type="text" class="form-control" name="mensaje" value="{{ comunicado }}" placeholder="Escribe un comunicado para todas las taquillas..." required>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-info text-white w-100 fw-bold"><i class="fas fa-paper-plane"></i> Publicar</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Crear / Actualizar Taquilla -->
+        <div class="card card-custom p-4 mb-4 border-top border-4 border-primary">
             <h5 class="text-primary fw-bold mb-3"><i class="fas fa-store"></i> Crear o Actualizar Taquilla / Agencia</h5>
             <form action="/admin/crear-agencia" method="POST" class="row g-3">
                 <div class="col-md-5">
@@ -36,92 +49,199 @@
                     <input type="text" class="form-control" name="clave" placeholder="Clave de la taquilla" required>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-warning w-100"><i class="fas fa-save"></i> Guardar</button>
+                    <button type="submit" class="btn btn-warning w-100 fw-bold"><i class="fas fa-save"></i> Guardar</button>
                 </div>
             </form>
         </div>
 
-        <!-- Listado de Pagos y Reportes Recibidos -->
-        <div class="card card-custom p-4 mb-4">
-            <h4 class="text-primary fw-bold mb-3"><i class="fas fa-receipt"></i> Reportes de Pagos y Abonos de las Taquillas</h4>
-            {% if pagos %}
-            <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead class="table-primary">
-                        <tr>
-                            <th>Agencia</th>
-                            <th>Fecha</th>
-                            <th>Tipo / Ref</th>
-                            <th>Monto</th>
-                            <th>Comprobante</th>
-                            <th>Estado</th>
-                            <th class="text-center">Acciones de Admin</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for p in pagos %}
-                        <tr>
-                            <td class="fw-bold text-uppercase">{{ p.agencia }}</td>
-                            <td>{{ p.fecha }}</td>
-                            <td>{{ p.tipo }} <br><small class="text-muted">Ref: {{ p.factura }}</small></td>
-                            <td class="fw-bold text-success">Bs. {{ p.monto | dinero }}</td>
-                            <td>
-                                {% if p.comprobante and 'uploads/' in p.comprobante %}
-                                <a href="/{{ p.comprobante }}" target="_blank" class="btn btn-sm btn-outline-info">
-                                    <i class="fas fa-image"></i> Ver Foto
-                                </a>
-                                {% else %}
-                                <span class="text-muted small">{{ p.comprobante or 'Sin archivo' }}</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <span class="badge {% if p.estado == 'APROBADO' %}bg-success{% elif p.estado == 'RECHAZADO' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
-                                    {{ p.estado }}
-                                </span>
-                            </td>
-                            <td class="text-center">
-                                <form action="/admin/cambiar-estado" method="POST" class="d-flex justify-content-center gap-1">
-                                    <input type="hidden" name="reporte_id" value="{{ p.id }}">
-                                    <select name="nuevo_estado" class="form-select form-select-sm" style="width: 130px;">
-                                        <option value="EN ESPERA" {% if p.estado == 'EN ESPERA' %}selected{% endif %}>En Espera</option>
-                                        <option value="APROBADO" {% if p.estado == 'APROBADO' %}selected{% endif %}>Aprobado</option>
-                                        <option value="RECHAZADO" {% if p.estado == 'RECHAZADO' %}selected{% endif %}>Rechazado</option>
-                                    </select>
-                                    <button type="submit" class="btn btn-sm btn-dark" title="Actualizar estado"><i class="fas fa-check"></i></button>
-                                </form>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <p class="text-center text-muted my-3">No hay pagos o abonos registrados todavía.</p>
-            {% endif %}
-        </div>
+        <!-- PESTAÑAS DEL ADMIN -->
+        <ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active" id="tab-transacciones" data-bs-toggle="tab" data-bs-target="#sec-transacciones" type="button"><i class="fas fa-list"></i> Historial de Transacciones</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="tab-balances" data-bs-toggle="tab" data-bs-target="#sec-balances" type="button"><i class="fas fa-scale-balanced"></i> Balances: Positivos vs Negativos</button>
+            </li>
+        </ul>
 
-        <!-- Listado de Agencias Creadas -->
-        <div class="card card-custom p-4">
-            <h4 class="text-primary fw-bold mb-3"><i class="fas fa-users-cog"></i> Taquillas Registradas en el Sistema</h4>
-            {% if agencias %}
-            <ul class="list-group">
-                {% for a in agencias %}
-                <li class="list-group-item d-flex justify-content-between align-items-center py-3">
-                    <span><i class="fas fa-cash-register text-primary me-2"></i> <strong class="text-uppercase">{{ a.agencia }}</strong></span>
-                    <span class="badge bg-secondary p-2">Clave: {{ a.clave }}</span>
-                </li>
-                {% endfor %}
-            </ul>
-            {% else %}
-            <p class="text-center text-muted my-3">No hay agencias creadas.</p>
-            {% endif %}
+        <div class="tab-content" id="adminTabsContent">
+
+            <!-- 1. HISTORIAL DE TRANSACCIONES CON FILTRO POR AGENCIAS -->
+            <div class="tab-pane fade show active card card-custom p-4" id="sec-transacciones">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <h4 class="text-primary fw-bold m-0"><i class="fas fa-receipt"></i> Transacciones de las Agencias</h4>
+                    
+                    <!-- Menú Desplegable para Filtrar Agencias -->
+                    <div class="d-flex align-items-center gap-2">
+                        <label class="fw-bold small text-nowrap m-0">Filtrar Agencia:</label>
+                        <select id="filtroAgencia" class="form-select form-select-sm fw-bold" style="min-width: 180px;" onchange="filtrarTabla()">
+                            <option value="TODAS">-- TODAS LAS AGENCIAS --</option>
+                            {% for ag in agencias %}
+                                <option value="{{ ag.agencia }}">{{ ag.agencia }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                {% if pagos %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle" id="tablaTransacciones">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Agencia</th>
+                                    <th>Fecha</th>
+                                    <th>Tipo / Ref</th>
+                                    <th>Monto</th>
+                                    <th>Comprobante / Detalle</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in pagos %}
+                                <tr class="fila-transaccion" data-agencia="{{ p.agencia }}">
+                                    <td class="fw-bold text-primary">{{ p.agencia }}</td>
+                                    <td>{{ p.fecha }}</td>
+                                    <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
+                                    <td class="fw-bold {% if p.tipo == 'PAGO_TAQUILLA' or p.tipo == 'PAGO_BANCA' %}text-success{% else %}text-dark{% endif %}">Bs. {{ p.monto | dinero }}</td>
+                                    <td>
+                                        {% if 'uploads/' in p.comprobante %}
+                                            <a href="/{{ p.comprobante }}" target="_blank" class="btn btn-sm btn-outline-primary fw-bold"><i class="fas fa-image"></i> Ver Capture</a>
+                                        {% else %}
+                                            <span class="small">{{ p.comprobante }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if p.estado == 'APROBADO' %}bg-success{% elif p.estado == 'PENDIENTE BANCA' %}bg-danger text-white p-2{% else %}bg-warning text-dark{% endif %}">
+                                            {{ p.estado }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if p.tipo == 'SOLICITUD_BANCA' and p.estado == 'PENDIENTE BANCA' %}
+                                            <form action="/admin/pagar-solicitud-banca" method="POST" enctype="multipart/form-data" class="d-flex gap-2">
+                                                <input type="hidden" name="pago_id" value="{{ p.id }}">
+                                                <input type="file" class="form-control form-control-sm" name="comprobante" required>
+                                                <button type="submit" class="btn btn-sm btn-success fw-bold text-nowrap"><i class="fas fa-upload"></i> Pagar y Subir Capture</button>
+                                            </form>
+                                        {% else %}
+                                            <form action="/admin/cambiar-estado-pago" method="POST" class="d-flex gap-2">
+                                                <input type="hidden" name="pago_id" value="{{ p.id }}">
+                                                <select name="nuevo_estado" class="form-select form-select-sm">
+                                                    <option value="APROBADO" {% if p.estado == 'APROBADO' %}selected{% endif %}>Aprobado</option>
+                                                    <option value="RECHAZADO" {% if p.estado == 'RECHAZADO' %}selected{% endif %}>Rechazado</option>
+                                                    <option value="EN ESPERA" {% if p.estado == 'EN ESPERA' %}selected{% endif %}>En Espera</option>
+                                                </select>
+                                                <button type="submit" class="btn btn-sm btn-dark"><i class="fas fa-check"></i></button>
+                                            </form>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted text-center py-3">No hay transacciones registradas.</p>
+                {% endif %}
+            </div>
+
+            <!-- 2. PESTAÑA DE BALANCES: POSITIVOS VS NEGATIVOS -->
+            <div class="tab-pane fade card card-custom p-4" id="sec-balances">
+                <h4 class="text-primary fw-bold mb-4"><i class="fas fa-chart-pie"></i> Clasificación Global de Cuentas</h4>
+
+                <div class="row g-4">
+                    <!-- AGENCIAS EN POSITIVO (FALTAN POR PAGAR / LE DEBEN A LA BANCA) -->
+                    <div class="col-md-6">
+                        <div class="card border-danger shadow-sm h-100">
+                            <div class="card-header bg-danger text-white fw-bold">
+                                <i class="fas fa-exclamation-circle"></i> Cuentas Por Cobrar / En Positivo (Deudas)
+                            </div>
+                            <div class="card-body">
+                                {% if positivos %}
+                                    <div class="table-responsive">
+                                        <table class="table table-sm align-middle">
+                                            <thead>
+                                                <tr>
+                                                    <th>Agencia</th>
+                                                    <th>Fecha</th>
+                                                    <th class="text-end">Deuda Restante</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for pos in positivos %}
+                                                <tr>
+                                                    <td class="fw-bold">{{ pos.agencia }}</td>
+                                                    <td>{{ pos.fecha }}</td>
+                                                    <td class="text-end fw-bold text-danger">Bs. {{ pos.monto | dinero }}</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted text-center py-3">No hay taquillas con saldo positivo deudor.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AGENCIAS EN NEGATIVO (A FAVOR DE LA TAQUILLA / POR PAGAR POR LA BANCA) -->
+                    <div class="col-md-6">
+                        <div class="card border-success shadow-sm h-100">
+                            <div class="card-header bg-success text-white fw-bold">
+                                <i class="fas fa-check-circle"></i> Cuentas A Favor / En Negativo (Pagar a Taquilla)
+                            </div>
+                            <div class="card-body">
+                                {% if negativos %}
+                                    <div class="table-responsive">
+                                        <table class="table table-sm align-middle">
+                                            <thead>
+                                                <tr>
+                                                    <th>Agencia</th>
+                                                    <th>Fecha</th>
+                                                    <th class="text-end">Saldo a Favor</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for neg in negativos %}
+                                                <tr>
+                                                    <td class="fw-bold">{{ neg.agencia }}</td>
+                                                    <td>{{ neg.fecha }}</td>
+                                                    <td class="text-end fw-bold text-success">Bs. {{ neg.monto | dinero }}</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted text-center py-3">No hay taquillas con saldo a favor pendiente.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+    <!-- Script de filtrado dinamico por agencia -->
+    <script>
+        function filtrarTabla() {
+            var seleccion = document.getElementById("filtroAgencia").value;
+            var filas = document.querySelectorAll(".fila-transaccion");
+
+            filas.forEach(function(fila) {
+                var agenciaFila = fila.getAttribute("data-agencia");
+                if (seleccion === "TODAS" || agenciaFila === seleccion) {
+                    fila.style.display = "";
+                } else {
+                    fila.style.display = "none";
+                }
+            });
+        }
+    </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
