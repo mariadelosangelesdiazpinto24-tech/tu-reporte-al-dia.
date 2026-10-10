@@ -16,7 +16,7 @@ os.makedirs("templates", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 templates = Jinja2Templates(directory="templates")
 
-SISTEMAS OFICIALES = [
+SISTEMAS_OFICIALES = [
     "LA IMAGINARIA", "BETSOL", "GATO", "LOTIPOS", "LOTTIPLAY", 
     "LOTTOLUCKY", "MAXPLAY", "SRQ", "POSNET", "POZO", 
     "PREMIER", "SRQ POLLA", "WINBIG VENTAS", "WINBIG BINGO", 
@@ -49,7 +49,6 @@ def init_db():
     conn = get_db()
     cursor = conn.cursor()
     
-    # 1. Tabla usuarios
     cursor.execute("PRAGMA table_info(usuarios)")
     columnas_u = [col[1] for col in cursor.fetchall()]
     if not columnas_u:
@@ -64,7 +63,6 @@ def init_db():
     elif 'genero' not in columnas_u:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN genero TEXT DEFAULT 'FEMENINO'")
 
-    # 2. Tabla reportes
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,7 +75,6 @@ def init_db():
         )
     ''')
 
-    # 3. Tabla pagos (Asegurando todas las columnas necesarias)
     cursor.execute("PRAGMA table_info(pagos)")
     columnas_p = [col[1] for col in cursor.fetchall()]
     if not columnas_p:
@@ -103,7 +100,6 @@ def init_db():
         if 'comprobante' not in columnas_p:
             cursor.execute("ALTER TABLE pagos ADD COLUMN comprobante TEXT")
 
-    # 4. Tabla comunicados y lecturas
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS comunicados (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
