@@ -37,6 +37,7 @@ def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
+    # Asegurar tabla usuarios completa con agencia y clave
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,6 +45,19 @@ def init_db():
             clave TEXT
         )
     ''')
+    
+    # Verificar si la columna 'agencia' existe en la tabla usuarios existente
+    cursor.execute("PRAGMA table_info(usuarios)")
+    columnas_u = [col[1] for col in cursor.fetchall()]
+    if 'agencia' not in columnas_u or 'clave' not in columnas_u:
+        cursor.execute("DROP TABLE IF EXISTS usuarios")
+        cursor.execute('''
+            CREATE TABLE usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agencia TEXT UNIQUE,
+                clave TEXT
+            )
+        ''')
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
@@ -143,13 +157,11 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     detalle_original = rep['detalle_html'] or ""
     
-    # Extraer únicamente la PRIMERA tabla de sistemas del HTML original enviada por Colab
     match_sistemas = re.search(r'(<div class="mb-4"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_original, re.DOTALL)
     tabla_sistemas_html = match_sistemas.group(1) if match_sistemas else ""
     if not tabla_sistemas_html:
         tabla_sistemas_html = detalle_original.split('<div')[0]
 
-    # Calcular total neto de sistemas leyendo la tabla HTML
     total_neto_sistemas = 0.0
     filas_tabla = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_sistemas_html, re.DOTALL)
     for fila in filas_tabla:
@@ -164,8 +176,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
 
-    # FÓRMULA MATEMÁTICA CORREGIDA:
-    # Total a Pagar = Venta Sistemas - Pagos Taquilla + Tripletas (A favor taquilla) - Adelantos Entregados - Cashea
     monto_final = total_neto_sistemas - total_pagos_taquilla + total_tripletas - total_adelantos - total_cashea
 
     bloque_tripletas = f'''
@@ -415,7 +425,7 @@ def guardar_reporte_colab(agencia: str = Form(...), fecha: str = Form(...), mont
     existente = cursor.fetchone()
     
     if existente:
-        cursor.execute("UPDATE reportes SET monto = ?, ventas = ?, premios = ?, detalle_html = ?", (monto, ventas, premios, detalle_html) + (" WHERE agencia = ? AND fecha = ?", (agencia_norm, fecha)))
+        cursor.execute("UPDATE reportes SET monto = ?, ventas = ?, premios = ?, detalle_html = ? WHERE agencia = ? AND fecha = ?", (monto, ventas, premios, detalle_html, agencia_norm, fecha))
     else:
         cursor.execute("INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html) VALUES (?, ?, ?, ?, ?, ?)", (agencia_norm, fecha, monto, ventas, premios, detalle_html))
         
