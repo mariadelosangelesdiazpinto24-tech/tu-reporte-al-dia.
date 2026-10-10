@@ -16,7 +16,7 @@ os.makedirs("templates", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 templates = Jinja2Templates(directory="templates")
 
-SISTEMAS OFICIALES = [
+SISTEMAS_OFICIALES = [
     "LA IMAGINARIA", "BETSOL", "GATO", "LOTIPOS", "LOTTIPLAY", 
     "LOTTOLUCKY", "MAXPLAY", "SRQ", "POSNET", "POZO", 
     "PREMIER", "SRQ POLLA", "WINBIG VENTAS", "WINBIG BINGO", 
@@ -298,7 +298,6 @@ def get_admin(request: Request):
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
 
-        # Lecturas para el historial estilo WhatsApp
         historial_comunicados = []
         for com in comunicados:
             c_dict = dict(com)
@@ -395,7 +394,6 @@ def get_agencia(request: Request, nombre: str = ""):
     mis_casheas = [p for p in mis_pagos if str(p['tipo']).strip().upper() == 'CASHEA']
     notificaciones_banca = [p for p in mis_pagos if str(p['tipo']).strip().upper() in ['PAGO_BANCA', 'SOLICITUD_BANCA']]
     
-    # Comunicado más reciente y marcar como leído
     cursor.execute("SELECT * FROM comunicados ORDER BY id DESC LIMIT 1")
     comunicado_row = cursor.fetchone()
     comunicado = ""
