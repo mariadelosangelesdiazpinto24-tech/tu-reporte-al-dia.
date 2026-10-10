@@ -49,20 +49,24 @@ def init_db():
     conn = get_db()
     cursor = conn.cursor()
     
+    # 1. Tabla usuarios
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agencia TEXT UNIQUE,
+            clave TEXT
+        )
+    ''')
+    
     cursor.execute("PRAGMA table_info(usuarios)")
     columnas_u = [col[1] for col in cursor.fetchall()]
-    if not columnas_u:
-        cursor.execute('''
-            CREATE TABLE usuarios (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                agencia TEXT UNIQUE,
-                clave TEXT,
-                genero TEXT DEFAULT 'FEMENINO'
-            )
-        ''')
-    elif 'genero' not in columnas_u:
-        cursor.execute("ALTER TABLE usuarios ADD COLUMN genero TEXT DEFAULT 'FEMENINO'")
+    if 'genero' not in columnas_u:
+        try:
+            cursor.execute("ALTER TABLE usuarios ADD COLUMN genero TEXT DEFAULT 'FEMENINO'")
+        except:
+            pass
 
+    # 2. Tabla reportes
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,31 +79,34 @@ def init_db():
         )
     ''')
 
+    # 3. Tabla pagos
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS pagos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agencia TEXT,
+            fecha TEXT,
+            monto REAL,
+            factura TEXT,
+            comprobante TEXT,
+            tipo TEXT DEFAULT 'PAGO_TAQUILLA',
+            estado TEXT DEFAULT 'APROBADO'
+        )
+    ''')
+    
     cursor.execute("PRAGMA table_info(pagos)")
     columnas_p = [col[1] for col in cursor.fetchall()]
-    if not columnas_p:
-        cursor.execute('''
-            CREATE TABLE pagos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                agencia TEXT,
-                fecha TEXT,
-                monto REAL,
-                factura TEXT,
-                comprobante TEXT,
-                tipo TEXT DEFAULT 'PAGO_TAQUILLA',
-                estado TEXT DEFAULT 'APROBADO'
-            )
-        ''')
-    else:
-        if 'tipo' not in columnas_p:
+    if 'tipo' not in columnas_p:
+        try:
             cursor.execute("ALTER TABLE pagos ADD COLUMN tipo TEXT DEFAULT 'PAGO_TAQUILLA'")
-        if 'estado' not in columnas_p:
+        except:
+            pass
+    if 'estado' not in columnas_p:
+        try:
             cursor.execute("ALTER TABLE pagos ADD COLUMN estado TEXT DEFAULT 'APROBADO'")
-        if 'factura' not in columnas_p:
-            cursor.execute("ALTER TABLE pagos ADD COLUMN factura TEXT")
-        if 'comprobante' not in columnas_p:
-            cursor.execute("ALTER TABLE pagos ADD COLUMN comprobante TEXT")
+        except:
+            pass
 
+    # 4. Tabla comunicados y lecturas
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS comunicados (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -349,12 +356,24 @@ def crear_agencia(agencia: str = Form(...), clave: str = Form(...), genero: str 
     genero_val = genero.upper()
     conn = get_db()
     cursor = conn.cursor()
+    
+    cursor.execute("PRAGMA table_info(usuarios)")
+    columnas = [col[1] for col in cursor.fetchall()]
+    
     cursor.execute("SELECT id FROM usuarios WHERE agencia = ?", (agencia_norm,))
     existe = cursor.fetchone()
-    if existe:
-        cursor.execute("UPDATE usuarios SET clave = ?, genero = ? WHERE agencia = ?", (clave, genero_val, agencia_norm))
+    
+    if 'genero' in columnas:
+        if existe:
+            cursor.execute("UPDATE usuarios SET clave = ?, genero = ? WHERE agencia = ?", (clave, genero_val, agencia_norm))
+        else:
+            cursor.execute("INSERT INTO usuarios (agencia, clave, genero) VALUES (?, ?, ?)", (agencia_norm, clave, genero_val))
     else:
-        cursor.execute("INSERT INTO usuarios (agencia, clave, genero) VALUES (?, ?, ?)", (agencia_norm, clave, genero_val))
+        if existe:
+            cursor.execute("UPDATE usuarios SET clave = ? WHERE agencia = ?", (clave, agencia_norm))
+        else:
+            cursor.execute("INSERT INTO usuarios (agencia, clave) VALUES (?, ?)", (agencia_norm, clave))
+            
     conn.commit()
     conn.close()
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
@@ -403,9 +422,14 @@ def get_agencia(request: Request, nombre: str = ""):
     conn = get_db()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT genero FROM usuarios WHERE agencia = ?", (nombre_norm,))
-    usr = cursor.fetchone()
-    genero_taquilla = usr['genero'] if usr and 'genero' in usr.keys() and usr['genero'] else "FEMENINO"
+    genero_taquilla = "FEMENINO"
+    cursor.execute("PRAGMA table_info(usuarios)")
+    columnas = [col[1] for col in cursor.fetchall()]
+    if 'genero' in columnas:
+        cursor.execute("SELECT genero FROM usuarios WHERE agencia = ?", (nombre_norm,))
+        usr = cursor.fetchone()
+        if usr and usr['genero']:
+            genero_taquilla = usr['genero']
 
     cursor.execute("SELECT * FROM reportes WHERE agencia = ? ORDER BY id DESC", (nombre_norm,))
     mis_reportes = [dict(row) for row in cursor.fetchall()]
