@@ -49,7 +49,6 @@ def init_db():
     conn = get_db()
     cursor = conn.cursor()
     
-    # Verificar estructura de usuarios y recrearla si falta agencia
     cursor.execute("PRAGMA table_info(usuarios)")
     columnas_u = [col[1] for col in cursor.fetchall()]
     if not columnas_u or 'agencia' not in columnas_u or 'clave' not in columnas_u:
@@ -68,7 +67,6 @@ def init_db():
         except:
             pass
 
-    # Tabla reportes
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,7 +79,6 @@ def init_db():
         )
     ''')
 
-    # Tabla pagos
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS pagos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -108,7 +105,6 @@ def init_db():
         except:
             pass
 
-    # Tabla comunicados y lecturas
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS comunicados (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -398,7 +394,7 @@ async def pagar_solicitud_banca(pago_id: int = Form(...), comprobante: UploadFil
 
         cursor.execute("UPDATE pagos SET estado = 'APROBADO', comprobante = ? WHERE id = ?", (ruta_archivo, pago_id))
         cursor.execute(
-            "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (?, ?, ?, 'PAGO BANCA', ?, 'PAGO_BANCA', 'APROBADO')",
+            "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (?, ?, ?, 'PAGO DE REPORTES', ?, 'PAGO_BANCA', 'APROBADO')",
             (agencia_norm, fecha_pago, monto_pago, ruta_archivo)
         )
         conn.commit()
@@ -427,7 +423,9 @@ def get_agencia(request: Request, nombre: str = ""):
     cursor.execute("SELECT * FROM pagos WHERE agencia = ? ORDER BY id DESC", (nombre_norm,))
     mis_pagos = [dict(row) for row in cursor.fetchall()]
     mis_casheas = [p for p in mis_pagos if str(p['tipo']).strip().upper() == 'CASHEA']
-    notificaciones_banca = [p for p in mis_pagos if str(p['tipo']).strip().upper() in ['PAGO_BANCA', 'SOLICITUD_BANCA']]
+    
+    # Notificaciones de Banca: Las taquillas NO ven "PAGO_BANCA" ni "SOLICITUD_BANCA" en su campanita personal, solo ven comunicados
+    notificaciones_banca = []
     
     cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
     todos_comunicados = [dict(row) for row in cursor.fetchall()]
@@ -491,6 +489,7 @@ def solicitar_banca(agencia: str = Form(...), fecha: str = Form(...), monto: str
 
     conn = get_db()
     cursor = conn.cursor()
+    # Se guarda como SOLICITUD_BANCA para que SOLO aparezca en el panel de Admin
     cursor.execute(
         "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (?, ?, ?, 'SOLICITUD BANCA', 'Solicitud de cobro por saldo a favor', 'SOLICITUD_BANCA', 'PENDIENTE BANCA')",
         (agencia_norm, fecha, monto_val)
