@@ -25,7 +25,7 @@
 
     <div class="container my-4">
 
-        <!-- Publicar Comunicado con Historial y Lector Estilo WhatsApp -->
+        <!-- Publicar Comunicado -->
         <div class="card card-custom p-4 mb-4">
             <h5 class="fw-bold mb-3" style="color: #e91e63;"><i class="fas fa-bullhorn"></i> Publicar Comunicado Importante 🌺</h5>
             <form action="/admin/publicar-comunicado" method="POST" class="row g-3 mb-4">
@@ -82,17 +82,24 @@
             {% endif %}
         </div>
 
-        <!-- Crear Taquilla -->
+        <!-- Crear Taquilla con Selección de Género (Estilo Visual) -->
         <div class="card card-custom p-4 mb-4">
             <h5 class="fw-bold mb-3" style="color: #2e7d32;"><i class="fas fa-store text-success"></i> Crear o Actualizar Taquilla / Agencia 🍀</h5>
             <form action="/admin/crear-agencia" method="POST" class="row g-3">
-                <div class="col-md-5">
+                <div class="col-md-4">
                     <label class="form-label fw-bold small">Nombre de la Agencia</label>
                     <input type="text" class="form-control" name="agencia" placeholder="Ej: ALEXA" required>
                 </div>
-                <div class="col-md-5">
+                <div class="col-md-4">
                     <label class="form-label fw-bold small">Contraseña de Acceso</label>
                     <input type="text" class="form-control" name="clave" placeholder="Clave de la taquilla" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold small">Tema Visual</label>
+                    <select class="form-select fw-bold" name="genero" required>
+                        <option value="FEMENINO" selected>🌺 Femenino (Rosado)</option>
+                        <option value="MASCULINO">🔷 Masculino (Azul)</option>
+                    </select>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-warning w-100 fw-bold">Guardar</button>
@@ -238,7 +245,7 @@
                 </div>
             </div>
 
-            <!-- 3. REPORTE DETALLADO POR USUARIO (AGENCIA) -->
+            <!-- 3. REPORTE DETALLADO POR USUARIO -->
             <div class="tab-pane fade card card-custom p-4" id="sec-reporte-usuario">
                 <h4 class="fw-bold mb-3" style="color: #e91e63;"><i class="fas fa-user-check"></i> Reporte Detallado por Usuario 🌺</h4>
                 <div class="row mb-4">
