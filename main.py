@@ -37,6 +37,7 @@ def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
+    # Verificar o crear tabla usuarios completa
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,6 +45,19 @@ def init_db():
             clave TEXT
         )
     ''')
+    
+    # Verificar si faltan columnas en usuarios existente
+    cursor.execute("PRAGMA table_info(usuarios)")
+    columnas_u = [col[1] for col in cursor.fetchall()]
+    if 'agencia' not in columnas_u:
+        cursor.execute("DROP TABLE IF EXISTS usuarios")
+        cursor.execute('''
+            CREATE TABLE usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agencia TEXT UNIQUE,
+                clave TEXT
+            )
+        ''')
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
@@ -134,16 +148,13 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         elif tipo_p == 'PAGO_TAQUILLA':
             total_pagos_taquilla += monto_p
 
-    # Extraer la tabla de sistemas del detalle actual para sumar los netos reales
     detalle_original = rep['detalle_html'] or ""
     
-    # Aislar únicamente la primera tabla de sistemas limpia
     match_sistemas = re.search(r'(<div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px;.*?REPORTE DE SISTEMAS.*?<\/div>\s*<\/div>)', detalle_original, re.DOTALL)
     tabla_sistemas_html = match_sistemas.group(1) if match_sistemas else ""
     if not tabla_sistemas_html:
         tabla_sistemas_html = detalle_original.split('<!-- CASHEA -->')[0]
 
-    # Calcular el total de sistemas sumando la última columna de la tabla si es posible, o usando rep['ventas']
     total_neto_sistemas = 0.0
     filas_tabla = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_sistemas_html, re.DOTALL)
     for fila in filas_tabla:
@@ -158,7 +169,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
 
-    # Cálculo final del monto a pagar
     monto_final = total_neto_sistemas - total_pagos_taquilla + total_tripletas + total_adelantos - total_cashea
 
     bloque_tripletas = f'''
@@ -200,11 +210,9 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     </div>
     '''
 
-    # Mantener el bloque Cashea original que mandó Colab o actualizarlo con los pagos de tipo CASHEA
     match_cashea_orig = re.search(r'(<div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px;.*?CASHEA.*?<\/div>\s*<\/div>)', detalle_original, re.DOTALL)
     tabla_cashea_html = match_cashea_orig.group(1) if match_cashea_orig else ""
 
-    # Unir todo de forma limpia sin duplicar nada
     detalle_actualizado = tabla_sistemas_html + tabla_cashea_html + bloque_tripletas + bloque_adelantos + bloque_pendientes
 
     conn = sqlite3.connect("database.db")
@@ -363,7 +371,6 @@ def solicitar_saldo(
 ):
     agencia_norm = normalizar(agencia)
     monto_val = float(monto.replace(',', '')) if monto else 0.0
-    
     tipo_pago = 'CASHEA' if 'CASHEA' in observacion.upper() else 'SOLICITUD_SALDO'
 
     conn = sqlite3.connect("database.db")
@@ -447,7 +454,6 @@ def actualizar_reporte_sistema(
         comision_val = venta_val * 0.14
         total_sistema = venta_val - comision_val - premio_val
 
-        # Buscar y reemplazar la fila exacta del sistema en la tabla HTML
         patron_fila = re.compile(rf'(<tr>\s*<td[^>]*>\s*(?:<b>)?{re.escape(sistema)}(?:<\/b>)?<\/td>.*?<\/tr>)', re.IGNORECASE | re.DOTALL)
         
         nueva_fila = f'''
@@ -463,7 +469,6 @@ def actualizar_reporte_sistema(
         if patron_fila.search(detalle_html):
             detalle_html = patron_fila.sub(nueva_fila, detalle_html)
         
-        # Guardar temporalmente el HTML actualizado antes de recalcular
         cursor.execute("UPDATE reportes SET detalle_html = ? WHERE id = ?", (detalle_html, rep['id']))
         conn.commit()
 
