@@ -105,18 +105,19 @@ def init_db():
 init_db()
 
 def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
+    agencia_norm = normalizar(agencia)
     conn = sqlite3.connect("database.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    cursor.execute("SELECT * FROM reportes WHERE agencia = ? AND fecha = ?", (agencia, fecha_reporte))
+    cursor.execute("SELECT * FROM reportes WHERE agencia = ? AND fecha = ?", (agencia_norm, fecha_reporte))
     rep = cursor.fetchone()
     
     if not rep:
         conn.close()
         return
 
-    cursor.execute("SELECT * FROM pagos WHERE agencia = ? AND fecha = ? AND estado = 'APROBADO'", (agencia, fecha_reporte))
+    cursor.execute("SELECT * FROM pagos WHERE agencia = ? AND fecha = ? AND estado = 'APROBADO'", (agencia_norm, fecha_reporte))
     todos_pagos = cursor.fetchall()
     conn.close()
 
@@ -246,7 +247,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    cursor.execute("UPDATE reportes SET monto = ?, detalle_html = ? WHERE id = ?", (monto_final, detalle_actualizado, rep['id']))
+    cursor.execute("UPDATE reportes SET monto = ?, detalle_html = ? WHERE agencia = ? AND fecha = ?", (monto_final, detalle_actualizado, agencia_norm, fecha_reporte))
     conn.commit()
     conn.close()
 
@@ -358,7 +359,7 @@ async def pagar_solicitud_banca(pago_id: int = Form(...), comprobante: UploadFil
     pago = cursor.fetchone()
 
     if pago:
-        agencia_norm = pago['agencia']
+        agencia_norm = normalizar(pago['agencia'])
         fecha_pago = pago['fecha']
         monto_pago = pago['monto']
         
@@ -599,7 +600,7 @@ def actualizar_reporte_sistema(agencia: str = Form(...), fecha: str = Form(...),
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/api/guardar-reporte-colab")
-def guardar_reporte_colab(
+def guardar_guardar_reporte_colab(
     agencia: str = Form(...), 
     fecha: str = Form(...), 
     monto: float = Form(...), 
