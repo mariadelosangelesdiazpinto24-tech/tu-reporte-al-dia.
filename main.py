@@ -221,7 +221,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     bloque_pendientes = f'''
     <div class="mb-2" style="background: #ffffff; border-radius: 12px; padding: 20px; color: #1a252c; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 6px solid #0d47a1; border: 1px solid #e0e0e0;">
         <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; margin-bottom: 12px;"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h5>
-        <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span style="font-size: 14px; color: #333; font-weight: bold;">Fecha: {fecha_reporte}</span>
             <span style="font-size: 14px; font-weight: bold; color: #333;">{("Total a Pagar" if monto_final >= 0 else "Saldo a favor / Solicitar")}</span>
             <span style="font-size: 18px; font-weight: bold; color: {('#2e7d32' if monto_final < 0 else '#e91e63')};">Bs. {monto_final:,.2f}</span>
@@ -359,6 +359,24 @@ async def reportar_pago(agencia: str = Form(...), fecha: str = Form(...), monto:
     conn.commit()
     conn.close()
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/solicitar-banca")
+def solicitar_banca(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...)):
+    agencia_norm = normalizar(agencia)
+    try:
+        monto_val = abs(float(str(monto).replace(',', '')))
+    except:
+        monto_val = 0.0
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (?, ?, ?, 'SOLICITUD BANCA', 'Solicitud de cobro por saldo a favor', 'SOLICITUD_BANCA', 'PENDIENTE BANCA')",
+        (agencia_norm, fecha, monto_val)
+    )
+    conn.commit()
+    conn.close()
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/solicitar-adelanto")
