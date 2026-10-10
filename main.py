@@ -16,7 +16,7 @@ os.makedirs("templates", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 templates = Jinja2Templates(directory="templates")
 
-# Lista oficial de sistemas para los menús desplegables de Modificaciones
+# Lista oficial de sistemas para los menús desplegables
 SISTEMAS_OFICIALES = [
     "MAXPLAY", "BETSOL", "VENTACTIVA", "LOTIPOS", "PREMIER", 
     "WINBIG", "SRQ", "GATO", "POSNET", "LA IMAGINARIA", 
@@ -44,13 +44,18 @@ def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            agencia TEXT UNIQUE,
-            clave TEXT
-        )
-    ''')
+    # Blindaje total para la tabla usuarios para evitar errores de columnas faltantes
+    cursor.execute("PRAGMA table_info(usuarios)")
+    columnas_u = [col[1] for col in cursor.fetchall()]
+    if not columnas_u or 'agencia' not in columnas_u or 'clave' not in columnas_u:
+        cursor.execute("DROP TABLE IF EXISTS usuarios")
+        cursor.execute('''
+            CREATE TABLE usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agencia TEXT UNIQUE,
+                clave TEXT
+            )
+        ''')
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
@@ -169,7 +174,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
 
-    # Lógica de cálculo solicitada: Suma adelantos/tripletas correctamente y resta pagos/cashea
     monto_final = total_neto_sistemas - total_pagos_taquilla + total_tripletas - total_adelantos - total_cashea
 
     bloque_tripletas = f'''
@@ -295,18 +299,25 @@ def crear_agencia(agencia: str = Form(...), clave: str = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
+@app.post("/admin/cambiar-estado")
 @app.post("/admin/cambiar-estado-pago")
-def cambiar_estado_pago(pago_id: int = Form(...), nuevo_estado: str = Form(...)):
+def cambiar_estado_pago(reporte_id: Optional[int] = Form(None), pago_id: Optional[int] = Form(None), nuevo_estado: str = Form(...)):
+    target_id = reporte_id if reporte_id else pago_id
+    if not target_id:
+        return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+        
     conn = sqlite3.connect("database.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = ?", (pago_id,))
+    cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = ?", (target_id,))
     pago = cursor.fetchone()
-    cursor.execute("UPDATE pagos SET estado = ? WHERE id = ?", (nuevo_estado, pago_id))
-    conn.commit()
-    conn.close()
     if pago:
+        cursor.execute("UPDATE pagos SET estado = ? WHERE id = ?", (nuevo_estado, target_id))
+        conn.commit()
+        conn.close()
         recalcular_y_actualizar_reporte(pago['agencia'], pago['fecha'])
+    else:
+        conn.close()
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/agencia", response_class=HTMLResponse)
