@@ -16,7 +16,7 @@ os.makedirs("templates", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 templates = Jinja2Templates(directory="templates")
 
-SISTEMAS_OFICIALES = [
+SISTEMAS OFICIALES = [
     "LA IMAGINARIA", "BETSOL", "GATO", "LOTIPOS", "LOTTIPLAY", 
     "LOTTOLUCKY", "MAXPLAY", "SRQ", "POSNET", "POZO", 
     "PREMIER", "SRQ POLLA", "WINBIG VENTAS", "WINBIG BINGO", 
@@ -49,10 +49,10 @@ def init_db():
     conn = get_db()
     cursor = conn.cursor()
     
+    # 1. Tabla usuarios
     cursor.execute("PRAGMA table_info(usuarios)")
     columnas_u = [col[1] for col in cursor.fetchall()]
-    if not columnas_u or 'agencia' not in columnas_u or 'clave' not in columnas_u:
-        cursor.execute("DROP TABLE IF EXISTS usuarios")
+    if not columnas_u:
         cursor.execute('''
             CREATE TABLE usuarios (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,7 +63,8 @@ def init_db():
         ''')
     elif 'genero' not in columnas_u:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN genero TEXT DEFAULT 'FEMENINO'")
-    
+
+    # 2. Tabla reportes
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,19 +77,33 @@ def init_db():
         )
     ''')
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS pagos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            agencia TEXT,
-            fecha TEXT,
-            monto REAL,
-            factura TEXT,
-            comprobante TEXT,
-            tipo TEXT DEFAULT 'PAGO_TAQUILLA',
-            estado TEXT DEFAULT 'APROBADO'
-        )
-    ''')
+    # 3. Tabla pagos (Asegurando todas las columnas necesarias)
+    cursor.execute("PRAGMA table_info(pagos)")
+    columnas_p = [col[1] for col in cursor.fetchall()]
+    if not columnas_p:
+        cursor.execute('''
+            CREATE TABLE pagos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agencia TEXT,
+                fecha TEXT,
+                monto REAL,
+                factura TEXT,
+                comprobante TEXT,
+                tipo TEXT DEFAULT 'PAGO_TAQUILLA',
+                estado TEXT DEFAULT 'APROBADO'
+            )
+        ''')
+    else:
+        if 'tipo' not in columnas_p:
+            cursor.execute("ALTER TABLE pagos ADD COLUMN tipo TEXT DEFAULT 'PAGO_TAQUILLA'")
+        if 'estado' not in columnas_p:
+            cursor.execute("ALTER TABLE pagos ADD COLUMN estado TEXT DEFAULT 'APROBADO'")
+        if 'factura' not in columnas_p:
+            cursor.execute("ALTER TABLE pagos ADD COLUMN factura TEXT")
+        if 'comprobante' not in columnas_p:
+            cursor.execute("ALTER TABLE pagos ADD COLUMN comprobante TEXT")
 
+    # 4. Tabla comunicados y lecturas
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS comunicados (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,7 +155,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     for p in todos_pagos:
         monto_p = p['monto'] or 0.0
-        tipo_p = str(p['tipo']).strip().upper()
+        tipo_p = str(p['tipo']).strip().upper() if p['tipo'] else 'PAGO_TAQUILLA'
         
         if tipo_p == 'TRIPLETA':
             total_tripletas += monto_p
