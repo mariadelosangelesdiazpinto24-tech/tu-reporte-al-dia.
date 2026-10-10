@@ -183,27 +183,12 @@
             </form>
         </div>
 
-        <!-- 4. CASHEA -->
+        <!-- 4. CASHEA (Solo visualización de registros automáticos) -->
         <div id="cashea" class="tab-content-section card card-custom p-4">
-            <h4 class="text-primary fw-bold mb-3"><i class="fas fa-shopping-cart"></i> Registros de Cashea absorbidos</h4>
-            <form action="/solicitar-saldo" method="POST" class="row g-3 mb-4 p-3 bg-light rounded border">
-                <input type="hidden" name="agencia" value="{{ agencia }}">
-                <div class="col-md-3">
-                    <label class="form-label small fw-bold">Fecha</label>
-                    <input type="date" class="form-control" name="fecha" required>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small fw-bold">Monto Cashea (Bs.)</label>
-                    <input type="text" class="form-control" name="monto" placeholder="Ej: 5000" required>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label small fw-bold">Detalle / N° Factura</label>
-                    <input type="text" class="form-control" name="observacion" placeholder="CASHEA - Factura 1234" required>
-                </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-info text-white w-100 fw-bold">Cargar Cashea</button>
-                </div>
-            </form>
+            <h4 class="text-primary fw-bold mb-3"><i class="fas fa-shopping-cart"></i> Registros de Cashea Absorbidos (Automático)</h4>
+            <div class="alert alert-info" role="alert">
+                <i class="fas fa-info-circle"></i> Los registros de Cashea se cargan automáticamente desde el sistema de planillas (Google Sheet).
+            </div>
             {% if casheas %}
                 <table class="table table-bordered align-middle">
                     <thead class="table-info">
@@ -224,7 +209,7 @@
                     </tbody>
                 </table>
             {% else %}
-                <p class="text-muted text-center">No hay registros de Cashea en este reporte.</p>
+                <p class="text-muted text-center py-3">No hay registros de Cashea en este reporte.</p>
             {% endif %}
         </div>
 
