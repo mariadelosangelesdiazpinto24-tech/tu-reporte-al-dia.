@@ -37,7 +37,6 @@ def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
-    # Verificar o crear tabla usuarios completa
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,19 +44,6 @@ def init_db():
             clave TEXT
         )
     ''')
-    
-    # Verificar si faltan columnas en usuarios existente
-    cursor.execute("PRAGMA table_info(usuarios)")
-    columnas_u = [col[1] for col in cursor.fetchall()]
-    if 'agencia' not in columnas_u:
-        cursor.execute("DROP TABLE IF EXISTS usuarios")
-        cursor.execute('''
-            CREATE TABLE usuarios (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                agencia TEXT UNIQUE,
-                clave TEXT
-            )
-        ''')
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
@@ -84,6 +70,14 @@ def init_db():
         )
     ''')
     
+    # Asegurar columnas necesarias en pagos
+    cursor.execute("PRAGMA table_info(pagos)")
+    cols = [col[1] for col in cursor.fetchall()]
+    if 'tipo' not in cols:
+        cursor.execute("ALTER TABLE pagos ADD COLUMN tipo TEXT DEFAULT 'PAGO_TAQUILLA'")
+    if 'estado' not in cols:
+        cursor.execute("ALTER TABLE pagos ADD COLUMN estado TEXT DEFAULT 'APROBADO'")
+
     conn.commit()
     conn.close()
 
@@ -150,11 +144,13 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     detalle_original = rep['detalle_html'] or ""
     
-    match_sistemas = re.search(r'(<div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px;.*?REPORTE DE SISTEMAS.*?<\/div>\s*<\/div>)', detalle_original, re.DOTALL)
+    # Extraer solamente la tabla de sistemas limpia
+    match_sistemas = re.search(r'(<div class="mb-4"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_original, re.DOTALL)
     tabla_sistemas_html = match_sistemas.group(1) if match_sistemas else ""
     if not tabla_sistemas_html:
-        tabla_sistemas_html = detalle_original.split('<!-- CASHEA -->')[0]
+        tabla_sistemas_html = detalle_original.split('<div')[0]
 
+    # Calcular total neto de sistemas desde la tabla HTML actualizada
     total_neto_sistemas = 0.0
     filas_tabla = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_sistemas_html, re.DOTALL)
     for fila in filas_tabla:
@@ -210,9 +206,10 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     </div>
     '''
 
-    match_cashea_orig = re.search(r'(<div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px;.*?CASHEA.*?<\/div>\s*<\/div>)', detalle_original, re.DOTALL)
+    match_cashea_orig = re.search(r'(<div class="mb-4"[^>]*>.*?CASHEA.*?<\/table>.*?<\/div>)', detalle_original, re.DOTALL)
     tabla_cashea_html = match_cashea_orig.group(1) if match_cashea_orig else ""
 
+    # Unir todo de forma limpia sin clonaciones
     detalle_actualizado = tabla_sistemas_html + tabla_cashea_html + bloque_tripletas + bloque_adelantos + bloque_pendientes
 
     conn = sqlite3.connect("database.db")
@@ -227,16 +224,11 @@ def get_login(request: Request):
     return templates.TemplateResponse(request=request, name="login.html")
 
 @app.post("/login")
-def post_login(
-    request: Request, 
-    usuario: Optional[str] = Form(None), 
-    clave: Optional[str] = Form(None)
-):
+def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Optional[str] = Form(None)):
     if not usuario or not clave:
         return templates.TemplateResponse(request=request, name="login.html", context={"error": "Ingresa usuario y clave"})
 
     usuario_norm = normalizar(usuario)
-
     if usuario_norm == "ADMIN" and clave == "admin123":
         response = RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
         response.set_cookie(key="user", value="ADMIN")
@@ -261,24 +253,17 @@ def get_admin(request: Request):
         conn = sqlite3.connect("database.db")
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        
         cursor.execute("SELECT * FROM reportes ORDER BY id DESC")
         reportes = [dict(row) for row in cursor.fetchall()]
-        
         cursor.execute("SELECT * FROM pagos ORDER BY id DESC")
         pagos = [dict(row) for row in cursor.fetchall()]
-
         cursor.execute("SELECT * FROM usuarios ORDER BY id DESC")
         agencias = [dict(row) for row in cursor.fetchall()]
         conn.close()
-    except Exception as e:
+    except:
         reportes, pagos, agencias = [], [], []
 
-    return templates.TemplateResponse(
-        request=request, 
-        name="admin.html", 
-        context={"reportes": reportes, "pagos": pagos, "agencias": agencias}
-    )
+    return templates.TemplateResponse(request=request, name="admin.html", context={"reportes": reportes, "pagos": pagos, "agencias": agencias})
 
 @app.post("/admin/crear-agencia")
 def crear_agencia(agencia: str = Form(...), clave: str = Form(...)):
@@ -302,14 +287,11 @@ def cambiar_estado_pago(pago_id: int = Form(...), nuevo_estado: str = Form(...))
     cursor = conn.cursor()
     cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = ?", (pago_id,))
     pago = cursor.fetchone()
-    
     cursor.execute("UPDATE pagos SET estado = ? WHERE id = ?", (nuevo_estado, pago_id))
     conn.commit()
     conn.close()
-
     if pago:
         recalcular_y_actualizar_reporte(pago['agencia'], pago['fecha'])
-
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/agencia", response_class=HTMLResponse)
@@ -318,127 +300,74 @@ def get_agencia(request: Request, nombre: str = ""):
     conn = sqlite3.connect("database.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    
     cursor.execute("SELECT * FROM reportes WHERE agencia = ? ORDER BY id DESC", (nombre_norm,))
     mis_reportes = [dict(row) for row in cursor.fetchall()]
-    
     cursor.execute("SELECT * FROM pagos WHERE agencia = ? ORDER BY id DESC", (nombre_norm,))
     mis_pagos = [dict(row) for row in cursor.fetchall()]
-
     mis_casheas = [p for p in mis_pagos if str(p['tipo']).strip().upper() == 'CASHEA']
-
     conn.close()
 
-    return templates.TemplateResponse(
-        request=request, 
-        name="agencia.html", 
-        context={"agencia": nombre_norm, "reportes": mis_reportes, "pagos": mis_pagos, "casheas": mis_casheas}
-    )
+    return templates.TemplateResponse(request=request, name="agencia.html", context={"agencia": nombre_norm, "reportes": mis_reportes, "pagos": mis_pagos, "casheas": mis_casheas})
 
 @app.post("/reportar")
-async def reportar_pago(
-    agencia: str = Form(...),
-    fecha: str = Form(...),
-    monto: str = Form(...),
-    factura: str = Form(...),
-    comprobante: UploadFile = File(...)
-):
+async def reportar_pago(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...), factura: str = Form(...), comprobante: UploadFile = File(...)):
     agencia_norm = normalizar(agencia)
     monto_val = float(monto.replace(',', '')) if monto else 0.0
-
     ruta_archivo = f"uploads/{agencia_norm}_{factura}_{comprobante.filename}"
     with open(ruta_archivo, "wb") as buffer:
         buffer.write(await comprobante.read())
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-        VALUES (?, ?, ?, ?, ?, 'PAGO_TAQUILLA', 'EN ESPERA')
-    ''', (agencia_norm, fecha, monto_val, factura, ruta_archivo))
+    cursor.execute("INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (?, ?, ?, ?, ?, 'PAGO_TAQUILLA', 'EN ESPERA')", (agencia_norm, fecha, monto_val, factura, ruta_archivo))
     conn.commit()
     conn.close()
-
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&exito=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/solicitar-saldo")
-def solicitar_saldo(
-    agencia: str = Form(...),
-    fecha: str = Form(...),
-    monto: str = Form(...),
-    observacion: str = Form(...)
-):
+def solicitar_saldo(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...), observacion: str = Form(...)):
     agencia_norm = normalizar(agencia)
     monto_val = float(monto.replace(',', '')) if monto else 0.0
     tipo_pago = 'CASHEA' if 'CASHEA' in observacion.upper() else 'SOLICITUD_SALDO'
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-        VALUES (?, ?, ?, ?, ?, ?, 'APROBADO')
-    ''', (agencia_norm, fecha, monto_val, observacion, observacion, tipo_pago))
+    cursor.execute("INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (?, ?, ?, ?, ?, ?, 'APROBADO')", (agencia_norm, fecha, monto_val, observacion, observacion, tipo_pago))
     conn.commit()
     conn.close()
-
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&solicitud=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/solicitar-adelanto")
-def solicitar_adelanto(
-    agencia: str = Form(...),
-    fecha: str = Form(...),
-    monto: str = Form(...),
-    observacion: str = Form(...)
-):
+def solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...), observacion: str = Form(...)):
     agencia_norm = normalizar(agencia)
     monto_val = float(monto.replace(',', '')) if monto else 0.0
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-        VALUES (?, ?, ?, ?, ?, 'ADELANTO', 'APROBADO')
-    ''', (agencia_norm, fecha, monto_val, observacion, observacion))
+    cursor.execute("INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (?, ?, ?, ?, ?, 'ADELANTO', 'APROBADO')", (agencia_norm, fecha, monto_val, observacion, observacion))
     conn.commit()
     conn.close()
-
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&adelanto=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/reportar-tripleta")
-def reportar_tripleta(
-    agencia: str = Form(...),
-    fecha: str = Form(...),
-    sistema: str = Form(...),
-    ticket: str = Form(...),
-    monto: str = Form(...)
-):
+def reportar_tripleta(agencia: str = Form(...), fecha: str = Form(...), sistema: str = Form(...), ticket: str = Form(...), monto: str = Form(...)):
     agencia_norm = normalizar(agencia)
     monto_val = float(monto.replace(',', '')) if monto else 0.0
     detalle_str = f"Sistema: {sistema} | Ticket: {ticket}"
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-        VALUES (?, ?, ?, ?, ?, 'TRIPLETA', 'APROBADO')
-    ''', (agencia_norm, fecha, monto_val, ticket, detalle_str))
+    cursor.execute("INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (?, ?, ?, ?, ?, 'TRIPLETA', 'APROBADO')", (agencia_norm, fecha, monto_val, ticket, detalle_str))
     conn.commit()
     conn.close()
-
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tripleta=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/actualizar-reporte-sistema")
-def actualizar_reporte_sistema(
-    agencia: str = Form(...),
-    fecha: str = Form(...),
-    sistema: str = Form(...),
-    venta: str = Form(...),
-    premio: str = Form(...)
-):
+def actualizar_reporte_sistema(agencia: str = Form(...), fecha: str = Form(...), sistema: str = Form(...), venta: str = Form(...), premio: str = Form(...)):
     agencia_norm = normalizar(agencia)
     venta_val = float(venta.replace(',', '')) if venta else 0.0
     premio_val = float(premio.replace(',', '')) if premio else 0.0
@@ -477,37 +406,21 @@ def actualizar_reporte_sistema(
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&modificado=1", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/api/guardar-reporte-colab")
-def guardar_reporte_colab(
-    agencia: str = Form(...),
-    fecha: str = Form(...),
-    monto: float = Form(...),
-    ventas: float = Form(0.0),
-    premios: float = Form(0.0),
-    detalle_html: Optional[str] = Form("")
-):
+def guardar_reporte_colab(agencia: str = Form(...), fecha: str = Form(...), monto: float = Form(...), ventas: float = Form(0.0), premios: float = Form(0.0), detalle_html: Optional[str] = Form("")):
     agencia_norm = normalizar(agencia)
     
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    
     cursor.execute("SELECT id FROM reportes WHERE agencia = ? AND fecha = ?", (agencia_norm, fecha))
     existente = cursor.fetchone()
     
     if existente:
-        cursor.execute('''
-            UPDATE reportes 
-            SET monto = ?, ventas = ?, premios = ?, detalle_html = ?
-            WHERE agencia = ? AND fecha = ?
-        ''', (monto, ventas, premios, detalle_html, agencia_norm, fecha))
+        cursor.execute("UPDATE reportes SET monto = ?, ventas = ?, premios = ?, detalle_html = ? WHERE agencia = ? AND fecha = ?", (monto, ventas, premios, detalle_html, agencia_norm, fecha))
     else:
-        cursor.execute('''
-            INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (agencia_norm, fecha, monto, ventas, premios, detalle_html))
+        cursor.execute("INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html) VALUES (?, ?, ?, ?, ?, ?)", (agencia_norm, fecha, monto, ventas, premios, detalle_html))
         
     conn.commit()
     conn.close()
 
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
-
     return {"status": "ok", "mensaje": f"Reporte sincronizado para {agencia_norm}"}
