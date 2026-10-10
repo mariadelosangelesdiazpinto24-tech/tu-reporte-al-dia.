@@ -9,46 +9,107 @@
     <!-- FontAwesome para iconos -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body { background-color: #f0f4f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .navbar-custom { background: linear-gradient(135deg, #0d47a1, #1976d2); color: white; padding: 15px 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
-        .card-custom { border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: none; margin-bottom: 20px; background: #ffffff; }
-        .nav-pills .nav-link { color: #0d47a1; font-weight: 600; background: white; margin-right: 5px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .nav-pills .nav-link.active { background-color: #0d47a1 !important; color: white !important; }
+        body { 
+            background: linear-gradient(135deg, #e3f2fd 0%, #fce4ec 100%); 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            min-height: 100vh;
+        }
+        .navbar-custom { 
+            background: linear-gradient(135deg, #0d47a1, #1976d2); 
+            color: white; 
+            padding: 15px 30px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2); 
+            border-bottom: 4px solid #ffb300;
+        }
+        .card-custom { 
+            border-radius: 16px; 
+            box-shadow: 0 6px 20px rgba(0,0,0,0.08); 
+            border: none; 
+            margin-bottom: 20px; 
+            background: #ffffff; 
+            border-top: 5px solid #2e7d32;
+        }
+        .card-pago {
+            border-top: 5px solid #e91e63 !important;
+        }
+        .nav-pills .nav-link { 
+            color: #0d47a1; 
+            font-weight: 600; 
+            background: white; 
+            margin-right: 8px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06); 
+            transition: all 0.3s ease;
+        }
+        .nav-pills .nav-link:hover {
+            background-color: #fce4ec;
+            color: #c2185b;
+        }
+        .nav-pills .nav-link.active { 
+            background: linear-gradient(135deg, #2e7d32, #43a047) !important; 
+            color: white !important; 
+            box-shadow: 0 4px 12px rgba(46,125,50,0.3);
+        }
         .tab-content-section { display: none; }
         .tab-content-section.active { display: block; }
-        .btn-warning { background-color: #ffb300; border-color: #ffb300; color: #1a252c; font-weight: bold; }
-        .btn-warning:hover { background-color: #ffa000; border-color: #ffa000; }
+        
+        .btn-warning { 
+            background: linear-gradient(135deg, #ffb300, #ffa000); 
+            border-color: #ffb300; 
+            color: #1a252c; 
+            font-weight: bold; 
+            box-shadow: 0 3px 10px rgba(255,179,0,0.3);
+        }
+        .btn-warning:hover { 
+            background: linear-gradient(135deg, #ffa000, #ff8f00); 
+            border-color: #ffa000; 
+        }
+        .btn-solicitar-banca {
+            background: linear-gradient(135deg, #2e7d32, #1b5e20);
+            color: white;
+            font-weight: bold;
+            border: none;
+            box-shadow: 0 3px 10px rgba(46,125,50,0.3);
+            border-radius: 8px;
+            padding: 6px 16px;
+            transition: all 0.3s ease;
+        }
+        .btn-solicitar-banca:hover {
+            background: linear-gradient(135deg, #1b5e20, #0d3b11);
+            color: #ffffff;
+            transform: translateY(-1px);
+        }
     </style>
 </head>
 <body>
 
     <!-- Barra Superior -->
     <div class="navbar-custom d-flex justify-content-between align-items-center">
-        <h3 class="m-0"><i class="fas fa-crown text-warning"></i> Los Ángeles del Dinero - Taquilla: {{ agencia }}</h3>
-        <a href="/login" class="btn btn-light btn-sm fw-bold text-danger"><i class="fas fa-sign-out-alt"></i> Salir</a>
+        <h3 class="m-0"><i class="fas fa-crown text-warning"></i> Los Ángeles del Dinero <span style="font-size: 16px; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; margin-left: 10px;">Taquilla: {{ agencia }} 🍀🌺</span></h3>
+        <a href="/login" class="btn btn-light btn-sm fw-bold text-danger shadow-sm"><i class="fas fa-sign-out-alt"></i> Salir</a>
     </div>
 
     <div class="container my-4">
 
         <!-- Formulario Cargar Pago -->
-        <div class="card card-custom p-4 mb-4 border-top border-4 border-warning">
-            <h5 class="text-primary fw-bold mb-3"><i class="fas fa-file-invoice-dollar"></i> Cargar Pago o Abono a Admin</h5>
+        <div class="card card-custom card-pago p-4 mb-4">
+            <h5 class="fw-bold mb-3" style="color: #e91e63;"><i class="fas fa-file-invoice-dollar"></i> Cargar Pago o Abono a Admin</h5>
             <form action="/reportar" method="POST" enctype="multipart/form-data" class="row g-3 align-items-end">
                 <input type="hidden" name="agencia" value="{{ agencia }}">
                 <div class="col-md-3">
-                    <label class="form-label fw-bold small">Fecha</label>
+                    <label class="form-label fw-bold small text-muted">Fecha</label>
                     <input type="date" class="form-control" name="fecha" required>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label fw-bold small">N° Referencia (4 dígitos)</label>
+                    <label class="form-label fw-bold small text-muted">N° Referencia (4 dígitos)</label>
                     <input type="text" class="form-control" name="factura" placeholder="Ej: 8492" required>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label fw-bold small">Monto Abono / Pago (Bs.)</label>
+                    <label class="form-label fw-bold small text-muted">Monto Abono / Pago (Bs.)</label>
                     <input type="text" class="form-control" name="monto" placeholder="Ej: 20000.00" required>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label fw-bold small">Comprobante (Imagen)</label>
+                    <label class="form-label fw-bold small text-muted">Comprobante (Imagen)</label>
                     <input type="file" class="form-control" name="comprobante" required>
                 </div>
                 <div class="col-12 text-end mt-3">
@@ -78,7 +139,7 @@
                 <button class="nav-link" onclick="mostrarPestaña('pendiente')" id="btn-pendiente"><i class="fas fa-clock"></i> Pendiente</button>
             </li>
             <li class="nav-item mb-2" role="presentation">
-                <button class="nav-link" onclick="mostrarPestaña('tripletas')" id="btn-tripletas"><i class="fas fa-star"></i> Tripletas</button>
+                <button class="nav-link" onclick="mostrarPestaña('tripletas')" id="btn-tripletas"><i class="fas fa-star text-warning"></i> Tripletas</button>
             </li>
         </ul>
 
@@ -86,11 +147,11 @@
 
         <!-- 1. MIS REPORTES -->
         <div id="mis-reportes" class="tab-content-section active card card-custom p-4">
-            <h4 class="text-primary fw-bold mb-3"><i class="fas fa-chart-line"></i> Historial de Reportes Financieros</h4>
+            <h4 class="fw-bold mb-3" style="color: #0d47a1;"><i class="fas fa-chart-line text-success"></i> Historial de Reportes Financieros</h4>
             {% if reportes %}
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
-                        <thead class="table-primary">
+                        <thead style="background-color: #e8f5e9; color: #2e7d32;">
                             <tr>
                                 <th>Fecha</th>
                                 <th>Ventas (Bs.)</th>
@@ -109,7 +170,7 @@
                                     </span>
                                 </td>
                                 <td class="text-center">
-                                    <button class="btn btn-primary btn-sm fw-bold px-3" data-bs-toggle="modal" data-bs-target="#modalRep{{ rep.id }}">
+                                    <button class="btn btn-sm fw-bold px-3 text-white" style="background-color: #0d47a1;" data-bs-toggle="modal" data-bs-target="#modalRep{{ rep.id }}">
                                         <i class="fas fa-eye"></i> Ver Detalle
                                     </button>
                                 </td>
@@ -119,13 +180,13 @@
                     </table>
                 </div>
             {% else %}
-                <p class="text-muted text-center py-4">No hay reportes registrados todavía.</p>
+                <p class="text-muted text-center py-4">No hay reportes registrados todavía. 🍀</p>
             {% endif %}
         </div>
 
         <!-- 2. TRANSACCIONES -->
         <div id="transacciones" class="tab-content-section card card-custom p-4">
-            <h4 class="text-primary fw-bold mb-3"><i class="fas fa-history"></i> Historial de Pagos y Abonos</h4>
+            <h4 class="fw-bold mb-3" style="color: #0d47a1;"><i class="fas fa-history text-success"></i> Historial de Pagos y Abonos</h4>
             {% if pagos %}
                 <div class="table-responsive">
                     <table class="table table-striped align-middle">
@@ -146,7 +207,7 @@
                                 <td>{{ p.factura or p.comprobante }}</td>
                                 <td class="fw-bold {% if p.tipo == 'PAGO_TAQUILLA' %}text-success{% else %}text-dark{% endif %}">Bs. {{ p.monto | dinero }}</td>
                                 <td>
-                                    <span class="badge {% if p.estado == 'APROBADO' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                                    <span class="badge {% if p.estado == 'APROBADO' %}bg-success{% elif p.estado == 'PENDIENTE BANCA' %}bg-info text-dark{% else %}bg-warning text-dark{% endif %}">
                                         {{ p.estado }}
                                     </span>
                                 </td>
@@ -162,8 +223,8 @@
 
         <!-- 3. ADELANTOS -->
         <div id="adelantos" class="tab-content-section card card-custom p-4">
-            <h4 class="text-primary fw-bold mb-3"><i class="fas fa-hand-holding-usd"></i> Registrar Adelanto Entregado por Admin</h4>
-            <form action="/solicitar-adelanto" method="POST" class="row g-3 mb-4 p-3 bg-light rounded border">
+            <h4 class="fw-bold mb-3" style="color: #e91e63;"><i class="fas fa-hand-holding-usd"></i> Registrar Adelanto Entregado por Admin</h4>
+            <form action="/solicitar-adelanto" method="POST" class="row g-3 mb-4 p-3 rounded border" style="background-color: #fdf2f8;">
                 <input type="hidden" name="agencia" value="{{ agencia }}">
                 <div class="col-md-3">
                     <label class="form-label small fw-bold">Fecha</label>
@@ -178,20 +239,20 @@
                     <input type="text" class="form-control" name="observacion" placeholder="Ej: Adelanto para cambio" required>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-success w-100 fw-bold">Registrar</button>
+                    <button type="submit" class="btn text-white w-100 fw-bold" style="background-color: #e91e63;">Registrar</button>
                 </div>
             </form>
         </div>
 
-        <!-- 4. CASHEA (Solo visualización de registros automáticos) -->
+        <!-- 4. CASHEA -->
         <div id="cashea" class="tab-content-section card card-custom p-4">
-            <h4 class="text-primary fw-bold mb-3"><i class="fas fa-shopping-cart"></i> Registros de Cashea Absorbidos (Automático)</h4>
-            <div class="alert alert-info" role="alert">
-                <i class="fas fa-info-circle"></i> Los registros de Cashea se cargan automáticamente desde el sistema de planillas (Google Sheet).
+            <h4 class="fw-bold mb-3" style="color: #00bcd4;"><i class="fas fa-shopping-cart"></i> Registros de Cashea Absorbidos (Automático)</h4>
+            <div class="alert alert-info border-0 shadow-sm" role="alert" style="background-color: #e0f7fa; color: #006064;">
+                <i class="fas fa-info-circle"></i> Los registros de Cashea se cargan automáticamente desde el sistema de planillas (Google Sheet). 🌺
             </div>
             {% if casheas %}
                 <table class="table table-bordered align-middle">
-                    <thead class="table-info">
+                    <thead style="background-color: #e0f7fa; color: #006064;">
                         <tr>
                             <th>Fecha</th>
                             <th>Factura / Detalle</th>
@@ -215,8 +276,8 @@
 
         <!-- 5. MODIFICACIONES -->
         <div id="modificaciones" class="tab-content-section card card-custom p-4">
-            <h4 class="text-primary fw-bold mb-3"><i class="fas fa-edit"></i> Modificar Venta o Premio de Sistema (Sheet)</h4>
-            <form action="/actualizar-reporte-sistema" method="POST" class="row g-3 p-3 bg-light rounded border">
+            <h4 class="fw-bold mb-3" style="color: #2e7d32;"><i class="fas fa-edit"></i> Modificar Venta o Premio de Sistema (Sheet)</h4>
+            <form action="/actualizar-reporte-sistema" method="POST" class="row g-3 p-3 rounded border" style="background-color: #f1f8e9;">
                 <input type="hidden" name="agencia" value="{{ agencia }}">
                 <div class="col-md-3">
                     <label class="form-label small fw-bold">Fecha del Reporte</label>
@@ -240,16 +301,16 @@
                     <input type="text" class="form-control" name="premio" placeholder="0.00" required>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary w-100 fw-bold">Actualizar</button>
+                    <button type="submit" class="btn text-white w-100 fw-bold" style="background-color: #2e7d32;">Actualizar</button>
                 </div>
             </form>
         </div>
 
         <!-- 6. PENDIENTE -->
         <div id="pendiente" class="tab-content-section card card-custom p-4">
-            <h4 class="text-primary fw-bold mb-3"><i class="fas fa-clock"></i> Estado de Cuentas Pendientes (Arrastre Diario)</h4>
-            <div class="alert alert-warning mb-3" role="alert">
-                <i class="fas fa-info-circle"></i> Aquí se refleja el saldo neto acumulado y el arrastre de deudas del día anterior.
+            <h4 class="fw-bold mb-3" style="color: #0d47a1;"><i class="fas fa-clock text-success"></i> Estado de Cuentas Pendientes (Arrastre Diario)</h4>
+            <div class="alert alert-warning mb-3 border-0 shadow-sm" role="alert" style="background-color: #fff8e1; color: #8f6b00;">
+                <i class="fas fa-info-circle"></i> Aquí se refleja el saldo neto acumulado y el arrastre de deudas del día anterior. 🍀
             </div>
             {% if reportes %}
                 <div class="table-responsive">
@@ -259,6 +320,7 @@
                                 <th>Fecha</th>
                                 <th>Ventas Totales</th>
                                 <th>Saldo Pendiente / Acumulado</th>
+                                <th class="text-center">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -268,6 +330,20 @@
                                 <td>Bs. {{ rep.ventas | dinero }}</td>
                                 <td class="fw-bold {% if rep.monto >= 0 %}text-danger{% else %}text-success{% endif %}">
                                     Bs. {{ rep.monto | dinero }} {% if rep.monto >= 0 %}(Por Pagar / Debe){% else %}(A favor){% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if rep.monto < 0 %}
+                                        <form action="/solicitar-banca" method="POST" style="display: inline;">
+                                            <input type="hidden" name="agencia" value="{{ agencia }}">
+                                            <input type="hidden" name="fecha" value="{{ rep.fecha }}">
+                                            <input type="hidden" name="monto" value="{{ rep.monto }}">
+                                            <button type="submit" class="btn btn-solicitar-banca btn-sm">
+                                                <i class="fas fa-paper-plane"></i> Solicitar a Banca
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <span class="text-muted small">Sin solicitud pendiente</span>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}
@@ -281,8 +357,8 @@
 
         <!-- 7. TRIPLETAS -->
         <div id="tripletas" class="tab-content-section card card-custom p-4">
-            <h4 class="text-primary fw-bold mb-3"><i class="fas fa-star text-warning"></i> Registrar Premio por Tripleta</h4>
-            <form action="/reportar-tripleta" method="POST" class="row g-3 p-3 bg-light rounded border">
+            <h4 class="fw-bold mb-3" style="color: #f57f17;"><i class="fas fa-star text-warning"></i> Registrar Premio por Tripleta</h4>
+            <form action="/reportar-tripleta" method="POST" class="row g-3 p-3 rounded border" style="background-color: #fffde7;">
                 <input type="hidden" name="agencia" value="{{ agencia }}">
                 <div class="col-md-2">
                     <label class="form-label small fw-bold">Fecha Ticket</label>
@@ -317,16 +393,28 @@
     {% for rep in reportes %}
     <div class="modal fade" id="modalRep{{ rep.id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content" style="border-radius: 12px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title fw-bold"><i class="fas fa-file-invoice"></i> Reporte Financiero - {{ rep.fecha }}</h5>
+            <div class="modal-content" style="border-radius: 16px; border: none; box-shadow: 0 15px 35px rgba(0,0,0,0.25);">
+                <div class="modal-header text-white" style="background: linear-gradient(135deg, #0d47a1, #2e7d32);">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-file-invoice"></i> Reporte Financiero - {{ rep.fecha }} 🍀🌺</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body bg-light">
                     {{ rep.detalle_html | safe }}
                 </div>
-                <div class="modal-footer bg-white">
-                    <button type="button" class="btn btn-secondary fw-bold px-4" data-bs-dismiss="modal">Cerrar</button>
+                <div class="modal-footer bg-white d-flex justify-content-between align-items-center">
+                    {% if rep.monto < 0 %}
+                        <form action="/solicitar-banca" method="POST" class="m-0">
+                            <input type="hidden" name="agencia" value="{{ agencia }}">
+                            <input type="hidden" name="fecha" value="{{ rep.fecha }}">
+                            <input type="hidden" name="monto" value="{{ rep.monto }}">
+                            <button type="submit" class="btn btn-solicitar-banca">
+                                <i class="fas fa-paper-plane"></i> Solicitar Pago a Banca (Bs. {{ rep.monto | dinero }})
+                            </button>
+                        </form>
+                    {% else %}
+                        <div></div>
+                    {% endif %}
+                    <button type="button" class="btn btn-secondary fw-bold px-4 rounded-pill" data-bs-dismiss="modal">Cerrar</button>
                 </div>
             </div>
         </div>
