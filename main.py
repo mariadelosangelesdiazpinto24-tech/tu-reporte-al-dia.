@@ -229,7 +229,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     </div>
     '''
 
-    # Garantizamos que la tabla de sistemas aparezca PRIMERO en el detalle
     detalle_actualizado = tabla_sistemas_html + bloque_cashea + bloque_tripletas + bloque_adelantos + bloque_pendientes
 
     conn = sqlite3.connect("database.db")
@@ -345,7 +344,11 @@ def get_agencia(request: Request, nombre: str = ""):
 @app.post("/reportar")
 async def reportar_pago(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...), factura: str = Form(...), comprobante: UploadFile = File(...)):
     agencia_norm = normalizar(agencia)
-    monto_val = float(monto.replace(',', '')) if monto else 0.0
+    try:
+        monto_val = float(monto.replace(',', '')) if monto else 0.0
+    except:
+        monto_val = 0.0
+        
     ruta_archivo = f"uploads/{agencia_norm}_{factura}_{comprobante.filename}"
     with open(ruta_archivo, "wb") as buffer:
         buffer.write(await comprobante.read())
@@ -361,7 +364,10 @@ async def reportar_pago(agencia: str = Form(...), fecha: str = Form(...), monto:
 @app.post("/solicitar-adelanto")
 def solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...), observacion: str = Form(...)):
     agencia_norm = normalizar(agencia)
-    monto_val = float(monto.replace(',', '')) if monto else 0.0
+    try:
+        monto_val = float(monto.replace(',', '')) if monto else 0.0
+    except:
+        monto_val = 0.0
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
@@ -374,7 +380,11 @@ def solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), monto: 
 @app.post("/reportar-tripleta")
 def reportar_tripleta(agencia: str = Form(...), fecha: str = Form(...), sistema: str = Form(...), ticket: str = Form(...), monto: str = Form(...)):
     agencia_norm = normalizar(agencia)
-    monto_val = float(monto.replace(',', '')) if monto else 0.0
+    try:
+        monto_val = float(monto.replace(',', '')) if monto else 0.0
+    except:
+        monto_val = 0.0
+        
     detalle_str = f"Sistema: {sistema} | Ticket: {ticket}"
 
     conn = sqlite3.connect("database.db")
@@ -388,8 +398,17 @@ def reportar_tripleta(agencia: str = Form(...), fecha: str = Form(...), sistema:
 @app.post("/actualizar-reporte-sistema")
 def actualizar_reporte_sistema(agencia: str = Form(...), fecha: str = Form(...), sistema: str = Form(...), venta: str = Form(...), premio: str = Form(...)):
     agencia_norm = normalizar(agencia)
-    venta_val = float(venta.replace(',', '')) if venta else 0.0
-    premio_val = float(premio.replace(',', '')) if premio else 0.0
+    
+    # Limpieza correcta de comas para evitar errores de conversión a flotante
+    try:
+        venta_val = float(str(venta).replace(',', '')) if venta else 0.0
+    except:
+        venta_val = 0.0
+        
+    try:
+        premio_val = float(str(premio).replace(',', '')) if premio else 0.0
+    except:
+        premio_val = 0.0
 
     conn = sqlite3.connect("database.db")
     conn.row_factory = sqlite3.Row
@@ -417,6 +436,71 @@ def actualizar_reporte_sistema(agencia: str = Form(...), fecha: str = Form(...),
         if patron_fila.search(detalle_html):
             detalle_html = patron_fila.sub(nueva_fila, detalle_html)
         
+        # Recalcular la tabla entera y la fila de TOTALES
+        match_sistemas_div = re.search(r'(<div class="mb-3"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_html, re.DOTALL)
+        if match_sistemas_div:
+            tabla_html_actual = match_sistemas_div.group(1)
+            filas_datos = re.findall(r'<tr>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<\/tr>', tabla_html_actual, re.DOTALL)
+            
+            sum_ventas = 0.0
+            sum_comis = 0.0
+            sum_premios = 0.0
+            sum_totales = 0.0
+            
+            filas_nuevas_html = '''
+            <div class="mb-3">
+                <h6 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #0d47a1; padding-bottom: 5px; margin-bottom: 10px;"><i class="fas fa-chart-bar"></i> REPORTE DE SISTEMAS</h6>
+                <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 12px; width: 100%; background: #ffffff; color: #1a252c;">
+                    <tr style="background-color: #e3f2fd; color: #0d47a1; font-weight: bold;">
+                        <th style="padding: 8px;">SISTEMA</th>
+                        <th style="padding: 8px; text-align: right;">VENTA</th>
+                        <th style="padding: 8px; text-align: right;">COMIS.</th>
+                        <th style="padding: 8px; text-align: right;">PREMIO</th>
+                        <th style="padding: 8px; text-align: right;">TOTAL</th>
+                    </tr>
+            '''
+            
+            for f in filas_datos:
+                sys_nombre = f[0].strip()
+                if "SISTEMA" in sys_nombre.upper() or "TOTALES" in sys_nombre.upper():
+                    continue
+                try:
+                    v = float(str(f[1]).replace(',', ''))
+                    c = float(str(f[2]).replace(',', ''))
+                    p = float(str(f[3]).replace(',', ''))
+                    t = float(str(f[4]).replace(',', ''))
+                except:
+                    v, c, p, t = 0.0, 0.0, 0.0, 0.0
+                
+                sum_ventas += v
+                sum_comis += c
+                sum_premios += p
+                sum_totales += t
+                
+                filas_nuevas_html += f'''
+                <tr>
+                  <td style="padding: 8px; font-weight: bold;">{sys_nombre}</td>
+                  <td style="padding: 8px; text-align: right;">{v:,.2f}</td>
+                  <td style="padding: 8px; text-align: right;">{c:,.2f}</td>
+                  <td style="padding: 8px; text-align: right;">{p:,.2f}</td>
+                  <td style="padding: 8px; text-align: right;">{t:,.2f}</td>
+                </tr>
+                '''
+            
+            filas_nuevas_html += f'''
+                <tr style="background-color: #f5f5f5; font-weight: bold;">
+                  <td style="padding: 8px;">TOTALES</td>
+                  <td style="padding: 8px; text-align: right;">{sum_ventas:,.2f}</td>
+                  <td style="padding: 8px; text-align: right;">{sum_comis:,.2f}</td>
+                  <td style="padding: 8px; text-align: right;">{sum_premios:,.2f}</td>
+                  <td style="padding: 8px; text-align: right; color: #0d47a1;">{sum_totales:,.2f}</td>
+                </tr>
+            </table></div>
+            '''
+            
+            detalle_html = detalle_html.replace(tabla_html_actual, filas_nuevas_html)
+            cursor.execute("UPDATE reportes SET ventas = ? WHERE id = ?", (sum_totales, rep['id']))
+
         cursor.execute("UPDATE reportes SET detalle_html = ? WHERE id = ?", (detalle_html, rep['id']))
         conn.commit()
 
