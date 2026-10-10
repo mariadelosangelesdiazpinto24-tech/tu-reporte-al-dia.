@@ -70,7 +70,6 @@ def init_db():
         )
     ''')
     
-    # Asegurar columnas necesarias en pagos
     cursor.execute("PRAGMA table_info(pagos)")
     cols = [col[1] for col in cursor.fetchall()]
     if 'tipo' not in cols:
@@ -144,13 +143,11 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     detalle_original = rep['detalle_html'] or ""
     
-    # Extraer solamente la tabla de sistemas limpia
     match_sistemas = re.search(r'(<div class="mb-4"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_original, re.DOTALL)
     tabla_sistemas_html = match_sistemas.group(1) if match_sistemas else ""
     if not tabla_sistemas_html:
         tabla_sistemas_html = detalle_original.split('<div')[0]
 
-    # Calcular total neto de sistemas desde la tabla HTML actualizada
     total_neto_sistemas = 0.0
     filas_tabla = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_sistemas_html, re.DOTALL)
     for fila in filas_tabla:
@@ -209,7 +206,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     match_cashea_orig = re.search(r'(<div class="mb-4"[^>]*>.*?CASHEA.*?<\/table>.*?<\/div>)', detalle_original, re.DOTALL)
     tabla_cashea_html = match_cashea_orig.group(1) if match_cashea_orig else ""
 
-    # Unir todo de forma limpia sin clonaciones
     detalle_actualizado = tabla_sistemas_html + tabla_cashea_html + bloque_tripletas + bloque_adelantos + bloque_pendientes
 
     conn = sqlite3.connect("database.db")
@@ -323,7 +319,7 @@ async def reportar_pago(agencia: str = Form(...), fecha: str = Form(...), monto:
     conn.commit()
     conn.close()
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&exito=1", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/solicitar-saldo")
 def solicitar_saldo(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...), observacion: str = Form(...)):
@@ -337,7 +333,7 @@ def solicitar_saldo(agencia: str = Form(...), fecha: str = Form(...), monto: str
     conn.commit()
     conn.close()
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&solicitud=1", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/solicitar-adelanto")
 def solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...), observacion: str = Form(...)):
@@ -350,7 +346,7 @@ def solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), monto: 
     conn.commit()
     conn.close()
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&adelanto=1", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/reportar-tripleta")
 def reportar_tripleta(agencia: str = Form(...), fecha: str = Form(...), sistema: str = Form(...), ticket: str = Form(...), monto: str = Form(...)):
@@ -364,7 +360,7 @@ def reportar_tripleta(agencia: str = Form(...), fecha: str = Form(...), sistema:
     conn.commit()
     conn.close()
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tripleta=1", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/actualizar-reporte-sistema")
 def actualizar_reporte_sistema(agencia: str = Form(...), fecha: str = Form(...), sistema: str = Form(...), venta: str = Form(...), premio: str = Form(...)):
@@ -403,7 +399,7 @@ def actualizar_reporte_sistema(agencia: str = Form(...), fecha: str = Form(...),
 
     conn.close()
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&modificado=1", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/api/guardar-reporte-colab")
 def guardar_reporte_colab(agencia: str = Form(...), fecha: str = Form(...), monto: float = Form(...), ventas: float = Form(0.0), premios: float = Form(0.0), detalle_html: Optional[str] = Form("")):
