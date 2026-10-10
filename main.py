@@ -398,8 +398,8 @@ def reportar_tripleta(agencia: str = Form(...), fecha: str = Form(...), sistema:
 @app.post("/actualizar-reporte-sistema")
 def actualizar_reporte_sistema(agencia: str = Form(...), fecha: str = Form(...), sistema: str = Form(...), venta: str = Form(...), premio: str = Form(...)):
     agencia_norm = normalizar(agencia)
+    sistema_buscado = normalizar(sistema)
     
-    # Limpieza correcta de comas para evitar errores de conversión a flotante
     try:
         venta_val = float(str(venta).replace(',', '')) if venta else 0.0
     except:
@@ -418,25 +418,7 @@ def actualizar_reporte_sistema(agencia: str = Form(...), fecha: str = Form(...),
 
     if rep:
         detalle_html = rep['detalle_html'] or ""
-        comision_val = venta_val * 0.14
-        total_sistema = venta_val - comision_val - premio_val
-
-        patron_fila = re.compile(rf'(<tr>\s*<td[^>]*>\s*(?:<b>)?{re.escape(sistema)}(?:<\/b>)?<\/td>.*?<\/tr>)', re.IGNORECASE | re.DOTALL)
         
-        nueva_fila = f'''
-        <tr style="border-bottom: 1px solid #e0e0e0; font-size: 12px; color: #1a252c;">
-          <td style="padding: 8px; text-align: left; font-weight: bold; color: #1a252c;">{sistema}</td>
-          <td style="padding: 8px; text-align: right; color: #1a252c;">{venta_val:,.2f}</td>
-          <td style="padding: 8px; text-align: right; color: #1a252c;">{comision_val:,.2f}</td>
-          <td style="padding: 8px; text-align: right; color: #1a252c;">{premio_val:,.2f}</td>
-          <td style="padding: 8px; text-align: right; font-weight: bold; color: #0d47a1;">{total_sistema:,.2f}</td>
-        </tr>
-        '''
-
-        if patron_fila.search(detalle_html):
-            detalle_html = patron_fila.sub(nueva_fila, detalle_html)
-        
-        # Recalcular la tabla entera y la fila de TOTALES
         match_sistemas_div = re.search(r'(<div class="mb-3"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_html, re.DOTALL)
         if match_sistemas_div:
             tabla_html_actual = match_sistemas_div.group(1)
@@ -461,16 +443,25 @@ def actualizar_reporte_sistema(agencia: str = Form(...), fecha: str = Form(...),
             '''
             
             for f in filas_datos:
-                sys_nombre = f[0].strip()
-                if "SISTEMA" in sys_nombre.upper() or "TOTALES" in sys_nombre.upper():
+                sys_nombre_raw = f[0].replace('<b>', '').replace('</b>', '').strip()
+                sys_nombre_norm = normalizar(sys_nombre_raw)
+                
+                if "SISTEMA" in sys_nombre_norm or "TOTALES" in sys_nombre_norm or "TRIPLETA" in sys_nombre_norm:
                     continue
-                try:
-                    v = float(str(f[1]).replace(',', ''))
-                    c = float(str(f[2]).replace(',', ''))
-                    p = float(str(f[3]).replace(',', ''))
-                    t = float(str(f[4]).replace(',', ''))
-                except:
-                    v, c, p, t = 0.0, 0.0, 0.0, 0.0
+                
+                if sys_nombre_norm == sistema_buscado:
+                    v = venta_val
+                    p = premio_val
+                    c = v * 0.14
+                    t = v - c - p
+                else:
+                    try:
+                        v = float(str(f[1]).replace(',', ''))
+                        c = float(str(f[2]).replace(',', ''))
+                        p = float(str(f[3]).replace(',', ''))
+                        t = float(str(f[4]).replace(',', ''))
+                    except:
+                        v, c, p, t = 0.0, 0.0, 0.0, 0.0
                 
                 sum_ventas += v
                 sum_comis += c
@@ -479,7 +470,7 @@ def actualizar_reporte_sistema(agencia: str = Form(...), fecha: str = Form(...),
                 
                 filas_nuevas_html += f'''
                 <tr>
-                  <td style="padding: 8px; font-weight: bold;">{sys_nombre}</td>
+                  <td style="padding: 8px; font-weight: bold;">{sys_nombre_raw}</td>
                   <td style="padding: 8px; text-align: right;">{v:,.2f}</td>
                   <td style="padding: 8px; text-align: right;">{c:,.2f}</td>
                   <td style="padding: 8px; text-align: right;">{p:,.2f}</td>
