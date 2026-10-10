@@ -117,7 +117,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['comprobante']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #ffb300; font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #2e7d32; font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
             </tr>
             '''
         elif tipo_p == 'ADELANTO':
@@ -126,7 +126,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['comprobante']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #ffb300; font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #e91e63; font-weight: bold;">- Bs. {monto_p:,.2f}</td>
             </tr>
             '''
         elif tipo_p == 'CASHEA':
@@ -143,11 +143,13 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     detalle_original = rep['detalle_html'] or ""
     
+    # Extraer únicamente la PRIMERA tabla de sistemas del HTML original enviada por Colab
     match_sistemas = re.search(r'(<div class="mb-4"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_original, re.DOTALL)
     tabla_sistemas_html = match_sistemas.group(1) if match_sistemas else ""
     if not tabla_sistemas_html:
         tabla_sistemas_html = detalle_original.split('<div')[0]
 
+    # Calcular total neto de sistemas leyendo la tabla HTML
     total_neto_sistemas = 0.0
     filas_tabla = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_sistemas_html, re.DOTALL)
     for fila in filas_tabla:
@@ -162,7 +164,9 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
 
-    monto_final = total_neto_sistemas - total_pagos_taquilla + total_tripletas + total_adelantos - total_cashea
+    # FÓRMULA MATEMÁTICA CORREGIDA:
+    # Total a Pagar = Venta Sistemas - Pagos Taquilla + Tripletas (A favor taquilla) - Adelantos Entregados - Cashea
+    monto_final = total_neto_sistemas - total_pagos_taquilla + total_tripletas - total_adelantos - total_cashea
 
     bloque_tripletas = f'''
     <div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ffb300;">
@@ -179,13 +183,13 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     '''
 
     bloque_adelantos = f'''
-    <div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ffb300;">
-        <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #ffb300; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-hand-holding-usd"></i> ADELANTOS (Plata entregada por Admin)</h5>
+    <div class="mb-4" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #e91e63;">
+        <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-hand-holding-usd" style="color: #e91e63;"></i> ADELANTOS (Plata entregada por Admin - Se resta)</h5>
         <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #e3f2fd; color: #0d47a1; font-size: 13px;">
+            <tr style="background-color: #fce4ec; color: #880e4f; font-size: 13px;">
                 <th style="padding: 10px;">FECHA</th>
                 <th style="padding: 10px;">MOTIVO</th>
-                <th style="padding: 10px; text-align: right;">MONTO</th>
+                <th style="padding: 10px; text-align: right;">MONTO DESCONTADO</th>
             </tr>
             {adelantos_rows_html if adelantos_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Adelanto: 0.00 Bs.</td></tr>'}
         </table>
@@ -196,7 +200,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     <div class="mb-2" style="background: #ffffff; border-radius: 12px; padding: 20px; color: #1a252c; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 6px solid #0d47a1; border: 1px solid #e0e0e0;">
         <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; margin-bottom: 12px;"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h5>
         <div class="d-flex justify-content-between align-items-center">
-            <span style="font-size: 14px; color: #555;">Fecha: {fecha_reporte}</span>
+            <span style="font-size: 14px; color: #333; font-weight: bold;">Fecha: {fecha_reporte}</span>
             <span style="font-size: 14px; font-weight: bold; color: #333;">{("Total a Pagar" if monto_final >= 0 else "Saldo a favor / Solicitar")}</span>
             <span style="font-size: 18px; font-weight: bold; color: {('#2e7d32' if monto_final < 0 else '#e91e63')};">Bs. {monto_final:,.2f}</span>
         </div>
@@ -383,10 +387,10 @@ def actualizar_reporte_sistema(agencia: str = Form(...), fecha: str = Form(...),
         
         nueva_fila = f'''
         <tr style="border-bottom: 1px solid #e0e0e0; font-size: 12px; color: #1a252c;">
-          <td style="padding: 8px; text-align: left; font-weight: bold;">{sistema}</td>
-          <td style="padding: 8px; text-align: right; color: #333;">{venta_val:,.2f}</td>
-          <td style="padding: 8px; text-align: right; color: #333;">{comision_val:,.2f}</td>
-          <td style="padding: 8px; text-align: right; color: #333;">{premio_val:,.2f}</td>
+          <td style="padding: 8px; text-align: left; font-weight: bold; color: #1a252c;">{sistema}</td>
+          <td style="padding: 8px; text-align: right; color: #1a252c;">{venta_val:,.2f}</td>
+          <td style="padding: 8px; text-align: right; color: #1a252c;">{comision_val:,.2f}</td>
+          <td style="padding: 8px; text-align: right; color: #1a252c;">{premio_val:,.2f}</td>
           <td style="padding: 8px; text-align: right; font-weight: bold; color: #0d47a1;">{total_sistema:,.2f}</td>
         </tr>
         '''
@@ -411,7 +415,7 @@ def guardar_reporte_colab(agencia: str = Form(...), fecha: str = Form(...), mont
     existente = cursor.fetchone()
     
     if existente:
-        cursor.execute("UPDATE reportes SET monto = ?, ventas = ?, premios = ?, detalle_html = ? WHERE agencia = ? AND fecha = ?", (monto, ventas, premios, detalle_html, agencia_norm, fecha))
+        cursor.execute("UPDATE reportes SET monto = ?, ventas = ?, premios = ?, detalle_html = ?", (monto, ventas, premios, detalle_html) + (" WHERE agencia = ? AND fecha = ?", (agencia_norm, fecha)))
     else:
         cursor.execute("INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html) VALUES (?, ?, ?, ?, ?, ?)", (agencia_norm, fecha, monto, ventas, premios, detalle_html))
         
