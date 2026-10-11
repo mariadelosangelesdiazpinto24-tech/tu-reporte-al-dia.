@@ -638,7 +638,12 @@ def get_admin(
         cursor = conn.cursor()
         
         cursor.execute("SELECT * FROM reportes ORDER BY id DESC")
-        reportes = [dict(row) for row in cursor.fetchall()]
+        raw_reportes = cursor.fetchall()
+        reportes = []
+        for r in raw_reportes:
+            rd = dict(r)
+            rd["cashea_descontado"] = 0.0  # Atributo requerido por el HTML
+            reportes.append(rd)
         
         cursor.execute("SELECT * FROM pagos WHERE tipo != 'CASHEA' ORDER BY id DESC")
         pagos = [dict(row) for row in cursor.fetchall()]
@@ -668,7 +673,6 @@ def get_admin(
         sistemas_consolidados = {}
         totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
 
-        # Cálculo para el desglose de banqueros y ganancias
         total_ganancia_diferencial_global = 0.0
         total_ganancia_participacion_global = 0.0
         total_acumulado_cuentas_bancarias = 0.0
