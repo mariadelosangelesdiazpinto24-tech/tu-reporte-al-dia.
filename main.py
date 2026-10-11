@@ -407,7 +407,6 @@ def get_admin(
         f_hasta = hasta_fecha if hasta_fecha else hoy_str
         agencia_filtro = agencia if agencia else ""
 
-        # OBTENER CASHEAS CON FILTRO DE FECHAS Y AGENCIA
         if agencia_filtro:
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND agencia = %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (normalizar(agencia_filtro), f_desde, f_hasta))
         else:
@@ -481,73 +480,111 @@ def get_admin(
                 elif t_type in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
                     totales_auxiliares["abonos_banca"] += m_val
 
-        # LÓGICA DE CÁLCULO DE BANQUEROS CON TUS NORMAS FINANCIERAS
+        # ESTRUCTURA DE CONFIGURACIÓN DE BANQUEROS, COBRANZAS Y REGLAS FINANCIERAS
         ESTRUCTURA_BANQUEROS = {
-            "COMERCIALIZADORA SUPER APUESTAS": [
-                {"sistema": "BETSOL", "pct_agencia": 0.12, "pct_comision_mía": 0.03, "pct_participacion": 0.10, "tipo_participacion": "SALDO"}
-            ],
-            "COMERCIALIZADORA LOTTOLUCKY": [
-                {"sistema": "LOTTOLUCKY", "pct_agencia": 0.13, "pct_comision_mía": 0.04, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
-            ],
-            "COMERCIALIZADORA NYS": [
-                {"sistema": "POZO", "pct_agencia": 0.11, "pct_comision_mía": 0.01, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"},
-                {"sistema": "LA IMAGINARIA", "pct_agencia": 0.14, "pct_comision_mía": 0.03, "pct_participacion": 0.35, "tipo_participacion": "TOTAL"},
-                {"sistema": "WINBIG POLLAS", "pct_agencia": 0.14, "pct_comision_mía": 0.18, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
-            ],
-            "COMERCIALIZADORA LIDER": [
-                {"sistema": "MAXPLAY", "pct_agencia": 0.12, "pct_comision_mía": 0.04, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                {"sistema": "SRQ", "pct_agencia": 0.12, "pct_comision_mía": 0.04, "pct_participacion": 0.30, "tipo_participacion": "TOTAL"},
-                {"sistema": "WINBIG VENTAS", "pct_agencia": 0.14, "pct_comision_mía": 0.03, "pct_participacion": 0.30, "tipo_participacion": "TOTAL"},
-                {"sistema": "GATO", "pct_agencia": 0.12, "pct_comision_mía": 0.04, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                {"sistema": "LOTIPOS", "pct_agencia": 0.13, "pct_comision_mía": 0.03, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                {"sistema": "PREMIER", "pct_agencia": 0.12, "pct_comision_mía": 0.04, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"},
-                {"sistema": "POSNET", "pct_agencia": 0.12, "pct_comision_mía": 0.03, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                {"sistema": "PARLEY", "pct_agencia": 0.10, "pct_comision_mía": 0.02, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"}
-            ],
-            "COMERCIALIZADORA LOTTIPLAY": [
-                {"sistema": "LOTTIPLAY", "pct_agencia": 0.12, "pct_comision_mía": 0.03, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
-            ]
+            "COMERCIALIZADORA SUPER APUESTAS": {
+                "sistemas": [
+                    {"sistema": "BETSOL", "pct_agencia": 0.12, "pct_comision_mía": 0.03, "pct_participacion": 0.10, "tipo_participacion": "SALDO"}
+                ],
+                "cobranza": [],
+                "absorbe_cashea": False
+            },
+            "COMERCIALIZADORA LOTTOLUCKY": {
+                "sistemas": [
+                    {"sistema": "LOTTOLUCKY", "pct_agencia": 0.13, "pct_comision_mía": 0.04, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
+                ],
+                "cobranza": [],
+                "absorbe_cashea": False
+            },
+            "COMERCIALIZADORA NYS": {
+                "sistemas": [
+                    {"sistema": "POZO", "pct_agencia": 0.11, "pct_comision_mía": 0.01, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"},
+                    {"sistema": "LA IMAGINARIA", "pct_agencia": 0.14, "pct_comision_mía": 0.03, "pct_participacion": 0.35, "tipo_participacion": "TOTAL"},
+                    {"sistema": "WINBIG POLLAS", "pct_agencia": 0.14, "pct_comision_mía": 0.18, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
+                ],
+                "cobranza": ["CALAMAR A", "CALAMAR B"],
+                "absorbe_cashea": True
+            },
+            "COMERCIALIZADORA LIDER": {
+                "sistemas": [
+                    {"sistema": "MAXPLAY", "pct_agencia": 0.12, "pct_comision_mía": 0.04, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
+                    {"sistema": "SRQ", "pct_agencia": 0.12, "pct_comision_mía": 0.04, "pct_participacion": 0.30, "tipo_participacion": "TOTAL"},
+                    {"sistema": "WINBIG VENTAS", "pct_agencia": 0.14, "pct_comision_mía": 0.03, "pct_participacion": 0.30, "tipo_participacion": "TOTAL"},
+                    {"sistema": "GATO", "pct_agencia": 0.12, "pct_comision_mía": 0.04, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
+                    {"sistema": "LOTIPOS", "pct_agencia": 0.13, "pct_comision_mía": 0.03, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
+                    {"sistema": "PREMIER", "pct_agencia": 0.12, "pct_comision_mía": 0.04, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"},
+                    {"sistema": "POSNET", "pct_agencia": 0.12, "pct_comision_mía": 0.03, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
+                    {"sistema": "PARLEY", "pct_agencia": 0.10, "pct_comision_mía": 0.02, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"}
+                ],
+                "cobranza": ["GUACA", "MEGA GUACA", "TRIPLE GUACA"],
+                "absorbe_cashea": False
+            },
+            "COMERCIALIZADORA LOTTIPLAY": {
+                "sistemas": [
+                    {"sistema": "LOTTIPLAY", "pct_agencia": 0.12, "pct_comision_mía": 0.03, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
+                ],
+                "cobranza": [],
+                "absorbe_cashea": False
+            }
         }
 
         desglose_banqueros = {}
-        total_mi_ganancia_global = 0.0
+        total_ganancia_comision_global = 0.0
+        total_ganancia_participacion_global = 0.0
+        total_neto_acumulado_bancas = 0.0
 
-        for b_nombre, sys_lista in ESTRUCTURA_BANQUEROS.items():
-            desglose_banqueros[b_nombre] = []
-            for item in sys_lista:
+        for b_nombre, cfg in ESTRUCTURA_BANQUEROS.items():
+            desglose_banqueros[b_nombre] = {
+                "sistemas": [],
+                "cobranza": cfg["cobranza"],
+                "cashea_descontado": totales_auxiliares["cashea"] if cfg["absorbe_cashea"] else 0.0,
+                "total_a_pagar_banquero": 0.0,
+                "total_mi_ganancia_banca": 0.0
+            }
+
+            subtotal_banquero = 0.0
+
+            for item in cfg["sistemas"]:
                 s_name = item["sistema"]
                 v_sys = sistemas_consolidados.get(s_name, {}).get("venta", 0.0)
                 p_sys = sistemas_consolidados.get(s_name, {}).get("premio", 0.0)
                 c_agencia = v_sys * item["pct_agencia"]
                 
-                # TOTAL BANQUERO
-                total_banquero = v_sys - c_agencia - p_sys
+                # TOTAL PARA EL BANQUERO (LO QUE SE LE IMPRIME AL BANQUERO)
+                t_banquero_sistema = v_sys - c_agencia - p_sys
+                subtotal_banquero += t_banquero_sistema
 
-                # CÁLCULO DE MI GANANCIA (COMISIÓN Y PARTICIPACIÓN REAL)
-                ganancia_comision = v_sys * item["pct_comision_mía"]
-                ganancia_participacion = 0.0
+                # CÁLCULOS PRIVADOS DE GANANCIA
+                g_comision = v_sys * item["pct_comision_mía"]
+                g_participacion = 0.0
 
-                if item["tipo_participacion"] == "SALDO":
-                    ganancia_participacion = total_banquero * item["pct_participacion"]
-                elif item["tipo_participacion"] == "TOTAL":
-                    ganancia_participacion = total_banquero * item["pct_participacion"]
+                if item["tipo_participacion"] in ["SALDO", "TOTAL"]:
+                    g_participacion = t_banquero_sistema * item["pct_participacion"]
 
-                mi_ganancia_total = ganancia_comision + ganancia_participacion
+                g_total = g_comision + g_participacion
 
-                desglose_banqueros[b_nombre].append({
+                total_ganancia_comision_global += g_comision
+                total_ganancia_participacion_global += g_participacion
+
+                desglose_banqueros[b_nombre]["sistemas"].append({
                     "sistema": s_name,
                     "venta": v_sys,
                     "comision_agencia": c_agencia,
                     "premios": p_sys,
-                    "total_neto": total_banquero,
+                    "total_banquero": t_banquero_sistema,
                     "pct_comision_mía": item["pct_comision_mía"] * 100,
                     "pct_participacion": item["pct_participacion"] * 100,
-                    "ganancia_comision": ganancia_comision,
-                    "ganancia_participacion": ganancia_participacion,
-                    "mi_ganancia": mi_ganancia_total
+                    "ganancia_comision": g_comision,
+                    "ganancia_participacion": g_participacion,
+                    "mi_ganancia_total": g_total
                 })
-                total_mi_ganancia_global += mi_ganancia_total
+                desglose_banqueros[b_nombre]["total_mi_ganancia_banca"] += g_total
 
+            final_banquero = subtotal_banquero - desglose_banqueros[b_nombre]["cashea_descontado"]
+            desglose_banqueros[b_nombre]["total_a_pagar_banquero"] = final_banquero
+            total_neto_acumulado_bancas += final_banquero
+
+        total_mi_ganancia_global = total_ganancia_comision_global + total_ganancia_participacion_global
         neto_final_agencia = totales_generales["neto"] - totales_auxiliares["abonos_banca"] + totales_auxiliares["tripletas"] - totales_auxiliares["adelantos"] - totales_auxiliares["cashea"]
         neto_menos_cashea = totales_generales["neto"] - totales_auxiliares["cashea"]
 
@@ -560,7 +597,8 @@ def get_admin(
         reportes, pagos, casheas_generales, agencias, comunicados, positivos, negativos, sistemas_consolidados = [], [], [], [], [], [], [], {}
         totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
         totales_auxiliares = {"cashea": 0.0, "tripletas": 0.0, "adelantos": 0.0, "abonos_banca": 0.0}
-        desglose_banqueros, total_mi_ganancia_global = {}, 0.0
+        desglose_banqueros = {}
+        total_ganancia_comision_global, total_ganancia_participacion_global, total_mi_ganancia_global, total_neto_acumulado_bancas = 0.0, 0.0, 0.0, 0.0
         neto_final_agencia, neto_menos_cashea = 0.0, 0.0
         f_desde, f_hasta, agencia_filtro = datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%Y-%m-%d'), ""
 
@@ -578,7 +616,10 @@ def get_admin(
         "neto_final_agencia": neto_final_agencia,
         "neto_menos_cashea": neto_menos_cashea,
         "desglose_banqueros": desglose_banqueros,
+        "total_ganancia_comision_global": total_ganancia_comision_global,
+        "total_ganancia_participacion_global": total_ganancia_participacion_global,
         "total_mi_ganancia_global": total_mi_ganancia_global,
+        "total_neto_acumulado_bancas": total_neto_acumulado_bancas,
         "agencia_filtro": agencia_filtro,
         "desde_fecha": f_desde,
         "hasta_fecha": f_hasta,
