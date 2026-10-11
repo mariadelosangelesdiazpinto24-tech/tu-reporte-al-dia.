@@ -26,6 +26,33 @@ SISTEMAS_OFICIALES = [
     "WINBIG POLLAS", "VENTA ACTIVA", "PARLEY"
 ]
 
+# MAPEO DE BANQUEROS / COMERCIALIZADORAS Y SUS DIFERENCIALES DE PORCENTAJE
+ESTRUCTURA_BANQUEROS = {
+    "COMERCIALIZADORA SUPER APUESTAS": [
+        {"sistema": "BETSOL", "pct_agencia": 0.12, "pct_mi_ganancia": 0.03}
+    ],
+    "COMERCIALIZADORA LOTTOLUCKY": [
+        {"sistema": "LOTTOLUCKY", "pct_agencia": 0.13, "pct_mi_ganancia": 0.04}
+    ],
+    "COMERCIALIZADORA NYS": [
+        {"sistema": "POZO", "pct_agencia": 0.11, "pct_mi_ganancia": 0.01},
+        {"sistema": "LA IMAGINARIA", "pct_agencia": 0.14, "pct_mi_ganancia": 0.03},
+        {"sistema": "WINBIG POLLAS", "pct_agencia": 0.14, "pct_mi_ganancia": 0.03}
+    ],
+    "COMERCIALIZADORA LIDER": [
+        {"sistema": "MAXPLAY", "pct_agencia": 0.12, "pct_mi_ganancia": 0.04},
+        {"sistema": "SRQ", "pct_agencia": 0.12, "pct_mi_ganancia": 0.04},
+        {"sistema": "LOTIPOS", "pct_agencia": 0.13, "pct_mi_ganancia": 0.03},
+        {"sistema": "GATO", "pct_agencia": 0.12, "pct_mi_ganancia": 0.04},
+        {"sistema": "PREMIER", "pct_agencia": 0.12, "pct_mi_ganancia": 0.04},
+        {"sistema": "POSNET", "pct_agencia": 0.12, "pct_mi_ganancia": 0.03},
+        {"sistema": "PARLEY", "pct_agencia": 0.10, "pct_mi_ganancia": 0.02}
+    ],
+    "COMERCIALIZADORA LOTTIPLAY": [
+        {"sistema": "LOTTIPLAY", "pct_agencia": 0.12, "pct_mi_ganancia": 0.03}
+    ]
+}
+
 def normalizar(texto: str) -> str:
     if not texto:
         return ""
@@ -209,29 +236,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     detalle_original = rep['detalle_html'] or ""
     match_sistemas = re.search(r'(<div class="mb-3"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_original, re.DOTALL)
     tabla_sistemas_html = match_sistemas.group(1) if match_sistemas else ""
-    
-    if not tabla_sistemas_html:
-        tabla_sistemas_html = f'''
-        <div class="mb-3">
-            <h6 style="color: #e91e63; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 5px; margin-bottom: 10px;"><i class="fas fa-chart-bar"></i> REPORTE DE SISTEMAS</h6>
-            <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 12px; width: 100%; background: #ffffff; color: #1a252c;">
-                <tr style="background-color: #fce4ec; color: #e91e63; font-weight: bold;">
-                    <th style="padding: 8px;">SISTEMA</th>
-                    <th style="padding: 8px; text-align: right;">VENTA</th>
-                    <th style="padding: 8px; text-align: right;">COMIS.</th>
-                    <th style="padding: 8px; text-align: right;">PREMIO</th>
-                    <th style="padding: 8px; text-align: right;">TOTAL</th>
-                </tr>
-                <tr style="background-color: #f5f5f5; font-weight: bold;">
-                  <td style="padding: 8px;">TOTALES</td>
-                  <td style="padding: 8px; text-align: right;">{rep['ventas']:,.2f}</td>
-                  <td style="padding: 8px; text-align: right;">0.00</td>
-                  <td style="padding: 8px; text-align: right;">{rep['premios']:,.2f}</td>
-                  <td style="padding: 8px; text-align: right; color: #e91e63;">{rep['ventas'] - rep['premios']:,.2f}</td>
-                </tr>
-            </table>
-        </div>
-        '''
 
     total_neto_sistemas = 0.0
     filas_tabla = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_sistemas_html, re.DOTALL)
@@ -436,11 +440,19 @@ def get_admin(
         sistemas_consolidados = {}
         totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
         
+        # DESGLOSE INDIVIDUAL DE CONSOLIDADO (CASHEA, TRIPLETAS, ADELANTOS, ABONOS)
+        totales_auxiliares = {
+            "cashea": 0.0,
+            "tripletas": 0.0,
+            "adelantos": 0.0,
+            "abonos_banca": 0.0
+        }
+
         agencias_a_procesar = [normalizar(agencia_filtro)] if agencia_filtro else [a['agencia'] for a in agencias]
 
         for ag in agencias_a_procesar:
             cursor.execute(
-                "SELECT detalle_html FROM reportes WHERE agencia = %s AND fecha >= %s AND fecha <= %s", 
+                "SELECT * FROM reportes WHERE agencia = %s AND fecha >= %s AND fecha <= %s", 
                 (ag, f_desde, f_hasta)
             )
             reps_db = cursor.fetchall()
@@ -476,14 +488,51 @@ def get_admin(
                                 totales_generales["premio"] += p
                                 totales_generales["neto"] += t
 
-        # CALCULAR TOTAL CASHEA EN EL RANGO
-        total_cashea_rango = 0.0
-        for c in casheas_generales:
-            if f_desde <= c['fecha'] <= f_hasta:
-                if not agencia_filtro or normalizar(c['agencia']) == normalizar(agencia_filtro):
-                    total_cashea_rango += (c['monto'] or 0.0)
+            # OBTENER PAGOS Y AUXILIARES DE LA AGENCIA EN EL RANGO
+            cursor.execute(
+                "SELECT tipo, monto FROM pagos WHERE agencia = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'",
+                (ag, f_desde, f_hasta)
+            )
+            pagos_aux = cursor.fetchall()
+            for pa in pagos_aux:
+                m_val = pa['monto'] or 0.0
+                t_type = str(pa['tipo']).strip().upper() if pa['tipo'] else ''
+                if t_type == 'CASHEA':
+                    totales_auxiliares["cashea"] += m_val
+                elif t_type == 'TRIPLETA':
+                    totales_auxiliares["tripletas"] += m_val
+                elif t_type == 'ADELANTO':
+                    totales_auxiliares["adelantos"] += m_val
+                elif t_type in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
+                    totales_auxiliares["abonos_banca"] += m_val
 
-        neto_menos_cashea = totales_generales["neto"] - total_cashea_rango
+        # CÁLCULO DESGLOSE BANCA Y GANANCIAS MIAS
+        desglose_banqueros = {}
+        total_mi_ganancia_global = 0.0
+
+        for b_nombre, sys_lista in ESTRUCTURA_BANQUEROS.items():
+            desglose_banqueros[b_nombre] = []
+            for item in sys_lista:
+                s_name = item["sistema"]
+                v_sys = sistemas_consolidados.get(s_name, {}).get("venta", 0.0)
+                p_sys = sistemas_consolidados.get(s_name, {}).get("premio", 0.0)
+                c_agencia = v_sys * item["pct_agencia"]
+                mi_ganancia = v_sys * item["pct_mi_ganancia"]
+                t_sys = v_sys - c_agencia - p_sys
+
+                desglose_banqueros[b_nombre].append({
+                    "sistema": s_name,
+                    "venta": v_sys,
+                    "comision_agencia": c_agencia,
+                    "premios": p_sys,
+                    "total_neto": t_sys,
+                    "pct_mi_ganancia": item["pct_mi_ganancia"] * 100,
+                    "mi_ganancia": mi_ganancia
+                })
+                total_mi_ganancia_global += mi_ganancia
+
+        neto_final_agencia = totales_generales["neto"] - totales_auxiliares["abonos_banca"] + totales_auxiliares["tripletas"] - totales_auxiliares["adelantos"] - totales_auxiliares["cashea"]
+        neto_menos_cashea = totales_generales["neto"] - totales_auxiliares["cashea"]
 
         positivos = [r for r in reportes if r['monto'] > 0]
         negativos = [r for r in reportes if r['monto'] < 0]
@@ -493,8 +542,9 @@ def get_admin(
         print("Error en admin:", e)
         reportes, pagos, casheas_generales, agencias, comunicados, positivos, negativos, sistemas_consolidados = [], [], [], [], [], [], [], {}
         totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
-        total_cashea_rango = 0.0
-        neto_menos_cashea = 0.0
+        totales_auxiliares = {"cashea": 0.0, "tripletas": 0.0, "adelantos": 0.0, "abonos_banca": 0.0}
+        desglose_banqueros, total_mi_ganancia_global = {}, 0.0
+        neto_final_agencia, neto_menos_cashea = 0.0, 0.0
         f_desde, f_hasta, agencia_filtro = datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%Y-%m-%d'), ""
 
     return templates.TemplateResponse(request=request, name="admin.html", context={
@@ -507,8 +557,11 @@ def get_admin(
         "negativos": negativos,
         "sistemas_consolidados": sistemas_consolidados,
         "totales_generales": totales_generales,
-        "total_cashea_rango": total_cashea_rango,
+        "totales_auxiliares": totales_auxiliares,
+        "neto_final_agencia": neto_final_agencia,
         "neto_menos_cashea": neto_menos_cashea,
+        "desglose_banqueros": desglose_banqueros,
+        "total_mi_ganancia_global": total_mi_ganancia_global,
         "agencia_filtro": agencia_filtro,
         "desde_fecha": f_desde,
         "hasta_fecha": f_hasta,
