@@ -172,7 +172,7 @@
                 </div>
             </div>
 
-            <!-- 1. TRANSACCIONES Y PROCESAMIENTO DE SOLICITUDES CON CAP -->
+            <!-- 1. TRANSACCIONES Y SOLICITUDES -->
             <div class="tab-pane fade {% if tab_activa == 'transacciones' %}show active{% endif %}" id="transacciones" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
                     <div class="card-body">
@@ -210,7 +210,6 @@
                                                 {% if p.estado == 'PENDIENTE BANCA' %}
                                                 <button class="btn btn-sm btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#modalPagar{{ p.id }}"><i class="fas fa-check-circle me-1"></i> Procesar Pago</button>
 
-                                                <!-- MODAL PROCESAR PAGO CON DESPLEGABLE ABONO / PAGO COMPLETO Y CARGA DE CAP -->
                                                 <div class="modal fade" id="modalPagar{{ p.id }}" tabindex="-1">
                                                     <div class="modal-dialog">
                                                         <div class="modal-content text-start">
@@ -333,7 +332,7 @@
                 </div>
             </div>
 
-            <!-- 3. DATA CASHEA GENERAL CON BUSCADOR DE FECHA -->
+            <!-- 3. DATA CASHEA GENERAL -->
             <div class="tab-pane fade {% if tab_activa == 'cashea' %}show active{% endif %}" id="cashea" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #00bcd4 !important;">
                     <div class="card-body">
@@ -465,7 +464,7 @@
                 </div>
             </div>
 
-            <!-- 5. TOTALIZADOR -->
+            <!-- 5. TOTALIZADOR FINANCIERO CORREGIDO -->
             <div class="tab-pane fade {% if tab_activa == 'totalizador' %}show active{% endif %}" id="totalizador" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #0d47a1 !important;">
                     <div class="card-body">
@@ -484,11 +483,11 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label fw-bold small">Desde Fecha</label>
-                                <input type="date" name="desde_fecha" class="form-control form-control-sm border-primary" value="{{ desde_fecha }}">
+                                <input type="date" name="desde_fecha" id="tot_desde" class="form-control form-control-sm border-primary" value="{{ desde_fecha }}">
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label fw-bold small">Hasta Fecha</label>
-                                <input type="date" name="hasta_fecha" class="form-control form-control-sm border-primary" value="{{ hasta_fecha }}">
+                                <input type="date" name="hasta_fecha" id="tot_hasta" class="form-control form-control-sm border-primary" value="{{ hasta_fecha }}">
                             </div>
                             <div class="col-md-2">
                                 <button type="submit" class="btn btn-sm w-100 fw-bold btn-primary shadow-sm py-2">
@@ -500,8 +499,20 @@
                         <div class="row g-3 mb-4">
                             <div class="col-md-3">
                                 <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-primary border-4">
-                                    <span class="text-muted small fw-bold">MI GANANCIA COMISIONES (%)</span>
-                                    <h4 class="fw-bold text-primary mt-1">Bs. {{ total_ganancia_comision_global | dinero }}</h4>
+                                    <span class="text-muted small fw-bold">TOTAL VENTAS GLOBALES</span>
+                                    <h4 class="fw-bold text-dark mt-1">Bs. {{ totales_generales.venta | dinero }}</h4>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-info border-4">
+                                    <span class="text-muted small fw-bold">TOTAL CASHEAS (DESCUENTOS)</span>
+                                    <h4 class="fw-bold text-info mt-1">- Bs. {{ totales_auxiliares.cashea | dinero }}</h4>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-success border-4">
+                                    <span class="text-muted small fw-bold">MI GANANCIA DIFERENCIAL (%)</span>
+                                    <h4 class="fw-bold text-success mt-1">Bs. {{ total_ganancia_diferencial_global | dinero }}</h4>
                                 </div>
                             </div>
                             <div class="col-md-3">
@@ -510,18 +521,20 @@
                                     <h4 class="fw-bold text-warning mt-1">Bs. {{ total_ganancia_participacion_global | dinero }}</h4>
                                 </div>
                             </div>
-                            <div class="col-md-3">
-                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-success border-4">
-                                    <span class="text-muted small fw-bold">MI GANANCIA TOTAL REAL</span>
-                                    <h4 class="fw-bold text-success mt-1">Bs. {{ total_mi_ganancia_global | dinero }}</h4>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-danger border-4">
-                                    <span class="text-muted small fw-bold">ESTADO BANCAS (NETO CON BANQUEROS)</span>
-                                    <h4 class="fw-bold text-danger mt-1">Bs. {{ total_neto_acumulado_bancas | dinero }}</h4>
-                                </div>
-                            </div>
+                        </div>
+
+                        <div class="card border-0 shadow-sm bg-light p-4" style="border-radius: 12px; border-left: 6px solid #0d47a1;">
+                            <h6 class="fw-bold text-secondary mb-3"><i class="fas fa-university me-2"></i> BALANCE FINAL CUENTAS BANCARIAS Y BANQUEROS</h6>
+                            <ul class="list-group list-group-flush shadow-sm rounded">
+                                <li class="list-group-item d-flex justify-content-between align-items-center py-3 bg-white">
+                                    <span class="fw-bold text-dark"><i class="fas fa-coins text-warning me-2"></i> Mi Ganancia Privada Total (Diferencial % + Participación)</span>
+                                    <span class="fw-bold text-success fs-5">Bs. {{ total_mi_ganancia_global | dinero }}</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center py-3 bg-primary text-white rounded-bottom">
+                                    <span class="fw-bold fs-5"><i class="fas fa-wallet me-2"></i> TOTAL A TENER EN LA CUENTA / BANCOS (SUMA DE BANCAS)</span>
+                                    <span class="fw-bold fs-4">Bs. {{ total_acumulado_cuentas_bancarias | dinero }}</span>
+                                </li>
+                            </ul>
                         </div>
 
                     </div>
@@ -533,8 +546,8 @@
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="fw-bold text-success m-0"><i class="fas fa-university"></i> Desglose por Banqueros con Comisiones Completas</h5>
-                            <span class="badge bg-success fs-6 p-2">Mi Ganancia Total: Bs. {{ total_mi_ganancia_global | dinero }}</span>
+                            <h5 class="fw-bold text-success m-0"><i class="fas fa-university"></i> Desglose por Banqueros con Ganancia Privada Diferencial</h5>
+                            <span class="badge bg-success fs-6 p-2">Mi Ganancia Total Excedente: Bs. {{ total_mi_ganancia_global | dinero }}</span>
                         </div>
 
                         <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm">
@@ -615,14 +628,14 @@
 
                                     <div class="col-lg-5">
                                         <div class="border rounded p-2 bg-light shadow-sm">
-                                            <span class="badge bg-success mb-2">💰 MIS GANANCIAS (PRIVADO)</span>
+                                            <span class="badge bg-success mb-2">💰 MIS GANANCIAS DIFERENCIALES (PRIVADO)</span>
                                             <div class="table-responsive">
                                                 <table class="table table-sm table-hover mb-0 align-middle" style="font-size: 12px;">
                                                     <thead class="table-dark">
                                                         <tr>
                                                             <th>SISTEMA</th>
-                                                            <th class="text-center">% COM / % PART</th>
-                                                            <th class="text-end">MI GANANCIA</th>
+                                                            <th class="text-center">% EXCED / % PART</th>
+                                                            <th class="text-end">GANANCIA REAL</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -630,8 +643,8 @@
                                                         <tr>
                                                             <td class="fw-bold">{{ sys.sistema }}</td>
                                                             <td class="text-center">
-                                                                <span class="badge bg-primary">{{ "{:.1f}%".format(sys.pct_comision_mía) }}</span>
-                                                                <span class="badge bg-warning text-dark">{{ "{:.1f}%".format(sys.pct_participacion) }}</span>
+                                                                <span class="badge bg-primary">{{ "{:.1f}%".format(sys.pct_diferencial) }} Dif</span>
+                                                                <span class="badge bg-warning text-dark">{{ "{:.1f}%".format(sys.pct_participacion) }} Part</span>
                                                             </td>
                                                             <td class="text-end fw-bold text-success">+ {{ "{:,.2f}".format(sys.mi_ganancia_total) }}</td>
                                                         </tr>
@@ -695,8 +708,12 @@
         }
 
         function copiarBanquero(tablaId, nombreBanquero) {
+            var fDesde = document.getElementById("tot_desde") ? document.getElementById("tot_desde").value : "";
+            var fHasta = document.getElementById("tot_hasta") ? document.getElementById("tot_hasta").value : "";
+            
+            var fechaEncabezado = (fDesde && fHasta) ? " (FECHA: " + fDesde + " A " + fHasta + ")" : "";
             var tabla = document.getElementById(tablaId);
-            var textoCopiar = "--- " + nombreBanquero + " ---\n\n";
+            var textoCopiar = "--- " + nombreBanquero + fechaEncabezado + " ---\n\n";
             var filas = tabla.getElementsByTagName("tr");
             
             for (var i = 1; i < filas.length; i++) {
@@ -712,7 +729,7 @@
             }
 
             navigator.clipboard.writeText(textoCopiar).then(function() {
-                alert("¡Reporte para " + nombreBanquero + " copiado al portapapeles!");
+                alert("¡Reporte para " + nombreBanquero + " copiado al portapapeles con sus fechas!");
             }, function(err) {
                 alert("Error al copiar: " + err);
             });
