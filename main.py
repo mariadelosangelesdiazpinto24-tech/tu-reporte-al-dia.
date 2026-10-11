@@ -631,7 +631,7 @@ def get_admin(
     agencia: Optional[str] = None, 
     desde_fecha: Optional[str] = None,
     hasta_fecha: Optional[str] = None,
-    tab: str = "transacciones"
+    tab: str = "taquillas"
 ):
     try:
         conn = get_db()
@@ -714,7 +714,7 @@ def get_admin(
         conn.close()
     except Exception as e:
         print("Error en admin:", e)
-        reportes, pagos, agencias, comunicados, positivos, negativos, sistemas_consolidados, totales_generales, casheas_generales = [], [], [], [], [], [], {}, {}, []
+        reportes, pagos, agencias, comunicados, positivos, negativos, sistemas_consolidados, totales_generales, casheas_generales = [], [], [], [], [], [], {}, {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}, []
 
     return templates.TemplateResponse(request=request, name="admin.html", context={
         "reportes": reportes, 
@@ -729,8 +729,122 @@ def get_admin(
         "desde_fecha": f_desde,
         "hasta_fecha": f_hasta,
         "casheas_generales": casheas_generales,
+        "tab_activa": tab,
         "total_ganancia_diferencial_global": 0.0,
         "total_ganancia_participacion_global": 0.0,
         "total_acumulado_cuentas_bancarias": 0.0,
         "desglose_banqueros": {}
     })
+
+@app.post("/admin/crear-agencia")
+def crear_agencia(agencia: str = Form(...), clave: str = Form(...), genero: str = Form("FEMENINO")):
+    agencia_norm = normalizar(agencia)
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO usuarios (agencia, clave, genero) VALUES (%s, %s, %s) ON CONFLICT (agencia) DO UPDATE SET clave = EXCLUDED.clave, genero = EXCLUDED.genero",
+        (agencia_norm, clave, genero)
+    )
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/eliminar-agencia")
+def eliminar_agencia(agencia_id: int = Form(...)):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM usuarios WHERE id = %s", (agencia_id,))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/crear-comunicado")
+def crear_comunicado(mensaje: str = Form(...)):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje,))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin?tab=comunicados", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/eliminar-comunicado")
+def eliminar_comunicado(comunicado_id: int = Form(...)):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM comunicados WHERE id = %s", (comunicado_id,))
+    cursor.execute("DELETE FROM lecturas_comunicados WHERE comunicado_id = %s", (comunicado_id,))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin?tab=comunicados", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/marcar-comunicado-leido")
+def marcar_comunicado_leido(agencia: str = Form(...), comunicado_id: int = Form(...)):
+    agencia_norm = normalizar(agencia)
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO lecturas_comunicados (comunicado_id, agencia, leido) VALUES (%s, %s, 1) ON CONFLICT (comunicado_id, agencia) DO NOTHING",
+        (comunicado_id, agencia_norm)
+    )
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/procesar-solicitud-dinero")
+async def procesar_solicitud_dinero(
+    pago_id: int = Form(...),
+    tipo_procesamiento: str = Form(...),
+    monto_abono: Optional[str] = Form(None),
+    comprobante: Optional[UploadFile] = File(None)
+):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM pagos WHERE id = %s", (pago_id,))
+    pago = cursor.fetchone()
+
+    if pago:
+        agencia = pago['agencia']
+        fecha = pago['fecha']
+        ruta_archivo = pago['comprobante']
+
+        if comprobante and comprobante.filename:
+            ruta_archivo = f"uploads/ADMIN_{agencia}_{comprobante.filename}"
+            with open(ruta_archivo, "wb") as buffer:
+                buffer.write(await comprobante.read())
+
+        if tipo_procesamiento == "PAGO_COMPLETO":
+            cursor.execute("UPDATE pagos SET estado = 'APROBADO', comprobante = %s WHERE id = %s", (ruta_archivo, pago_id))
+        elif tipo_procesamiento == "ABONO":
+            try:
+                abono_val = float(monto_abono.replace(',', '')) if monto_abono else 0.0
+            except:
+                abono_val = 0.0
+            
+            cursor.execute("UPDATE pagos SET monto = %s, estado = 'APROBADO', comprobante = %s WHERE id = %s", (abono_val, ruta_archivo, pago_id))
+
+        conn.commit()
+        conn.close()
+        recalcular_y_actualizar_reporte(agencia, fecha)
+    else:
+        conn.close()
+
+    return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/eliminar-transaccion")
+def eliminar_transaccion(pago_id: int = Form(...)):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM pagos WHERE id = %s", (pago_id,))
+    pago = cursor.fetchone()
+    
+    if pago:
+        agencia = pago['agencia']
+        fecha = pago['fecha']
+        cursor.execute("DELETE FROM pagos WHERE id = %s", (pago_id,))
+        conn.commit()
+        conn.close()
+        recalcular_y_actualizar_reporte(agencia, fecha)
+    else:
+        conn.close()
+
+    return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
