@@ -339,7 +339,6 @@ async def guardar_reporte_colab(request: Request):
     conn = get_db()
     cursor = conn.cursor()
 
-    # 1. Guardar o actualizar el reporte principal
     cursor.execute("SELECT id FROM reportes WHERE agencia = %s AND fecha = %s", (agencia, fecha))
     rep = cursor.fetchone()
     if rep:
@@ -353,7 +352,6 @@ async def guardar_reporte_colab(request: Request):
             (agencia, fecha, monto, ventas, premios, detalle_html)
         )
 
-    # 2. Guardar el registro en la tabla de pagos para Data Cashea General si viene información de Cashea
     if cashea_monto > 0:
         cursor.execute("SELECT id FROM pagos WHERE agencia = %s AND fecha = %s AND tipo = 'CASHEA'", (agencia, fecha))
         cashea_db = cursor.fetchone()
@@ -371,7 +369,6 @@ async def guardar_reporte_colab(request: Request):
     conn.commit()
     conn.close()
 
-    # Recalcular saldo final acumulado
     recalcular_y_actualizar_reporte(agencia, fecha)
     return {"status": "ok", "mensaje": "Reporte guardado con éxito"}
 
@@ -405,7 +402,13 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
     return templates.TemplateResponse(request=request, name="login.html", context={"error": "Usuario o clave incorrectos"})
 
 @app.get("/admin", response_class=HTMLResponse)
-def get_admin(request: Request, agencia: Optional[str] = None, fecha: Optional[str] = None):
+def get_admin(
+    request: Request, 
+    agencia: Optional[str] = None, 
+    desde_fecha: Optional[str] = None,
+    hasta_fecha: Optional[str] = None,
+    tab: str = "transacciones"
+):
     try:
         conn = get_db()
         cursor = conn.cursor()
@@ -417,7 +420,7 @@ def get_admin(request: Request, agencia: Optional[str] = None, fecha: Optional[s
         cursor.execute("SELECT * FROM pagos WHERE tipo != 'CASHEA' ORDER BY id DESC")
         pagos = [dict(row) for row in cursor.fetchall()]
 
-        # OBTENER REGISTROS EXCLUSIVOS DE CASHEA PARA LA SECCIÓN CASHEA GENERAL
+        # OBTENER REGISTROS EXCLUSIVOS DE CASHEA
         cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' ORDER BY id DESC")
         casheas_generales = [dict(row) for row in cursor.fetchall()]
         
@@ -427,51 +430,55 @@ def get_admin(request: Request, agencia: Optional[str] = None, fecha: Optional[s
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
 
-        # LÓGICA CONSOLIDADO POR SISTEMAS
-        fecha_filtro = fecha if fecha else datetime.now().strftime('%Y-%m-%d')
+        # MANEJO DE RANGO DE FECHAS
+        hoy_str = datetime.now().strftime('%Y-%m-%d')
+        f_desde = desde_fecha if desde_fecha else hoy_str
+        f_hasta = hasta_fecha if hasta_fecha else hoy_str
         agencia_filtro = agencia if agencia else ""
 
         sistemas_consolidados = {}
+        totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
+        
         agencias_a_procesar = [normalizar(agencia_filtro)] if agencia_filtro else [a['agencia'] for a in agencias]
 
         for ag in agencias_a_procesar:
-            cursor.execute("SELECT detalle_html FROM reportes WHERE agencia = %s AND fecha = %s", (ag, fecha_filtro))
-            rep_db = cursor.fetchone()
-            if rep_db and rep_db['detalle_html']:
-                tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', rep_db['detalle_html'], re.DOTALL)
-                if tabla_match:
-                    filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_match.group(1), re.DOTALL)
-                    for f in filas:
-                        cols = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', f, re.DOTALL)
-                        if len(cols) >= 5:
-                            sys_nombre = re.sub(r'<[^>]+>', '', cols[0]).strip()
-                            if not sys_nombre or "SISTEMA" in sys_nombre.upper() or "TOTALES" in sys_nombre.upper():
-                                continue
-                            try:
-                                v = float(re.sub(r'[^\d.-]', '', cols[1]))
-                                c = float(re.sub(r'[^\d.-]', '', cols[2]))
-                                p = float(re.sub(r'[^\d.-]', '', cols[3]))
-                                t = float(re.sub(r'[^\d.-]', '', cols[4]))
-                            except:
-                                v, c, p, t = 0.0, 0.0, 0.0, 0.0
+            cursor.execute(
+                "SELECT detalle_html FROM reportes WHERE agencia = %s AND fecha >= %s AND fecha <= %s", 
+                (ag, f_desde, f_hasta)
+            )
+            reps_db = cursor.fetchall()
+            for rep_db in reps_db:
+                if rep_db and rep_db['detalle_html']:
+                    tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', rep_db['detalle_html'], re.DOTALL)
+                    if tabla_match:
+                        filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_match.group(1), re.DOTALL)
+                        for f in filas:
+                            cols = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', f, re.DOTALL)
+                            if len(cols) >= 5:
+                                sys_nombre = re.sub(r'<[^>]+>', '', cols[0]).strip()
+                                # FILTRAR TOTALES O TRIPLETAS SECUNDARIAS
+                                if not sys_nombre or "SISTEMA" in sys_nombre.upper() or "TOTALES" in sys_nombre.upper() or "TRIPLETA" in sys_nombre.upper():
+                                    continue
+                                try:
+                                    v = float(re.sub(r'[^\d.-]', '', cols[1]))
+                                    c = float(re.sub(r'[^\d.-]', '', cols[2]))
+                                    p = float(re.sub(r'[^\d.-]', '', cols[3]))
+                                    t = float(re.sub(r'[^\d.-]', '', cols[4]))
+                                except:
+                                    v, c, p, t = 0.0, 0.0, 0.0, 0.0
 
-                            if sys_nombre not in sistemas_consolidados:
-                                sistemas_consolidados[sys_nombre] = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
-                            
-                            sistemas_consolidados[sys_nombre]["venta"] += v
-                            sistemas_consolidados[sys_nombre]["comision"] += c
-                            sistemas_consolidados[sys_nombre]["premio"] += p
-                            sistemas_consolidados[sys_nombre]["neto"] += t
+                                if sys_nombre not in sistemas_consolidados:
+                                    sistemas_consolidados[sys_nombre] = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
+                                
+                                sistemas_consolidados[sys_nombre]["venta"] += v
+                                sistemas_consolidados[sys_nombre]["comision"] += c
+                                sistemas_consolidados[sys_nombre]["premio"] += p
+                                sistemas_consolidados[sys_nombre]["neto"] += t
 
-        historial_comunicados = []
-        for com in comunicados:
-            c_dict = dict(com)
-            cursor.execute("SELECT agencia FROM lecturas_comunicados WHERE comunicado_id = %s", (com['id'],))
-            leidos = [row['agencia'] for row in cursor.fetchall()]
-            no_leidos = [ag['agencia'] for ag in agencias if ag['agencia'] not in leidos]
-            c_dict['leidos'] = leidos
-            c_dict['no_leidos'] = no_leidos
-            historial_comunicados.append(c_dict)
+                                totales_generales["venta"] += v
+                                totales_generales["comision"] += c
+                                totales_generales["premio"] += p
+                                totales_generales["neto"] += t
 
         positivos = [r for r in reportes if r['monto'] > 0]
         negativos = [r for r in reportes if r['monto'] < 0]
@@ -479,21 +486,24 @@ def get_admin(request: Request, agencia: Optional[str] = None, fecha: Optional[s
         conn.close()
     except Exception as e:
         print("Error en admin:", e)
-        reportes, pagos, casheas_generales, agencias, historial_comunicados, positivos, negativos, sistemas_consolidados = [], [], [], [], [], [], [], {}
-        fecha_filtro = datetime.now().strftime('%Y-%m-%d')
-        agencia_filtro = ""
+        reportes, pagos, casheas_generales, agencias, comunicados, positivos, negativos, sistemas_consolidados = [], [], [], [], [], [], [], {}
+        totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
+        f_desde, f_hasta, agencia_filtro = datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%Y-%m-%d'), ""
 
     return templates.TemplateResponse(request=request, name="admin.html", context={
         "reportes": reportes, 
         "pagos": pagos, 
         "casheas_generales": casheas_generales,
         "agencias": agencias, 
-        "comunicados": historial_comunicados,
+        "comunicados": comunicados,
         "positivos": positivos,
         "negativos": negativos,
         "sistemas_consolidados": sistemas_consolidados,
+        "totales_generales": totales_generales,
         "agencia_filtro": agencia_filtro,
-        "fecha_filtro": fecha_filtro
+        "desde_fecha": f_desde,
+        "hasta_fecha": f_hasta,
+        "tab_activa": tab
     })
 
 @app.post("/admin/crear-agencia")
@@ -617,7 +627,6 @@ def get_agencia(request: Request, nombre: str = ""):
     cursor.execute("SELECT * FROM pagos WHERE agencia = %s ORDER BY id DESC", (nombre_norm,))
     mis_pagos = [dict(row) for row in cursor.fetchall()]
     mis_casheas = [p for p in mis_pagos if str(p['tipo']).strip().upper() == 'CASHEA']
-    notificaciones_banca = []
     
     cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
     todos_comunicados = [dict(row) for row in cursor.fetchall()]
@@ -635,7 +644,6 @@ def get_agencia(request: Request, nombre: str = ""):
         "reportes": mis_reportes, 
         "pagos": mis_pagos, 
         "casheas": mis_casheas,
-        "notificaciones": notificaciones_banca,
         "comunicados_pendientes": comunicados_pendientes,
         "todos_comunicados": todos_comunicados,
         "sistemas": SISTEMAS_OFICIALES
