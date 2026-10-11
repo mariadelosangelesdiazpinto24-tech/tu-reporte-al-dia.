@@ -92,6 +92,11 @@ def init_db():
         )
     ''')
 
+    try:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultima_conexion TEXT;")
+    except Exception as e:
+        print("Migración ultima_conexion:", e)
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
             id SERIAL PRIMARY KEY,
@@ -139,19 +144,6 @@ def init_db():
     conn.close()
 
 init_db()
-
-def actualizar_ultima_conexion(agencia: str):
-    agencia_norm = normalizar(agencia)
-    if agencia_norm and agencia_norm != "ADMIN":
-        try:
-            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            conn = get_db()
-            cursor = conn.cursor()
-            cursor.execute("UPDATE usuarios SET ultima_conexion = %s WHERE agencia = %s", (now_str, agencia_norm))
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            print("Error actualizando conexion:", e)
 
 def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     agencia_norm = normalizar(agencia)
@@ -405,7 +397,6 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
     conn.close()
 
     if user_data and user_data['clave'] == clave:
-        actualizar_ultima_conexion(usuario_norm)
         response = RedirectResponse(url=f"/agencia?nombre={usuario_norm}", status_code=status.HTTP_303_SEE_OTHER)
         response.set_cookie(key="user", value=usuario_norm)
         return response
@@ -448,16 +439,11 @@ def get_admin(
         casheas_generales = [dict(row) for row in cursor.fetchall()]
 
         total_taquillas_creadas = len(agencias)
-        taquillas_activas_hoy = 0
+
         for ag in agencias:
-            u_conn = ag.get('ultima_conexion') or ''
-            if u_conn and u_conn.startswith(hoy_str):
-                ag['estado_conexion'] = 'ACTIVA'
-                taquillas_activas_hoy += 1
-            elif u_conn:
-                ag['estado_conexion'] = 'RECIENTE'
-            else:
-                ag['estado_conexion'] = 'SIN_CONEXION'
+            cursor.execute("SELECT monto FROM reportes WHERE agencia = %s AND fecha = %s", (ag['agencia'], hoy_str))
+            rep_hoy = cursor.fetchone()
+            ag['saldo_pendiente'] = rep_hoy['monto'] if rep_hoy else 0.0
 
         sistemas_consolidados = {}
         totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
@@ -523,7 +509,6 @@ def get_admin(
                 elif t_type in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
                     totales_auxiliares["abonos_banca"] += m_val
 
-        # CONFIGURACIÓN CON CÁLCULO DE EXCEDENTE REAL Y DIFERENCIAL
         ESTRUCTURA_BANQUEROS = {
             "COMERCIALIZADORA SUPER APUESTAS": {
                 "sistemas": [
@@ -601,11 +586,9 @@ def get_admin(
                 c_taquillas_pagada = sistemas_consolidados.get(s_name, {}).get("comision", 0.0)
                 
                 c_banquero_total = v_sys * item["pct_comision_completa"]
-                
                 t_banquero_sistema = v_sys - c_banquero_total - p_sys
                 subtotal_banquero += t_banquero_sistema
 
-                # EXCEDENTE Y DIFERENCIAL REAL (GANANCIA EXCLUSIVA POR PORCENTAJE)
                 g_excedente_pct = c_banquero_total - c_taquillas_pagada
                 pct_excedente_real = (g_excedente_pct / v_sys * 100) if v_sys > 0 else (item["pct_comision_completa"] * 100 - 13.0)
 
@@ -637,9 +620,6 @@ def get_admin(
             total_acumulado_cuentas_bancarias += final_banquero
 
         total_mi_ganancia_global = total_ganancia_diferencial_global + total_ganancia_participacion_global
-        neto_final_agencia = totales_generales["neto"] - totales_auxiliares["abonos_banca"] - totales_auxiliares["adelantos"] - totales_auxiliares["cashea"]
-        neto_menos_cashea = totales_generales["neto"] - totales_auxiliares["cashea"]
-
         positivos = [r for r in reportes if r['monto'] > 0]
         negativos = [r for r in reportes if r['monto'] < 0]
 
@@ -651,8 +631,7 @@ def get_admin(
         totales_auxiliares = {"cashea": 0.0, "adelantos": 0.0, "abonos_banca": 0.0}
         desglose_banqueros = {}
         total_ganancia_diferencial_global, total_ganancia_participacion_global, total_mi_ganancia_global, total_acumulado_cuentas_bancarias = 0.0, 0.0, 0.0, 0.0
-        neto_final_agencia, neto_menos_cashea = 0.0, 0.0
-        total_taquillas_creadas, taquillas_activas_hoy = 0, 0
+        total_taquillas_creadas = 0
         f_desde, f_hasta, agencia_filtro = datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%Y-%m-%d'), ""
 
     return templates.TemplateResponse(request=request, name="admin.html", context={
@@ -666,195 +645,46 @@ def get_admin(
         "sistemas_consolidados": sistemas_consolidados,
         "totales_generales": totales_generales,
         "totales_auxiliares": totales_auxiliares,
-        "neto_final_agencia": neto_final_agencia,
-        "neto_menos_cashea": neto_menos_cashea,
         "desglose_banqueros": desglose_banqueros,
         "total_ganancia_diferencial_global": total_ganancia_diferencial_global,
         "total_ganancia_participacion_global": total_ganancia_participacion_global,
         "total_mi_ganancia_global": total_mi_ganancia_global,
         "total_acumulado_cuentas_bancarias": total_acumulado_cuentas_bancarias,
         "total_taquillas_creadas": total_taquillas_creadas,
-        "taquillas_activas_hoy": taquillas_activas_hoy,
         "agencia_filtro": agencia_filtro,
         "desde_fecha": f_desde,
         "hasta_fecha": f_hasta,
         "tab_activa": tab
     })
 
-@app.post("/admin/procesar-solicitud-dinero")
-async def procesar_solicitud_dinero(
-    pago_id: int = Form(...),
-    tipo_procesamiento: str = Form("PAGO_COMPLETO"),
-    monto_abono: Optional[str] = Form(None),
-    comprobante: Optional[UploadFile] = File(None)
-):
+@app.post("/admin/crear-comunicado")
+def crear_comunicado(mensaje: str = Form(...)):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM pagos WHERE id = %s", (pago_id,))
-    solicitud = cursor.fetchone()
-
-    if solicitud:
-        agencia_norm = normalizar(solicitud['agencia'])
-        fecha_sol = solicitud['fecha']
-        monto_original = solicitud['monto'] or 0.0
-
-        ruta_cap = ""
-        if comprobante and comprobante.filename:
-            ruta_cap = f"uploads/CAP_{agencia_norm}_{pago_id}_{comprobante.filename}"
-            with open(ruta_cap, "wb") as buffer:
-                buffer.write(await comprobante.read())
-        else:
-            ruta_cap = "Comprobante sin adjunto"
-
-        if tipo_procesamiento == "ABONO" and monto_abono:
-            try:
-                val_abono = float(monto_abono.replace(',', ''))
-            except:
-                val_abono = 0.0
-
-            if val_abono > 0 and val_abono < monto_original:
-                monto_restante = monto_original - val_abono
-                cursor.execute("UPDATE pagos SET monto = %s WHERE id = %s", (monto_restante, pago_id))
-                cursor.execute(
-                    "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'ABONO A SOLICITUD', %s, 'PAGO_BANCA', 'APROBADO')",
-                    (agencia_norm, fecha_sol, val_abono, ruta_cap)
-                )
-                conn.commit()
-                conn.close()
-                recalcular_y_actualizar_reporte(agencia_norm, fecha_sol)
-                return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
-
-        cursor.execute("UPDATE pagos SET estado = 'APROBADO', comprobante = %s WHERE id = %s", (ruta_cap, pago_id))
-        cursor.execute(
-            "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'PAGO TOTAL SOLICITUD BANCA', %s, 'PAGO_BANCA', 'APROBADO')",
-            (agencia_norm, fecha_sol, monto_original, ruta_cap)
-        )
-        conn.commit()
-        conn.close()
-        recalcular_y_actualizar_reporte(agencia_norm, fecha_sol)
-
-    else:
-        conn.close()
-
-    return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/eliminar-agencia")
-def eliminar_agencia(agencia_id: int = Form(...)):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM usuarios WHERE id = %s", (agencia_id,))
+    cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje,))
     conn.commit()
     conn.close()
-    return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/admin?tab=comunicados", status_code=status.HTTP_303_SEE_OTHER)
 
-@app.post("/admin/crear-agencia")
-def crear_agencia(agencia: str = Form(...), clave: str = Form(...), genero: str = Form("FEMENINO")):
-    agencia_norm = normalizar(agencia)
-    genero_val = genero.upper()
+@app.post("/admin/eliminar-comunicado")
+def eliminar_comunicado(comunicado_id: int = Form(...)):
     conn = get_db()
     cursor = conn.cursor()
-    
-    cursor.execute("SELECT id FROM usuarios WHERE agencia = %s", (agencia_norm,))
-    existe = cursor.fetchone()
-    
-    if existe:
-        cursor.execute("UPDATE usuarios SET clave = %s, genero = %s WHERE agencia = %s", (clave, genero_val, agencia_norm))
-    else:
-        cursor.execute("INSERT INTO usuarios (agencia, clave, genero) VALUES (%s, %s, %s)", (agencia_norm, clave, genero_val))
-            
+    cursor.execute("DELETE FROM comunicados WHERE id = %s", (comunicado_id,))
+    cursor.execute("DELETE FROM lecturas_comunicados WHERE comunicado_id = %s", (comunicado_id,))
     conn.commit()
     conn.close()
-    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/admin?tab=comunicados", status_code=status.HTTP_303_SEE_OTHER)
 
-@app.post("/agencia/cambiar-clave")
-def cambiar_clave_taquilla(agencia: str = Form(...), clave_actual: str = Form(...), nueva_clave: str = Form(...)):
+@app.post("/agencia/marcar-comunicado-leido")
+def marcar_comunicado_leido(agencia: str = Form(...), comunicado_id: int = Form(...)):
     agencia_norm = normalizar(agencia)
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT clave FROM usuarios WHERE agencia = %s", (agencia_norm,))
-    usr = cursor.fetchone()
-
-    if usr and usr['clave'] == clave_actual:
-        cursor.execute("UPDATE usuarios SET clave = %s WHERE agencia = %s", (nueva_clave, agencia_norm))
-        conn.commit()
-        conn.close()
-        return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&msg=Clave+actualizada+con+éxito", status_code=status.HTTP_303_SEE_OTHER)
-    
-    conn.close()
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&error=Clave+actual+incorrecta", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.get("/agencia", response_class=HTMLResponse)
-def get_agencia(request: Request, nombre: str = ""):
-    nombre_norm = normalizar(nombre)
-    actualizar_ultima_conexion(nombre_norm)
-    
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    genero_taquilla = "FEMENINO"
-    cursor.execute("SELECT genero FROM usuarios WHERE agencia = %s", (nombre_norm,))
-    usr = cursor.fetchone()
-    if usr and 'genero' in usr.keys() and usr['genero']:
-        genero_taquilla = usr['genero']
-
-    cursor.execute("SELECT * FROM reportes WHERE agencia = %s ORDER BY id DESC", (nombre_norm,))
-    mis_reportes = [dict(row) for row in cursor.fetchall()]
-    
-    cursor.execute("SELECT * FROM pagos WHERE agencia = %s ORDER BY id DESC", (nombre_norm,))
-    mis_pagos = [dict(row) for row in cursor.fetchall()]
-    mis_casheas = [p for p in mis_pagos if str(p['tipo']).strip().upper() == 'CASHEA']
-    
-    cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
-    todos_comunicados = [dict(row) for row in cursor.fetchall()]
-    
-    cursor.execute("SELECT comunicado_id FROM lecturas_comunicados WHERE agencia = %s", (nombre_norm,))
-    leidos_ids = [row['comunicado_id'] for row in cursor.fetchall()]
-    
-    comunicados_pendientes = [c for c in todos_comunicados if c['id'] not in leidos_ids]
-
-    conn.close()
-
-    return templates.TemplateResponse(request=request, name="agencia.html", context={
-        "agencia": nombre_norm, 
-        "genero": genero_taquilla,
-        "reportes": mis_reportes, 
-        "pagos": mis_pagos, 
-        "casheas": mis_casheas,
-        "comunicados_pendientes": comunicados_pendientes,
-        "todos_comunicados": todos_comunicados,
-        "sistemas": SISTEMAS_OFICIALES
-    })
-
-@app.post("/solicitar-banca")
-def solicitar_banca(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...)):
-    agencia_norm = normalizar(agencia)
     try:
-        monto_val = abs(float(str(monto).replace(',', '')))
-    except:
-        monto_val = 0.0
-
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'SOLICITUD BANCA', 'Solicitud de cobro por saldo a favor', 'SOLICITUD_BANCA', 'PENDIENTE BANCA')",
-        (agencia_norm, fecha, monto_val)
-    )
-    conn.commit()
+        cursor.execute("INSERT INTO lecturas_comunicados (comunicado_id, agencia, leido) VALUES (%s, %s, 1)", (comunicado_id, agencia_norm))
+        conn.commit()
+    except Exception:
+        pass
     conn.close()
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/solicitar-adelanto")
-def solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...), observacion: str = Form(...)):
-    agencia_norm = normalizar(agencia)
-    try:
-        monto_val = float(monto.replace(',', '')) if monto else 0.0
-    except:
-        monto_val = 0.0
-
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, %s, %s, 'ADELANTO', 'APROBADO')", (agencia_norm, fecha, monto_val, observacion, observacion))
-    conn.commit()
-    conn.close()
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
