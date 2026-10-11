@@ -2,7 +2,4 @@ fastapi
 uvicorn
 jinja2
 python-multipart
-gspread
-google-auth
-passlib[bcrypt]
-python-jose[cryptography]
+psycopg2-binary
