@@ -52,6 +52,7 @@ def get_db():
             password=url.password,
             host=url.hostname,
             port=url.port,
+            sslmode='require',
             cursor_factory=psycopg2.extras.RealDictCursor
         )
     else:
@@ -667,10 +668,6 @@ def guardar_reporte_colab(
             )
 
     conn.commit()
-    conn.close()
-
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    return {"status": "ok", "mensaje": f"Reporte y Cashea sincronizados para {agencia_norm}"}
     conn.close()
 
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
