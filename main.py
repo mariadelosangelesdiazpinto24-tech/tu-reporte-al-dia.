@@ -163,6 +163,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     tripletas_rows_html = ""
     adelantos_rows_html = ""
     cashea_rows_html = ""
+    pagos_banca_rows_html = ""
 
     for p in todos_pagos:
         monto_p = p['monto'] or 0.0
@@ -195,17 +196,43 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #e91e63; font-weight: bold;">Bs. {monto_p:,.2f}</td>
             </tr>
             '''
-        elif tipo_p == 'PAGO_TAQUILLA':
+        elif tipo_p in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
             total_pagos_taquilla += monto_p
-        elif tipo_p == 'PAGO_BANCA':
-            total_pagos_banca += monto_p
+            pagos_banca_rows_html += f'''
+            <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['factura']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #2e7d32; font-weight: bold;">Bs. {monto_p:,.2f}</td>
+            </tr>
+            '''
 
     detalle_original = rep['detalle_html'] or ""
     
     match_sistemas = re.search(r'(<div class="mb-3"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_original, re.DOTALL)
     tabla_sistemas_html = match_sistemas.group(1) if match_sistemas else ""
+    
     if not tabla_sistemas_html:
-        tabla_sistemas_html = detalle_original.split('<div')[0]
+        tabla_sistemas_html = f'''
+        <div class="mb-3">
+            <h6 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #0d47a1; padding-bottom: 5px; margin-bottom: 10px;"><i class="fas fa-chart-bar"></i> REPORTE DE SISTEMAS</h6>
+            <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 12px; width: 100%; background: #ffffff; color: #1a252c;">
+                <tr style="background-color: #e3f2fd; color: #0d47a1; font-weight: bold;">
+                    <th style="padding: 8px;">SISTEMA</th>
+                    <th style="padding: 8px; text-align: right;">VENTA</th>
+                    <th style="padding: 8px; text-align: right;">COMIS.</th>
+                    <th style="padding: 8px; text-align: right;">PREMIO</th>
+                    <th style="padding: 8px; text-align: right;">TOTAL</th>
+                </tr>
+                <tr style="background-color: #f5f5f5; font-weight: bold;">
+                  <td style="padding: 8px;">TOTALES</td>
+                  <td style="padding: 8px; text-align: right;">{rep['ventas']:,.2f}</td>
+                  <td style="padding: 8px; text-align: right;">0.00</td>
+                  <td style="padding: 8px; text-align: right;">{rep['premios']:,.2f}</td>
+                  <td style="padding: 8px; text-align: right; color: #0d47a1;">{rep['ventas'] - rep['premios']:,.2f}</td>
+                </tr>
+            </table>
+        </div>
+        '''
 
     total_neto_sistemas = 0.0
     filas_tabla = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_sistemas_html, re.DOTALL)
@@ -221,7 +248,21 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
 
-    monto_final = total_neto_sistemas - total_pagos_taquilla + total_tripletas - total_adelantos - total_cashea + total_pagos_banca
+    monto_final = total_neto_sistemas - total_pagos_taquilla + total_tripletas - total_adelantos - total_cashea
+
+    bloque_pagos_banca = f'''
+    <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #2e7d32;">
+        <h5 style="color: #2e7d32; font-weight: bold; border-bottom: 2px solid #2e7d32; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-university"></i> PAGOS / ABONOS A LA BANCA</h5>
+        <table class="table table-sm align-middle mb-0" style="width: 100%;">
+            <tr style="background-color: #e8f5e9; color: #1b5e20; font-size: 13px;">
+                <th style="padding: 10px;">FECHA</th>
+                <th style="padding: 10px;">REFERENCIA / DETALLE</th>
+                <th style="padding: 10px; text-align: right;">MONTO ABONADO</th>
+            </tr>
+            {pagos_banca_rows_html if pagos_banca_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">No hay pagos a la banca abonados aún.</td></tr>'}
+        </table>
+    </div>
+    '''
 
     bloque_cashea = f'''
     <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #00bcd4;">
@@ -276,7 +317,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     </div>
     '''
 
-    detalle_actualizado = tabla_sistemas_html + bloque_cashea + bloque_tripletas + bloque_adelantos + bloque_pendientes
+    detalle_actualizado = tabla_sistemas_html + bloque_pagos_banca + bloque_cashea + bloque_tripletas + bloque_adelantos + bloque_pendientes
 
     conn = get_db()
     cursor = conn.cursor()
