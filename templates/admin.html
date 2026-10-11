@@ -81,6 +81,9 @@
             <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'totalizador' %}active{% endif %}" id="totalizador-tab" data-bs-toggle="tab" data-bs-target="#totalizador" type="button"><i class="fas fa-calculator"></i> Totalizador 📊</button>
             </li>
+            <li class="nav-item">
+                <button class="nav-link {% if tab_activa == 'desglose_banca' %}active{% endif %}" id="desglose_banca-tab" data-bs-toggle="tab" data-bs-target="#desglose_banca" type="button"><i class="fas fa-university"></i> Desglose Banca 🏦</button>
+            </li>
         </ul>
 
         <div class="tab-content" id="adminTabsContent">
@@ -122,9 +125,7 @@
                                         </tr>
                                         {% endfor %}
                                     {% else %}
-                                        <tr>
-                                            <td colspan="7" class="text-center text-muted py-3">No hay transacciones registradas.</td>
-                                        </tr>
+                                        <tr><td colspan="7" class="text-center text-muted py-3">No hay transacciones registradas.</td></tr>
                                     {% endif %}
                                 </tbody>
                             </table>
@@ -226,7 +227,7 @@
                 </div>
             </div>
 
-            <!-- 4. CONSOLIDADO POR SISTEMAS -->
+            <!-- 4. CONSOLIDADO POR SISTEMAS Y RESUMEN DETALLADO INFERIOR -->
             <div class="tab-pane fade {% if tab_activa == 'consolidado' %}show active{% endif %}" id="consolidado" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
                     <div class="card-body">
@@ -258,7 +259,7 @@
                             </div>
                         </form>
 
-                        <div class="table-responsive">
+                        <div class="table-responsive mb-4">
                             <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 13px;">
                                 <thead>
                                     <tr style="background-color: #fce4ec; color: #e91e63; font-weight: bold; text-align: center;">
@@ -281,29 +282,66 @@
                                         </tr>
                                         {% endfor %}
                                         <tr style="background-color: #fce4ec; font-weight: bold; font-size: 14px; color: #e91e63;">
-                                            <td style="padding: 10px;">TOTALES ACUMULADOS</td>
+                                            <td style="padding: 10px;">TOTALES SISTEMAS</td>
                                             <td style="padding: 10px; text-align: right;">Bs. {{ "{:,.2f}".format(totales_generales.venta) }}</td>
                                             <td style="padding: 10px; text-align: right;">Bs. {{ "{:,.2f}".format(totales_generales.comision) }}</td>
                                             <td style="padding: 10px; text-align: right;">Bs. {{ "{:,.2f}".format(totales_generales.premio) }}</td>
                                             <td style="padding: 10px; text-align: right; color: #c2185b;">Bs. {{ "{:,.2f}".format(totales_generales.neto) }}</td>
                                         </tr>
                                     {% else %}
-                                        <tr><td colspan="5" class="text-center text-muted py-4">No hay ventas registradas para este periodo.</td></tr>
+                                        <tr><td colspan="5" class="text-center text-muted py-4">No hay ventas registradas.</td></tr>
                                     {% endif %}
                                 </tbody>
                             </table>
                         </div>
+
+                        <!-- RESUMEN INFERIOR COMPLETO DE CASHEA, TRIPLETAS, ADELANTOS Y ABONOS -->
+                        <div class="card border-0 shadow-sm p-3 bg-light" style="border-radius: 12px; border-left: 5px solid #e91e63 !important;">
+                            <h6 class="fw-bold text-admin-theme mb-3"><i class="fas fa-file-invoice"></i> Resumen de Cuenta de la Selección (Cashea, Tripletas, Adelantos)</h6>
+                            <div class="row g-2 text-center" style="font-size: 13px;">
+                                <div class="col-md-2">
+                                    <div class="p-2 bg-white rounded border">
+                                        <span class="text-muted small d-block">CASHEA</span>
+                                        <span class="fw-bold text-info">Bs. {{ totales_auxiliares.cashea | dinero }}</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="p-2 bg-white rounded border">
+                                        <span class="text-muted small d-block">TRIPLETAS (+)</span>
+                                        <span class="fw-bold text-success">Bs. {{ totales_auxiliares.tripletas | dinero }}</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="p-2 bg-white rounded border">
+                                        <span class="text-muted small d-block">ADELANTOS (-)</span>
+                                        <span class="fw-bold text-warning">Bs. {{ totales_auxiliares.adelantos | dinero }}</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="p-2 bg-white rounded border">
+                                        <span class="text-muted small d-block">PAGOS / ABONOS BANCA (-)</span>
+                                        <span class="fw-bold text-secondary">Bs. {{ totales_auxiliares.abonos_banca | dinero }}</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="p-2 bg-admin-theme text-white rounded">
+                                        <span class="small d-block opacity-75">NETO DEFINITIVO A PAGAR</span>
+                                        <span class="fw-bold fs-6">Bs. {{ neto_final_agencia | dinero }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
 
-            <!-- 5. NUEVA PESTAÑA: TOTALIZATOR (RESUMEN FINANCIERO Y CASHEA) -->
+            <!-- 5. TOTALIZADOR -->
             <div class="tab-pane fade {% if tab_activa == 'totalizador' %}show active{% endif %}" id="totalizador" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #0d47a1 !important;">
                     <div class="card-body">
                         <h5 class="fw-bold mb-3" style="color: #0d47a1;"><i class="fas fa-calculator"></i> Totalizador Financiero y Resumen de Cuenta</h5>
                         
-                        <!-- FILTRO DE FECHAS PARA EL TOTALIZADOR -->
                         <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm">
                             <input type="hidden" name="tab" value="totalizador">
                             <div class="col-md-4">
@@ -330,7 +368,6 @@
                             </div>
                         </form>
 
-                        <!-- TARJETAS DE RESUMEN TIPO EXCEL -->
                         <div class="row g-3 mb-4">
                             <div class="col-md-3">
                                 <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-primary border-4">
@@ -358,7 +395,6 @@
                             </div>
                         </div>
 
-                        <!-- DESGLOSE DETALLADO DE SALIDAS Y CASHEA -->
                         <div class="card border-0 shadow-sm bg-light p-4" style="border-radius: 12px;">
                             <h6 class="fw-bold text-secondary mb-3"><i class="fas fa-file-invoice-dollar"></i> Resumen de Salidas y Balance General</h6>
                             <ul class="list-group list-group-flush shadow-sm rounded">
@@ -368,14 +404,84 @@
                                 </li>
                                 <li class="list-group-item d-flex justify-content-between align-items-center py-3 bg-white">
                                     <span class="fw-bold text-danger"><i class="fas fa-shopping-cart me-2"></i> Total Cashea (Salida / Descuento)</span>
-                                    <span class="fw-bold text-danger">- Bs. {{ total_cashea_rango | dinero }}</span>
+                                    <span class="fw-bold text-danger">- Bs. {{ totales_auxiliares.cashea | dinero }}</span>
                                 </li>
                                 <li class="list-group-item d-flex justify-content-between align-items-center py-3 bg-primary text-white rounded-bottom">
-                                    <span class="fw-bold fs-5"><i class="fas fa-wallet me-2"></i> TOTAL A TENER EN CUENTA (NETO - CASHEA)</span>
+                                    <span class="fw-bold fs-5"><i class="fas fa-wallet me-2"></i> TOTAL A TENER EN LA CUENTA (NETO - CASHEA)</span>
                                     <span class="fw-bold fs-4">Bs. {{ neto_menos_cashea | dinero }}</span>
                                 </li>
                             </ul>
                         </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. PESTAÑA: DESGLOSE BANCA (AGRUPADO POR COMERCIALIZADORA/BANQUERO) -->
+            <div class="tab-pane fade {% if tab_activa == 'desglose_banca' %}show active{% endif %}" id="desglose_banca" role="tabpanel">
+                <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="fw-bold text-success m-0"><i class="fas fa-university"></i> Desglose por Banqueros y Diferencial de Ganancias</h5>
+                            <span class="badge bg-success fs-6 p-2">Mi Ganancia Total: Bs. {{ total_mi_ganancia_global | dinero }}</span>
+                        </div>
+
+                        <!-- FORMULARIO RANGO FECHAS DESGLOSE BANCA -->
+                        <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm">
+                            <input type="hidden" name="tab" value="desglose_banca">
+                            <div class="col-md-5">
+                                <label class="form-label fw-bold small">Desde Fecha</label>
+                                <input type="date" name="desde_fecha" class="form-control form-control-sm border-success" value="{{ desde_fecha }}">
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label fw-bold small">Hasta Fecha</label>
+                                <input type="date" name="hasta_fecha" class="form-control form-control-sm border-success" value="{{ hasta_fecha }}">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-sm w-100 fw-bold btn-success shadow-sm py-2">
+                                    <i class="fas fa-search me-1"></i> Calcular
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- TABLAS DE CADA COMERCIALIZADORA -->
+                        {% for banquero, items in desglose_banqueros.items() %}
+                        <div class="card mb-4 border-0 shadow-sm" style="border-radius: 12px; border-left: 5px solid #198754 !important;">
+                            <div class="card-header bg-success text-white fw-bold py-2" style="border-top-left-radius: 12px; border-top-right-radius: 12px;">
+                                <i class="fas fa-building me-1"></i> {{ banquero }}
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover mb-0 align-middle" style="font-size: 13px;">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th style="padding: 10px;">SISTEMA</th>
+                                                <th style="padding: 10px; text-align: right;">VENTA</th>
+                                                <th style="padding: 10px; text-align: right;">COMIS. TAQUILLA</th>
+                                                <th style="padding: 10px; text-align: right;">PREMIOS</th>
+                                                <th style="padding: 10px; text-align: right;">TOTAL BANQUERO</th>
+                                                <th style="padding: 10px; text-align: center;">% MI GANANCIA</th>
+                                                <th style="padding: 10px; text-align: right;">MI GANANCIA (Bs.)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for sys in items %}
+                                            <tr>
+                                                <td class="fw-bold" style="padding: 8px;">{{ sys.sistema }}</td>
+                                                <td style="padding: 8px; text-align: right;">Bs. {{ sys.venta | dinero }}</td>
+                                                <td style="padding: 8px; text-align: right;">Bs. {{ sys.comision_agencia | dinero }}</td>
+                                                <td style="padding: 8px; text-align: right;">Bs. {{ sys.premios | dinero }}</td>
+                                                <td style="padding: 8px; text-align: right;" class="fw-bold">Bs. {{ sys.total_neto | dinero }}</td>
+                                                <td style="padding: 8px; text-align: center;"><span class="badge bg-info text-dark">{{ "{:.1f}%".format(sys.pct_mi_ganancia) }}</span></td>
+                                                <td style="padding: 8px; text-align: right;" class="fw-bold text-success">+ Bs. {{ sys.mi_ganancia | dinero }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
 
                     </div>
                 </div>
