@@ -728,5 +728,9 @@ def get_admin(
         "filtro_agencia": agencia_filtro,
         "desde_fecha": f_desde,
         "hasta_fecha": f_hasta,
-        "casheas_generales": casheas_generales
+        "casheas_generales": casheas_generales,
+        "total_ganancia_diferencial_global": 0.0,
+        "total_ganancia_participacion_global": 0.0,
+        "total_acumulado_cuentas_bancarias": 0.0,
+        "desglose_banqueros": {}
     })
