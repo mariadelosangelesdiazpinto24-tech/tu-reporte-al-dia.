@@ -633,7 +633,7 @@
                                         </div>
                                     </div>
 
-                                    <!-- TABLA DERECHA: MIS GANANCIAS PRIVADAS (DIFERENCIAL) -->
+                                    <!-- TABLA DERECHA: MIS GANANCIAS PRIVADAS (DIFERENCIAL REDONDEADO) -->
                                     <div class="col-lg-5">
                                         <div class="border rounded p-2 bg-light shadow-sm">
                                             <span class="badge bg-success mb-2">💰 MIS GANANCIAS DIFERENCIALES (PRIVADO)</span>
@@ -652,8 +652,8 @@
                                                             <tr>
                                                                 <td class="fw-bold">{{ sys.sistema }}</td>
                                                                 <td class="text-center">
-                                                                    <span class="badge bg-primary">{{ sys.pct_diferencial | default(0) }}% Dif</span>
-                                                                    <span class="badge bg-warning text-dark">{{ sys.pct_participacion | default(0) }}% Part</span>
+                                                                    <span class="badge bg-primary">{{ sys.pct_diferencial | default(0) | int }}% Dif</span>
+                                                                    <span class="badge bg-warning text-dark">{{ sys.pct_participacion | default(0) | int }}% Part</span>
                                                                 </td>
                                                                 <td class="text-end fw-bold text-success">+ Bs. {{ sys.mi_ganancia_total | default(0) | dinero }}</td>
                                                             </tr>
