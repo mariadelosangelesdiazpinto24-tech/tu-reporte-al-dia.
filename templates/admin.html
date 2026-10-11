@@ -616,6 +616,15 @@
                                                             {% endfor %}
                                                         {% endif %}
 
+                                                        {% if data.cobranza %}
+                                                            {% for cob in data.cobranza %}
+                                                            <tr class="table-warning">
+                                                                <td class="fw-bold" colspan="4"><i class="fas fa-hand-holding-usd"></i> COBRANZA: {{ cob.nombre }}</td>
+                                                                <td class="text-end fw-bold text-dark">Bs. {{ cob.monto | default(0) | dinero }}</td>
+                                                            </tr>
+                                                            {% endfor %}
+                                                        {% endif %}
+
                                                         {% if data.cashea_descontado | default(0) > 0 %}
                                                         <tr class="table-danger">
                                                             <td class="fw-bold" colspan="4"><i class="fas fa-shopping-cart"></i> DESCUENTO CASHEA ABSORBIDO</td>
@@ -633,7 +642,7 @@
                                         </div>
                                     </div>
 
-                                    <!-- TABLA DERECHA: MIS GANANCIAS PRIVADAS (DIFERENCIAL REDONDEADO) -->
+                                    <!-- TABLA DERECHA: MIS GANANCIAS PRIVADAS (DIFERENCIAL CON PORCENTAJES ENTEROS LIMPIOS) -->
                                     <div class="col-lg-5">
                                         <div class="border rounded p-2 bg-light shadow-sm">
                                             <span class="badge bg-success mb-2">💰 MIS GANANCIAS DIFERENCIALES (PRIVADO)</span>
