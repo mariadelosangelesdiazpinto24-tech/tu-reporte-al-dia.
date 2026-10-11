@@ -617,7 +617,6 @@ def get_admin(
 
                 total_ganancia_diferencial_global += g_excedente_pct
                 total_ganancia_participacion_global += g_participacion
-
 # REGLAS DE PORCENTAJES FIJOS SOLICITADOS
                         s_upper = s_name.upper()
                         pct_dif_val = pct_excedente_real  
