@@ -45,13 +45,9 @@ templates.env.filters["dinero"] = formatear_monto
 def get_db():
     database_url = os.environ.get("DATABASE_URL")
     if database_url:
-        url = urlparse.urlparse(database_url)
+        # Conexión blindada nativa para evitar que urlparse falle con caracteres especiales
         conn = psycopg2.connect(
-            database=url.path[1:],
-            user=url.username,
-            password=url.password,
-            host=url.hostname,
-            port=url.port if url.port else 5432,
+            database_url,
             sslmode='require',
             cursor_factory=psycopg2.extras.RealDictCursor
         )
