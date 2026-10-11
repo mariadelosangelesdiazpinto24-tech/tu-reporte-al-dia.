@@ -100,7 +100,7 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h5 class="fw-bold text-success m-0"><i class="fas fa-users-cog"></i> Taquillas Creadas y Estado de Cuenta Pendiente</h5>
-                            <span class="badge bg-success fs-6 p-2">Total Creadas: {{ total_taquillas_creadas }}</span>
+                            <span class="badge bg-success fs-6 p-2">Total Creadas: {{ agencias | length }}</span>
                         </div>
 
                         <div class="table-responsive">
@@ -128,7 +128,7 @@
                                                 {% endif %}
                                             </td>
                                             <td class="text-end fw-bold {% if ag.saldo_pendiente > 0 %}text-danger{% elif ag.saldo_pendiente < 0 %}text-success{% else %}text-muted{% endif %}">
-                                                Bs. {{ ag.saldo_pendiente | dinero }}
+                                                Bs. {{ ag.saldo_pendiente | default(0) | dinero }}
                                             </td>
                                             <td class="text-end">
                                                 <form action="/admin/eliminar-agencia" method="POST" style="display:inline;" onsubmit="return confirm('¿Seguro deseas eliminar la taquilla {{ ag.agencia }}?');">
@@ -223,7 +223,7 @@
                                             <td class="fw-bold">{{ p.agencia }}</td>
                                             <td>{{ p.fecha }}</td>
                                             <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
-                                            <td class="fw-bold text-danger">Bs. {{ p.monto | dinero }}</td>
+                                            <td class="fw-bold text-danger">Bs. {{ p.monto | default(0) | dinero }}</td>
                                             <td>{{ p.factura or p.comprobante }}</td>
                                             <td>
                                                 {% if p.estado == 'PENDIENTE BANCA' %}
@@ -249,7 +249,7 @@
                                                                     
                                                                     <div class="mb-3">
                                                                         <label class="form-label fw-bold small">Monto Solicitado Total:</label>
-                                                                        <input type="text" class="form-control form-control-sm fw-bold text-danger" value="Bs. {{ p.monto | dinero }}" readonly>
+                                                                        <input type="text" class="form-control form-control-sm fw-bold text-danger" value="Bs. {{ p.monto | default(0) | dinero }}" readonly>
                                                                     </div>
 
                                                                     <div class="mb-3">
@@ -316,7 +316,7 @@
                                                 <tr>
                                                     <td class="fw-bold">{{ pos.agencia }}</td>
                                                     <td>{{ pos.fecha }}</td>
-                                                    <td class="text-end fw-bold text-danger">Bs. {{ pos.monto | dinero }}</td>
+                                                    <td class="text-end fw-bold text-danger">Bs. {{ pos.monto | default(0) | dinero }}</td>
                                                 </tr>
                                                 {% endfor %}
                                             {% else %}
@@ -343,7 +343,7 @@
                                                 <tr>
                                                     <td class="fw-bold">{{ neg.agencia }}</td>
                                                     <td>{{ neg.fecha }}</td>
-                                                    <td class="text-end fw-bold text-success">Bs. {{ neg.monto | dinero }}</td>
+                                                    <td class="text-end fw-bold text-success">Bs. {{ neg.monto | default(0) | dinero }}</td>
                                                 </tr>
                                                 {% endfor %}
                                             {% else %}
@@ -405,7 +405,7 @@
                                             <td class="fw-bold">{{ c.agencia }}</td>
                                             <td>{{ c.fecha }}</td>
                                             <td>{{ c.factura or c.comprobante }}</td>
-                                            <td class="text-end fw-bold text-danger">Bs. {{ c.monto | dinero }}</td>
+                                            <td class="text-end fw-bold text-danger">Bs. {{ c.monto | default(0) | dinero }}</td>
                                         </tr>
                                         {% endfor %}
                                     {% else %}
@@ -466,18 +466,18 @@
                                         {% for sistema, valores in sistemas_consolidados.items() %}
                                         <tr>
                                             <td class="fw-bold" style="padding: 8px;">{{ sistema }}</td>
-                                            <td style="padding: 8px; text-align: right;">{{ "{:,.2f}".format(valores.venta) }}</td>
-                                            <td style="padding: 8px; text-align: right;">{{ "{:,.2f}".format(valores.comision) }}</td>
-                                            <td style="padding: 8px; text-align: right;">{{ "{:,.2f}".format(valores.premio) }}</td>
-                                            <td class="fw-bold" style="padding: 8px; text-align: right; color: #e91e63;">{{ "{:,.2f}".format(valores.neto) }}</td>
+                                            <td style="padding: 8px; text-align: right;">Bs. {{ valores.venta | default(0) | dinero }}</td>
+                                            <td style="padding: 8px; text-align: right;">Bs. {{ valores.comision | default(0) | dinero }}</td>
+                                            <td style="padding: 8px; text-align: right;">Bs. {{ valores.premio | default(0) | dinero }}</td>
+                                            <td class="fw-bold" style="padding: 8px; text-align: right; color: #e91e63;">Bs. {{ valores.neto | default(0) | dinero }}</td>
                                         </tr>
                                         {% endfor %}
                                         <tr style="background-color: #fce4ec; font-weight: bold; font-size: 14px; color: #e91e63;">
                                             <td style="padding: 10px;">TOTALES SISTEMAS</td>
-                                            <td style="padding: 10px; text-align: right;">Bs. {{ "{:,.2f}".format(totales_generales.venta) }}</td>
-                                            <td style="padding: 10px; text-align: right;">Bs. {{ "{:,.2f}".format(totales_generales.comision) }}</td>
-                                            <td style="padding: 10px; text-align: right;">Bs. {{ "{:,.2f}".format(totales_generales.premio) }}</td>
-                                            <td style="padding: 10px; text-align: right; color: #c2185b;">Bs. {{ "{:,.2f}".format(totales_generales.neto) }}</td>
+                                            <td style="padding: 10px; text-align: right;">Bs. {{ totales_generales.venta | default(0) | dinero }}</td>
+                                            <td style="padding: 10px; text-align: right;">Bs. {{ totales_generales.comision | default(0) | dinero }}</td>
+                                            <td style="padding: 10px; text-align: right;">Bs. {{ totales_generales.premio | default(0) | dinero }}</td>
+                                            <td style="padding: 10px; text-align: right; color: #c2185b;">Bs. {{ totales_generales.neto | default(0) | dinero }}</td>
                                         </tr>
                                     {% else %}
                                         <tr><td colspan="5" class="text-center text-muted py-4">No hay ventas registradas.</td></tr>
@@ -526,13 +526,13 @@
                             <div class="col-md-6">
                                 <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-primary border-4">
                                     <span class="text-muted small fw-bold">GANANCIA DE %</span>
-                                    <h4 class="fw-bold text-primary mt-1">Bs. {{ total_ganancia_diferencial_global | dinero }}</h4>
+                                    <h4 class="fw-bold text-primary mt-1">Bs. {{ total_ganancia_diferencial_global | default(0) | dinero }}</h4>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-warning border-4">
                                     <span class="text-muted small fw-bold">GANANCIA DE PARTICIPACIÓN</span>
-                                    <h4 class="fw-bold text-warning mt-1">Bs. {{ total_ganancia_participacion_global | dinero }}</h4>
+                                    <h4 class="fw-bold text-warning mt-1">Bs. {{ total_ganancia_participacion_global | default(0) | dinero }}</h4>
                                 </div>
                             </div>
                         </div>
@@ -541,11 +541,11 @@
                             <ul class="list-group list-group-flush shadow-sm rounded">
                                 <li class="list-group-item d-flex justify-content-between align-items-center py-3 bg-white">
                                     <span class="fw-bold text-dark"><i class="fas fa-coins text-warning me-2"></i> TOTAL GANANCIA PRIVADA (TOTAL QUE GANÉ)</span>
-                                    <span class="fw-bold text-success fs-5">Bs. {{ total_mi_ganancia_global | dinero }}</span>
+                                    <span class="fw-bold text-success fs-5">Bs. {{ total_mi_ganancia_global | default(0) | dinero }}</span>
                                 </li>
                                 <li class="list-group-item d-flex justify-content-between align-items-center py-3 bg-primary text-white rounded-bottom">
                                     <span class="fw-bold fs-5"><i class="fas fa-wallet me-2"></i> TOTAL A TENER EN LA CUENTA (SUMA DE BANCAS)</span>
-                                    <span class="fw-bold fs-4">Bs. {{ total_acumulado_cuentas_bancarias | dinero }}</span>
+                                    <span class="fw-bold fs-4">Bs. {{ total_acumulado_cuentas_bancarias | default(0) | dinero }}</span>
                                 </li>
                             </ul>
                         </div>
@@ -560,7 +560,7 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h5 class="fw-bold text-success m-0"><i class="fas fa-university"></i> Desglose por Banqueros con Ganancia Privada Diferencial</h5>
-                            <span class="badge bg-success fs-6 p-2">Mi Ganancia Total Excedente: Bs. {{ total_mi_ganancia_global | dinero }}</span>
+                            <span class="badge bg-success fs-6 p-2">Mi Ganancia Total Excedente: Bs. {{ total_mi_ganancia_global | default(0) | dinero }}</span>
                         </div>
 
                         <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm">
@@ -603,35 +603,37 @@
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        {% for sys in data.sistemas %}
-                                                        <tr>
-                                                            <td class="fw-bold">{{ sys.sistema }}</td>
-                                                            <td class="text-end">{{ "{:,.2f}".format(sys.venta) }}</td>
-                                                            <td class="text-end">{{ "{:,.2f}".format(sys.comision_agencia) }}</td>
-                                                            <td class="text-end">{{ "{:,.2f}".format(sys.premios) }}</td>
-                                                            <td class="text-end fw-bold">{{ "{:,.2f}".format(sys.total_banquero) }}</td>
-                                                        </tr>
-                                                        {% endfor %}
+                                                        {% if data.sistemas %}
+                                                            {% for sys in data.sistemas %}
+                                                            <tr>
+                                                                <td class="fw-bold">{{ sys.sistema }}</td>
+                                                                <td class="text-end">Bs. {{ sys.venta | default(0) | dinero }}</td>
+                                                                <td class="text-end">Bs. {{ sys.comision_agencia | default(0) | dinero }}</td>
+                                                                <td class="text-end">Bs. {{ sys.premios | default(0) | dinero }}</td>
+                                                                <td class="text-end fw-bold">Bs. {{ sys.total_banquero | default(0) | dinero }}</td>
+                                                            </tr>
+                                                            {% endfor %}
+                                                        {% endif %}
                                                         
                                                         {% if data.cobranza %}
-                                                        {% for cob in data.cobranza %}
-                                                        <tr class="table-warning">
-                                                            <td class="fw-bold" colspan="4"><i class="fas fa-hand-holding-usd"></i> COBRANZA: {{ cob.nombre }} ({{ "{:.0f}%".format(cob.pct_comision_completa*100) }} Comis / {{ "{:.0f}%".format(cob.pct_participacion*100) }} Part)</td>
-                                                            <td class="text-end fw-bold text-dark">0.00</td>
-                                                        </tr>
-                                                        {% endfor %}
+                                                            {% for cob in data.cobranza %}
+                                                            <tr class="table-warning">
+                                                                <td class="fw-bold" colspan="4"><i class="fas fa-hand-holding-usd"></i> COBRANZA: {{ cob.nombre }}</td>
+                                                                <td class="text-end fw-bold text-dark">Bs. 0.00</td>
+                                                            </tr>
+                                                            {% endfor %}
                                                         {% endif %}
 
-                                                        {% if data.cashea_descontado > 0 %}
+                                                        {% if data.cashea_descontado | default(0) > 0 %}
                                                         <tr class="table-danger">
                                                             <td class="fw-bold" colspan="4"><i class="fas fa-shopping-cart"></i> DESCUENTO CASHEA ABSORBIDO</td>
-                                                            <td class="text-end fw-bold text-danger">- {{ "{:,.2f}".format(data.cashea_descontado) }}</td>
+                                                            <td class="text-end fw-bold text-danger">- Bs. {{ data.cashea_descontado | default(0) | dinero }}</td>
                                                         </tr>
                                                         {% endif %}
 
                                                         <tr class="table-success fw-bold">
                                                             <td colspan="4">TOTAL DEFINITIVO BANQUERO</td>
-                                                            <td class="text-end text-success fs-6">Bs. {{ "{:,.2f}".format(data.total_a_pagar_banquero) }}</td>
+                                                            <td class="text-end text-success fs-6">Bs. {{ data.total | default(0) | dinero }}</td>
                                                         </tr>
                                                     </tbody>
                                                 </table>
@@ -652,19 +654,21 @@
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        {% for sys in data.sistemas %}
-                                                        <tr>
-                                                            <td class="fw-bold">{{ sys.sistema }}</td>
-                                                            <td class="text-center">
-                                                                <span class="badge bg-primary">{{ "{:.1f}%".format(sys.pct_diferencial) }} Dif</span>
-                                                                <span class="badge bg-warning text-dark">{{ "{:.1f}%".format(sys.pct_participacion) }} Part</span>
-                                                            </td>
-                                                            <td class="text-end fw-bold text-success">+ {{ "{:,.2f}".format(sys.mi_ganancia_total) }}</td>
-                                                        </tr>
-                                                        {% endfor %}
+                                                        {% if data.sistemas %}
+                                                            {% for sys in data.sistemas %}
+                                                            <tr>
+                                                                <td class="fw-bold">{{ sys.sistema }}</td>
+                                                                <td class="text-center">
+                                                                    <span class="badge bg-primary">{{ sys.pct_diferencial | default(0) }}% Dif</span>
+                                                                    <span class="badge bg-warning text-dark">{{ sys.pct_participacion | default(0) }}% Part</span>
+                                                                </td>
+                                                                <td class="text-end fw-bold text-success">+ Bs. {{ sys.mi_ganancia_total | default(0) | dinero }}</td>
+                                                            </tr>
+                                                            {% endfor %}
+                                                        {% endif %}
                                                         <tr class="table-dark fw-bold">
                                                             <td colspan="2">GANANCIA TOTAL BANCA</td>
-                                                            <td class="text-end text-warning">Bs. {{ "{:,.2f}".format(data.total_mi_ganancia_banca) }}</td>
+                                                            <td class="text-end text-warning">Bs. {{ data.total | default(0) | dinero }}</td>
                                                         </tr>
                                                     </tbody>
                                                 </table>
@@ -690,15 +694,16 @@
         function toggleAbonoInput(id) {
             var select = document.getElementById('tipoProc' + id);
             var divAbono = document.getElementById('divAbono' + id);
-            if (select.value === 'ABONO') {
+            if (select && select.value === 'ABONO') {
                 divAbono.classList.remove('d-none');
-            } else {
+            } else if (divAbono) {
                 divAbono.classList.add('d-none');
             }
         }
 
         function copiarCasheaCompleto() {
             var tabla = document.getElementById("tablaCashea");
+            if (!tabla) return;
             var textoCopiar = "--- CASHEA GENERAL ---\n\n";
             var filas = tabla.getElementsByTagName("tr");
             
@@ -726,6 +731,7 @@
             
             var fechaEncabezado = (fDesde && fHasta) ? " (FECHA: " + fDesde + " A " + fHasta + ")" : "";
             var tabla = document.getElementById(tablaId);
+            if (!tabla) return;
             var textoCopiar = "--- " + nombreBanquero + fechaEncabezado + " ---\n\n";
             var filas = tabla.getElementsByTagName("tr");
             
