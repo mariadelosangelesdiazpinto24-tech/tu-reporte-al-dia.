@@ -5,131 +5,347 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Agencia - Los Ángeles del Dinero</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        {% if genero == 'FEMENINO' %}
-        .bg-agency-theme { background-color: #e91e63 !important; color: white !important; }
-        .btn-agency-theme { background-color: #e91e63 !important; color: white !important; border: none; }
-        .border-agency-theme { border-color: #e91e63 !important; }
-        .text-agency-theme { color: #e91e63 !important; }
-        {% else %}
-        .bg-agency-theme { background-color: #198754 !important; color: white !important; }
-        .btn-agency-theme { background-color: #198754 !important; color: white !important; border: none; }
-        .border-agency-theme { border-color: #198754 !important; }
-        .text-agency-theme { color: #198754 !important; }
-        {% endif %}
-        body { background-color: #f8f9fa; }
+        body { 
+            background: {% if genero == 'MASCULINO' %}linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%){% else %}linear-gradient(135deg, #fce4ec 0%, #f8bbd0 100%){% endif %}; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            min-height: 100vh; 
+        }
+        .navbar-custom { 
+            background: {% if genero == 'MASCULINO' %}linear-gradient(135deg, #0d47a1, #1976d2){% else %}linear-gradient(135deg, #ad1457, #d81b60){% endif %}; 
+            color: white; padding: 15px 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); border-bottom: 4px solid #ffc107; 
+        }
+        .card-custom { border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); border: none; margin-bottom: 20px; background: #ffffff; }
+        .btn-custom { 
+            background: {% if genero == 'MASCULINO' %}linear-gradient(135deg, #0d47a1, #1976d2){% else %}linear-gradient(135deg, #ad1457, #d81b60){% endif %}; 
+            color: white; font-weight: bold; border-radius: 25px; transition: all 0.3s ease;
+        }
+        .btn-custom:hover { color: white; opacity: 0.9; transform: translateY(-2px); }
+        .nav-tabs .nav-link { 
+            color: {% if genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %}; 
+            font-weight: 600; background: white; margin-right: 5px; border-radius: 10px 10px 0 0; 
+            box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
+        }
+        .nav-tabs .nav-link.active { 
+            background: {% if genero == 'MASCULINO' %}linear-gradient(135deg, #0d47a1, #1976d2){% else %}linear-gradient(135deg, #ad1457, #d81b60){% endif %} !important; 
+            color: white !important; 
+        }
     </style>
 </head>
 <body>
 
+    <div class="navbar-custom d-flex justify-content-between align-items-center">
+        <h3 class="m-0"><i class="fas fa-store text-warning"></i> Agencia: {{ agencia }} 🍀🌺</h3>
+        <a href="/login" class="btn btn-light btn-sm fw-bold text-danger shadow-sm rounded-pill px-3"><i class="fas fa-sign-out-alt"></i> Salir</a>
+    </div>
+
     <div class="container my-4">
-        <!-- HEADER DE NAVEGACIÓN -->
-        <div class="card bg-agency-theme shadow-sm border-0 mb-4" style="border-radius: 15px;">
-            <div class="card-body d-flex justify-content-between align-items-center">
-                <h4 class="fw-bold m-0"><i class="fas fa-store"></i> Agencia: {{ agencia }}</h4>
-                <a href="/login" class="btn btn-light btn-sm fw-bold text-dark"><i class="fas fa-sign-out-alt"></i> Salir</a>
-            </div>
-        </div>
 
-        <!-- NOTIFICACIONES Y MENSAJES DEL SISTEMA -->
-        {% if request.query_params.get('msg') %}
-        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
-            <i class="fas fa-check-circle me-1"></i> {{ request.query_params.get('msg') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-        {% endif %}
-        {% if request.query_params.get('error') %}
-        <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
-            <i class="fas fa-exclamation-triangle me-1"></i> {{ request.query_params.get('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-        {% endif %}
-
-        <!-- COMUNICADOS OFICIALES PENDIENTES DE LECTURA -->
+        <!-- COMUNICADOS Y AVISOS DE LA BANCA -->
         {% if comunicados_pendientes %}
             {% for com in comunicados_pendientes %}
-            <div class="alert alert-warning alert-dismissible fade show shadow-sm border-2 border-warning mb-4" role="alert" style="border-radius: 12px;">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <h6 class="fw-bold text-dark mb-1"><i class="fas fa-bullhorn text-warning me-2"></i> Comunicado Oficial Administrador</h6>
-                        <p class="mb-0 text-dark fw-medium" style="font-size: 14px;">{{ com.mensaje }}</p>
-                    </div>
-                    <form action="/agencia/marcar-comunicado-leido" method="POST" class="ms-3">
-                        <input type="hidden" name="agencia" value="{{ agencia }}">
-                        <input type="hidden" name="comunicado_id" value="{{ com.id }}">
-                        <button type="submit" class="btn btn-sm btn-dark fw-bold"><i class="fas fa-check me-1"></i> Entendido</button>
-                    </form>
-                </div>
+            <div class="alert alert-warning alert-dismissible fade show shadow-sm border-start border-warning border-4 mb-4" role="alert" style="border-radius: 12px; background: #fffde7;">
+                <h5 class="fw-bold text-dark"><i class="fas fa-bullhorn text-warning"></i> Comunicado Importante de la Banca</h5>
+                <p class="mb-2 text-secondary">{{ com.mensaje }}</p>
+                <form action="/marcar-comunicado-leido" method="POST">
+                    <input type="hidden" name="agencia" value="{{ agencia }}">
+                    <input type="hidden" name="comunicado_id" value="{{ com.id }}">
+                    <button type="submit" class="btn btn-sm btn-dark fw-bold rounded-pill px-3">Entendido / Marcar como leído</button>
+                </form>
             </div>
             {% endfor %}
         {% endif %}
 
-        <!-- MÓDULO PARA CAMBIAR CONTRASEÑA -->
-        <div class="card shadow-sm border-0 mb-4" style="border-radius: 12px; border-left: 5px solid #0d6efd;">
-            <div class="card-body">
-                <h6 class="fw-bold text-primary mb-3"><i class="fas fa-key me-1"></i> Cambiar mi Contraseña de Acceso</h6>
-                <form action="/agencia/cambiar-clave" method="POST" class="row g-2 align-items-end">
-                    <input type="hidden" name="agencia" value="{{ agencia }}">
-                    <div class="col-md-5">
-                        <label class="form-label fw-bold small">Contraseña Actual</label>
-                        <input type="password" name="clave_actual" class="form-control form-control-sm" required>
-                    </div>
-                    <div class="col-md-5">
-                        <label class="form-label fw-bold small">Nueva Contraseña</label>
-                        <input type="password" name="nueva_clave" class="form-control form-control-sm" required>
-                    </div>
-                    <div class="col-md-2">
-                        <button type="submit" class="btn btn-sm btn-primary w-100 fw-bold"><i class="fas fa-sync-alt me-1"></i> Actualizar</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- MÓDULO PARA SOLICITAR BANCA / COBRO DE SALDO -->
-        <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
-            <div class="card-body">
-                <h5 class="fw-bold text-agency-theme mb-3"><i class="fas fa-hand-holding-usd"></i> Solicitar Cobro / Dinero a la Banca</h5>
-                <form action="/solicitar-banca" method="POST" class="row g-3">
-                    <input type="hidden" name="agencia" value="{{ agencia }}">
-                    <div class="col-md-5">
-                        <label class="form-label fw-bold small">Fecha de la Solicitud</label>
-                        <input type="date" name="fecha" class="form-control form-control-sm border-agency-theme" required>
-                    </div>
-                    <div class="col-md-5">
-                        <label class="form-label fw-bold small">Monto Solicitado (Bs.)</label>
-                        <input type="number" step="0.01" name="monto" class="form-control form-control-sm border-agency-theme" placeholder="Monto a solicitar" required>
-                    </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <button type="submit" class="btn btn-agency-theme btn-sm w-100 fw-bold shadow-sm py-2"><i class="fas fa-paper-plane me-1"></i> Solicitar</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- VISTA DETALLADA DE REPORTES Y ESTADO DE CUENTA DIARIO DE LA AGENCIA -->
-        {% if reportes %}
-        <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px;">
-            <div class="card-body">
-                <h5 class="fw-bold text-dark mb-3"><i class="fas fa-file-invoice-dollar me-2"></i> Mis Reportes Diarios de Cuentas</h5>
-                {% for rep in reportes %}
-                <div class="border rounded p-3 bg-white shadow-sm mb-4">
-                    <h6 class="fw-bold text-agency-theme border-bottom pb-2 mb-3"><i class="fas fa-calendar-alt me-1"></i> Reporte correspondiente al día: {{ rep.fecha }}</h6>
-                    {{ rep.detalle_html | safe }}
+        <!-- BLOQUE PRINCIPAL: CARGAR PAGO O ABONO A ADMIN -->
+        <div class="card card-custom p-4 mb-4" style="border-top: 5px solid {% if genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};">
+            <h5 class="fw-bold mb-3" style="color: {% if genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};"><i class="fas fa-file-invoice-dollar"></i> Cargar Pago o Abono a Admin 🌸</h5>
+            <form action="/reportar" method="POST" enctype="multipart/form-data" class="row g-3 align-items-end">
+                <input type="hidden" name="agencia" value="{{ agencia }}">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-muted">Fecha</label>
+                    <input type="date" class="form-control" name="fecha" required>
                 </div>
-                {% endfor %}
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-muted">N° Referencia (4 dígitos)</label>
+                    <input type="text" class="form-control" name="factura" placeholder="Ej: 8492" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-muted">Monto Abono / Pago (Bs.)</label>
+                    <input type="text" class="form-control" name="monto" placeholder="Ej: 20000.00" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-muted">Comprobante (Imagen)</label>
+                    <input type="file" class="form-control" name="comprobante" required>
+                </div>
+                <div class="col-12 text-end mt-3">
+                    <button type="submit" class="btn btn-custom px-4 py-2"><i class="fas fa-paper-plane"></i> Registrar Abono / Pago</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- PESTAÑAS DE NAVEGACIÓN ORGANIZADAS -->
+        <ul class="nav nav-tabs mb-4 fw-bold border-0" id="agenciaTab" role="tablist">
+            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#reportes"><i class="fas fa-chart-line"></i> Mis Reportes</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#transacciones"><i class="fas fa-exchange-alt"></i> Transacciones</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#adelantos"><i class="fas fa-hand-holding-usd"></i> Adelantos</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cashea"><i class="fas fa-shopping-cart"></i> Cashea</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#modificaciones"><i class="fas fa-edit"></i> Modificaciones</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pendiente"><i class="fas fa-clock"></i> Pendiente</button></li>
+        </ul>
+
+        <div class="tab-content" id="agenciaTabContent">
+            
+            <!-- 1. MIS REPORTES -->
+            <div class="tab-pane fade show active" id="reportes">
+                <div class="card card-custom p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <h4 class="fw-bold m-0" style="color: {% if genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};"><i class="fas fa-chart-line text-warning"></i> Historial de Reportes Financieros</h4>
+                        <div class="d-flex gap-2 align-items-center">
+                            <label class="small fw-bold text-muted">Buscar Fecha:</label>
+                            <input type="date" id="buscarFechaReporte" class="form-control form-control-sm" onchange="filtrarReportesFecha()">
+                            <button class="btn btn-outline-secondary btn-sm fw-bold rounded-pill px-3" onclick="mostrarTodosReportes()">Ver Todos</button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle" id="tablaReportesAgencia">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Ventas (Bs.)</th>
+                                    <th>Cuenta / Saldo Restante (Bs.)</th>
+                                    <th class="text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for r in reportes %}
+                                <tr data-fecha="{{ r.fecha }}">
+                                    <td class="fw-bold">{{ r.fecha }}</td>
+                                    <td>Bs. {{ r.ventas | dinero }}</td>
+                                    <td class="fw-bold {% if r.monto < 0 %}text-success{% else %}text-danger{% endif %}">
+                                        Bs. {{ r.monto | dinero }} {% if r.monto < 0 %}(A favor){% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn btn-sm btn-primary fw-bold px-3 rounded-pill" data-bs-toggle="modal" data-bs-target="#modalDetalle{{ r.id }}">
+                                            <i class="fas fa-eye"></i> Ver Detalle
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-3">No hay reportes cargados actualmente.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
+
+            <!-- 2. TRANSACCIONES -->
+            <div class="tab-pane fade" id="transacciones">
+                <div class="card card-custom p-4">
+                    <h4 class="fw-bold mb-3" style="color: {% if genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};"><i class="fas fa-exchange-alt"></i> Historial de Transacciones y Pagos</h4>
+                    <div class="table-responsive">
+                        <table class="table table-striped align-middle">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Tipo</th>
+                                    <th>Monto</th>
+                                    <th>Detalle / Comprobante</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in pagos %}
+                                <tr>
+                                    <td>{{ p.fecha }}</td>
+                                    <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
+                                    <td class="fw-bold">Bs. {{ p.monto | dinero }}</td>
+                                    <td>
+                                        {{ p.factura }}<br>
+                                        {% if p.comprobante and 'uploads/' in p.comprobante %}
+                                            <a href="/{{ p.comprobante }}" target="_blank" class="small text-decoration-none fw-bold text-primary"><i class="fas fa-image"></i> Ver Comprobante</a>
+                                        {% else %}
+                                            <span class="small text-muted">{{ p.comprobante }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if p.estado == 'APROBADO' %}
+                                            <span class="badge bg-success">APROBADO</span>
+                                        {% else %}
+                                            <span class="badge bg-warning text-dark">{{ p.estado }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-3">No se registran transacciones.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. ADELANTOS -->
+            <div class="tab-pane fade" id="adelantos">
+                <div class="card card-custom p-4">
+                    <h4 class="fw-bold mb-3 text-danger"><i class="fas fa-hand-holding-usd"></i> Solicitar Adelanto</h4>
+                    <form action="/solicitar-adelanto" method="POST" class="row g-3 align-items-end mb-4 p-3 border rounded bg-light">
+                        <input type="hidden" name="agencia" value="{{ agencia }}">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Fecha</label>
+                            <input type="date" class="form-control" name="fecha" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Monto Adelanto (Bs.)</label>
+                            <input type="text" class="form-control" name="monto" placeholder="Ej: 10000.00" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Motivo / Observación</label>
+                            <input type="text" class="form-control" name="observacion" placeholder="Motivo del adelanto" required>
+                        </div>
+                        <div class="col-12 text-end">
+                            <button type="submit" class="btn btn-danger fw-bold rounded-pill px-4"><i class="fas fa-paper-plane"></i> Enviar Solicitud de Adelanto</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 4. CASHEA -->
+            <div class="tab-pane fade" id="cashea">
+                <div class="card card-custom p-4">
+                    <h4 class="fw-bold mb-3" style="color: #00bcd4;"><i class="fas fa-shopping-cart text-info"></i> Registros Cashea</h4>
+                    <div class="table-responsive">
+                        <table class="table table-striped align-middle">
+                            <thead style="background-color: #e0f7fa; color: #006064;">
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Factura / Detalle</th>
+                                    <th class="text-end">Monto Absorbido</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for c in casheas %}
+                                <tr>
+                                    <td>{{ c.fecha }}</td>
+                                    <td>{{ c.factura }}</td>
+                                    <td class="text-end fw-bold text-danger">Bs. {{ c.monto | dinero }}</td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-3">No hay registros de Cashea acumulados.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. MODIFICACIONES DE SISTEMA -->
+            <div class="tab-pane fade" id="modificaciones">
+                <div class="card card-custom p-4">
+                    <h4 class="fw-bold mb-3" style="color: {% if genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};"><i class="fas fa-edit"></i> Modificar Venta o Premio por Sistema</h4>
+                    <form action="/actualizar-reporte-sistema" method="POST" class="row g-3 align-items-end p-3 border rounded bg-light">
+                        <input type="hidden" name="agencia" value="{{ agencia }}">
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold">Fecha del Reporte</label>
+                            <input type="date" class="form-control" name="fecha" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold">Sistema de Lotería</label>
+                            <select name="sistema" class="form-select" required>
+                                {% for sys in sistemas %}
+                                <option value="{{ sys }}">{{ sys }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold">Nueva Venta (Bs.)</label>
+                            <input type="text" class="form-control" name="venta" placeholder="0.00" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold">Nuevo Premio (Bs.)</label>
+                            <input type="text" class="form-control" name="premio" placeholder="0.00" required>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-custom w-100 fw-bold"><i class="fas fa-save"></i> Actualizar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 6. SOLICITUD A BANCA / PENDIENTE -->
+            <div class="tab-pane fade" id="pendiente">
+                <div class="card card-custom p-4">
+                    <h4 class="fw-bold mb-3" style="color: {% if genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};"><i class="fas fa-clock"></i> Solicitar Pago a la Banca (Saldo a Favor)</h4>
+                    <form action="/solicitar-banca" method="POST" class="row g-3 align-items-end p-3 border rounded bg-light">
+                        <input type="hidden" name="agencia" value="{{ agencia }}">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Fecha del Saldo</label>
+                            <input type="date" class="form-control" name="fecha" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Monto a Solicitar (Bs.)</label>
+                            <input type="text" class="form-control" name="monto" placeholder="Ej: 15000.00" required>
+                        </div>
+                        <div class="col-md-4">
+                            <button type="submit" class="btn btn-success w-100 fw-bold rounded-pill"><i class="fas fa-university"></i> Solicitar Pago a la Banca</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
         </div>
-        {% else %}
-        <div class="alert alert-info text-center py-4 shadow-sm" style="border-radius: 15px;">
-            <i class="fas fa-info-circle fs-4 mb-2"></i>
-            <h6>No hay reportes cargados actualmente para esta agencia.</h6>
-        </div>
-        {% endif %}
 
     </div>
 
+    <!-- MODALES DE DETALLE REPORTE -->
+    {% for r in reportes %}
+    <div class="modal fade" id="modalDetalle{{ r.id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 16px;">
+                <div class="modal-header text-white" style="background: {% if genero == 'MASCULINO' %}linear-gradient(135deg, #0d47a1, #1976d2){% else %}linear-gradient(135deg, #ad1457, #d81b60){% endif %};">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-file-invoice"></i> Reporte Fecha: {{ r.fecha }} 🍀🌺</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body bg-light">
+                    {{ r.detalle_html | safe }}
+                </div>
+                <div class="modal-footer bg-white">
+                    <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <script>
+        function filtrarReportesFecha() {
+            var fechaBusqueda = document.getElementById("buscarFechaReporte").value;
+            var filas = document.querySelectorAll("#tablaReportesAgencia tbody tr");
+            filas.forEach(function(fila) {
+                var fechaFila = fila.getAttribute("data-fecha");
+                if (fechaBusqueda === "" || fechaFila === fechaBusqueda) {
+                    fila.style.display = "";
+                } else {
+                    fila.style.display = "none";
+                }
+            });
+        }
+        function mostrarTodosReportes() {
+            document.getElementById("buscarFechaReporte").value = "";
+            var filas = document.querySelectorAll("#tablaReportesAgencia tbody tr");
+            filas.forEach(function(fila) {
+                fila.style.display = "";
+            });
+        }
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
