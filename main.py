@@ -651,7 +651,7 @@ def get_admin(
                     "mi_ganancia_total": g_total_privada
                 })
 
-# Acumular el total definitivo del banquero para que no salga en 0
+Acumular el total definitivo del banquero para que no salga en 0
             if "total" not in desglose_banqueros[b_nombre]:
                 desglose_banqueros[b_nombre]["total"] = 0.0
             desglose_banqueros[b_nombre]["total"] += t_banquero_sistema
