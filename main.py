@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request, Form, UploadFile, File, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from datetime import datetime
 
 app = FastAPI()
 
@@ -158,7 +159,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     total_adelantos = 0.0
     total_pagos_taquilla = 0.0
     total_cashea = 0.0
-    total_pagos_banca = 0.0
     
     tripletas_rows_html = ""
     adelantos_rows_html = ""
@@ -207,16 +207,15 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             '''
 
     detalle_original = rep['detalle_html'] or ""
-    
     match_sistemas = re.search(r'(<div class="mb-3"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_original, re.DOTALL)
     tabla_sistemas_html = match_sistemas.group(1) if match_sistemas else ""
     
     if not tabla_sistemas_html:
         tabla_sistemas_html = f'''
         <div class="mb-3">
-            <h6 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #0d47a1; padding-bottom: 5px; margin-bottom: 10px;"><i class="fas fa-chart-bar"></i> REPORTE DE SISTEMAS</h6>
+            <h6 style="color: #e91e63; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 5px; margin-bottom: 10px;"><i class="fas fa-chart-bar"></i> REPORTE DE SISTEMAS</h6>
             <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 12px; width: 100%; background: #ffffff; color: #1a252c;">
-                <tr style="background-color: #e3f2fd; color: #0d47a1; font-weight: bold;">
+                <tr style="background-color: #fce4ec; color: #e91e63; font-weight: bold;">
                     <th style="padding: 8px;">SISTEMA</th>
                     <th style="padding: 8px; text-align: right;">VENTA</th>
                     <th style="padding: 8px; text-align: right;">COMIS.</th>
@@ -228,7 +227,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
                   <td style="padding: 8px; text-align: right;">{rep['ventas']:,.2f}</td>
                   <td style="padding: 8px; text-align: right;">0.00</td>
                   <td style="padding: 8px; text-align: right;">{rep['premios']:,.2f}</td>
-                  <td style="padding: 8px; text-align: right; color: #0d47a1;">{rep['ventas'] - rep['premios']:,.2f}</td>
+                  <td style="padding: 8px; text-align: right; color: #e91e63;">{rep['ventas'] - rep['premios']:,.2f}</td>
                 </tr>
             </table>
         </div>
@@ -266,7 +265,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     bloque_cashea = f'''
     <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #00bcd4;">
-        <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #00bcd4; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-shopping-cart" style="color: #00bcd4;"></i> CASHEA (Registros absorbidos)</h5>
+        <h5 style="color: #00bcd4; font-weight: bold; border-bottom: 2px solid #00bcd4; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-shopping-cart"></i> CASHEA (Registros absorbidos)</h5>
         <table class="table table-sm align-middle mb-0" style="width: 100%;">
             <tr style="background-color: #e0f7fa; color: #006064; font-size: 13px;">
                 <th style="padding: 10px;">FECHA</th>
@@ -280,9 +279,9 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     bloque_tripletas = f'''
     <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ffb300;">
-        <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #ffb300; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-star" style="color: #ffb300;"></i> TRIPLETAS (Premios pagados por taquilla)</h5>
+        <h5 style="color: #ffb300; font-weight: bold; border-bottom: 2px solid #ffb300; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-star"></i> TRIPLETAS (Premios pagados por taquilla)</h5>
         <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #e3f2fd; color: #0d47a1; font-size: 13px;">
+            <tr style="background-color: #fff8e1; color: #ff8f00; font-size: 13px;">
                 <th style="padding: 10px;">FECHA TICKET</th>
                 <th style="padding: 10px;">DETALLE</th>
                 <th style="padding: 10px; text-align: right;">MONTO A FAVOR</th>
@@ -294,7 +293,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     bloque_adelantos = f'''
     <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #e91e63;">
-        <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-hand-holding-usd" style="color: #e91e63;"></i> ADELANTOS (Plata entregada por Admin - Se resta)</h5>
+        <h5 style="color: #e91e63; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-hand-holding-usd"></i> ADELANTOS (Plata entregada por Admin - Se resta)</h5>
         <table class="table table-sm align-middle mb-0" style="width: 100%;">
             <tr style="background-color: #fce4ec; color: #880e4f; font-size: 13px;">
                 <th style="padding: 10px;">FECHA</th>
@@ -307,8 +306,8 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     '''
 
     bloque_pendientes = f'''
-    <div class="mb-2" style="background: #ffffff; border-radius: 12px; padding: 20px; color: #1a252c; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 6px solid #0d47a1; border: 1px solid #e0e0e0;">
-        <h5 style="color: #0d47a1; font-weight: bold; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; margin-bottom: 12px;"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h5>
+    <div class="mb-2" style="background: #ffffff; border-radius: 12px; padding: 20px; color: #1a252c; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 6px solid #e91e63; border: 1px solid #e0e0e0;">
+        <h5 style="color: #e91e63; font-weight: bold; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; margin-bottom: 12px;"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h5>
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span style="font-size: 14px; color: #333; font-weight: bold;">Fecha: {fecha_reporte}</span>
             <span style="font-size: 14px; font-weight: bold; color: #333;">{("Total a Pagar" if monto_final >= 0 else "Saldo a favor / Solicitar")}</span>
@@ -355,7 +354,7 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
     return templates.TemplateResponse(request=request, name="login.html", context={"error": "Usuario o clave incorrectos"})
 
 @app.get("/admin", response_class=HTMLResponse)
-def get_admin(request: Request):
+def get_admin(request: Request, agencia: Optional[str] = None, fecha: Optional[str] = None):
     try:
         conn = get_db()
         cursor = conn.cursor()
@@ -363,7 +362,8 @@ def get_admin(request: Request):
         cursor.execute("SELECT * FROM reportes ORDER BY id DESC")
         reportes = [dict(row) for row in cursor.fetchall()]
         
-        cursor.execute("SELECT * FROM pagos ORDER BY id DESC")
+        # AQUÍ SE EXCLUYEN LOS CASHEA DE LA TABLA DE TRANSACCIONES GENERALES
+        cursor.execute("SELECT * FROM pagos WHERE tipo != 'CASHEA' ORDER BY id DESC")
         pagos = [dict(row) for row in cursor.fetchall()]
         
         cursor.execute("SELECT * FROM usuarios ORDER BY id DESC")
@@ -372,12 +372,46 @@ def get_admin(request: Request):
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
 
+        # Consultas para el consolidado por sistemas
+        fecha_filtro = fecha if fecha else datetime.now().strftime('%Y-%m-%d')
+        agencia_filtro = agencia if agencia else ""
+
+        sistemas_consolidados = {}
+        agencias_a_procesar = [agencia_filtro] if agencia_filtro else [a['agencia'] for a in agencias]
+
+        for ag in agencias_a_procesar:
+            cursor.execute("SELECT detalle_html FROM reportes WHERE agencia = %s AND fecha = %s", (normalizar(ag), fecha_filtro))
+            rep_db = cursor.fetchone()
+            if rep_db and rep_db['detalle_html']:
+                match_sistemas_div = re.search(r'(<div class="mb-3"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', rep_db['detalle_html'], re.DOTALL)
+                if match_sistemas_div:
+                    tabla_html = match_sistemas_div.group(1)
+                    filas_datos = re.findall(r'<tr>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<\/tr>', tabla_html, re.DOTALL)
+                    for f in filas_datos:
+                        sys_nombre_raw = f[0].replace('<b>', '').replace('</b>', '').strip()
+                        if not sys_nombre_raw or "SISTEMA" in sys_nombre_raw.upper() or "TOTALES" in sys_nombre_raw.upper():
+                            continue
+                        try:
+                            v = float(str(f[1]).replace(',', '').replace('Bs.', '').strip())
+                            c = float(str(f[2]).replace(',', '').replace('Bs.', '').strip())
+                            p = float(str(f[3]).replace(',', '').replace('Bs.', '').strip())
+                            t = float(str(f[4]).replace(',', '').replace('Bs.', '').strip())
+                        except:
+                            v, c, p, t = 0.0, 0.0, 0.0, 0.0
+
+                        if sys_nombre_raw not in sistemas_consolidados:
+                            sistemas_consolidados[sys_nombre_raw] = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
+                        
+                        sistemas_consolidados[sys_nombre_raw]["venta"] += v
+                        sistemas_consolidados[sys_nombre_raw]["comision"] += c
+                        sistemas_consolidados[sys_nombre_raw]["premio"] += p
+                        sistemas_consolidados[sys_nombre_raw]["neto"] += t
+
         historial_comunicados = []
         for com in comunicados:
             c_dict = dict(com)
             cursor.execute("SELECT agencia FROM lecturas_comunicados WHERE comunicado_id = %s", (com['id'],))
             leidos = [row['agencia'] for row in cursor.fetchall()]
-            
             no_leidos = [ag['agencia'] for ag in agencias if ag['agencia'] not in leidos]
             c_dict['leidos'] = leidos
             c_dict['no_leidos'] = no_leidos
@@ -387,8 +421,11 @@ def get_admin(request: Request):
         negativos = [r for r in reportes if r['monto'] < 0]
 
         conn.close()
-    except:
-        reportes, pagos, agencias, historial_comunicados, positivos, negativos = [], [], [], [], [], []
+    except Exception as e:
+        print("Error en admin:", e)
+        reportes, pagos, agencias, historial_comunicados, positivos, negativos, sistemas_consolidados = [], [], [], [], [], [], {}
+        fecha_filtro = datetime.now().strftime('%Y-%m-%d')
+        agencia_filtro = ""
 
     return templates.TemplateResponse(request=request, name="admin.html", context={
         "reportes": reportes, 
@@ -396,7 +433,10 @@ def get_admin(request: Request):
         "agencias": agencias, 
         "comunicados": historial_comunicados,
         "positivos": positivos,
-        "negativos": negativos
+        "negativos": negativos,
+        "sistemas_consolidados": sistemas_consolidados,
+        "agencia_filtro": agencia_filtro,
+        "fecha_filtro": fecha_filtro
     })
 
 @app.post("/admin/crear-agencia")
@@ -432,7 +472,7 @@ async def pagar_solicitud_banca(
     pago_id: int = Form(...), 
     comprobante: Optional[UploadFile] = File(None),
     monto_abono: Optional[str] = Form(None),
-    accion_pago: str = Form(...) # 'ABONO' o 'TOTAL'
+    pago_id_accion: str = Form("TOTAL")
 ):
     conn = get_db()
     cursor = conn.cursor()
@@ -452,7 +492,7 @@ async def pagar_solicitud_banca(
         else:
             ruta_archivo = pago['comprobante'] or "Pago procesado por Banca"
 
-        if accion_pago == 'ABONO' and monto_abono:
+        if pago_id_accion == 'ABONO' and monto_abono:
             try:
                 abono_val = float(monto_abono.replace(',', ''))
             except:
@@ -625,151 +665,3 @@ def reportar_tripleta(agencia: str = Form(...), fecha: str = Form(...), sistema:
     conn.close()
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/actualizar-reporte-sistema")
-def actualizar_reporte_sistema(agencia: str = Form(...), fecha: str = Form(...), sistema: str = Form(...), venta: str = Form(...), premio: str = Form(...)):
-    agencia_norm = normalizar(agencia)
-    sistema_buscado = normalizar(sistema)
-    
-    try:
-        venta_val = float(str(venta).replace(',', '')) if venta else 0.0
-    except:
-        venta_val = 0.0
-        
-    try:
-        premio_val = float(str(premio).replace(',', '')) if premio else 0.0
-    except:
-        premio_val = 0.0
-
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM reportes WHERE agencia = %s AND fecha = %s", (agencia_norm, fecha))
-    rep = cursor.fetchone()
-
-    if rep:
-        detalle_html = rep['detalle_html'] or ""
-        
-        match_sistemas_div = re.search(r'(<div class="mb-3"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_html, re.DOTALL)
-        if match_sistemas_div:
-            tabla_html_actual = match_sistemas_div.group(1)
-            filas_datos = re.findall(r'<tr>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<\/tr>', tabla_html_actual, re.DOTALL)
-            
-            sum_ventas = 0.0
-            sum_comis = 0.0
-            sum_premios = 0.0
-            sum_totales = 0.0
-            
-            filas_nuevas_html = '''
-            <div class="mb-3">
-                <h6 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #0d47a1; padding-bottom: 5px; margin-bottom: 10px;"><i class="fas fa-chart-bar"></i> REPORTE DE SISTEMAS</h6>
-                <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 12px; width: 100%; background: #ffffff; color: #1a252c;">
-                    <tr style="background-color: #e3f2fd; color: #0d47a1; font-weight: bold;">
-                        <th style="padding: 8px;">SISTEMA</th>
-                        <th style="padding: 8px; text-align: right;">VENTA</th>
-                        <th style="padding: 8px; text-align: right;">COMIS.</th>
-                        <th style="padding: 8px; text-align: right;">PREMIO</th>
-                        <th style="padding: 8px; text-align: right;">TOTAL</th>
-                    </tr>
-            '''
-            
-            for f in filas_datos:
-                sys_nombre_raw = f[0].replace('<b>', '').replace('</b>', '').strip()
-                sys_nombre_norm = normalizar(sys_nombre_raw)
-                
-                if "SISTEMA" in sys_nombre_norm or "TOTALES" in sys_nombre_norm or "TRIPLETA" in sys_nombre_norm:
-                    continue
-                
-                if sys_nombre_norm == sistema_buscado:
-                    v = venta_val
-                    p = premio_val
-                    c = v * 0.14
-                    t = v - c - p
-                else:
-                    try:
-                        v = float(str(f[1]).replace(',', ''))
-                        c = float(str(f[2]).replace(',', ''))
-                        p = float(str(f[3]).replace(',', ''))
-                        t = float(str(f[4]).replace(',', ''))
-                    except:
-                        v, c, p, t = 0.0, 0.0, 0.0, 0.0
-                
-                sum_ventas += v
-                sum_comis += c
-                sum_premios += p
-                sum_totales += t
-                
-                filas_nuevas_html += f'''
-                <tr>
-                  <td style="padding: 8px; font-weight: bold;">{sys_nombre_raw}</td>
-                  <td style="padding: 8px; text-align: right;">{v:,.2f}</td>
-                  <td style="padding: 8px; text-align: right;">{c:,.2f}</td>
-                  <td style="padding: 8px; text-align: right;">{p:,.2f}</td>
-                  <td style="padding: 8px; text-align: right;">{t:,.2f}</td>
-                </tr>
-                '''
-            
-            filas_nuevas_html += f'''
-                <tr style="background-color: #f5f5f5; font-weight: bold;">
-                  <td style="padding: 8px;">TOTALES</td>
-                  <td style="padding: 8px; text-align: right;">{sum_ventas:,.2f}</td>
-                  <td style="padding: 8px; text-align: right;">{sum_comis:,.2f}</td>
-                  <td style="padding: 8px; text-align: right;">{sum_premios:,.2f}</td>
-                  <td style="padding: 8px; text-align: right; color: #0d47a1;">{sum_totales:,.2f}</td>
-                </tr>
-            </table></div>
-            '''
-            
-            detalle_html = detalle_html.replace(tabla_html_actual, filas_nuevas_html)
-            cursor.execute("UPDATE reportes SET ventas = %s WHERE id = %s", (sum_totales, rep['id']))
-
-        cursor.execute("UPDATE reportes SET detalle_html = %s WHERE id = %s", (detalle_html, rep['id']))
-        conn.commit()
-
-    detalle_transaccion = f"Modificación {sistema}"
-    cursor.execute(
-        "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'MODIFICACION', %s, 'MODIFICACION', 'APROBADO')",
-        (agencia_norm, fecha, 0.0, detalle_transaccion)
-    )
-    conn.commit()
-    conn.close()
-
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/api/guardar-reporte-colab")
-def guardar_reporte_colab(
-    agencia: str = Form(...), 
-    fecha: str = Form(...), 
-    monto: float = Form(...), 
-    ventas: float = Form(0.0), 
-    premios: float = Form(0.0), 
-    detalle_html: Optional[str] = Form(""),
-    cashea_monto: Optional[float] = Form(0.0),
-    cashea_detalle: Optional[str] = Form("")
-):
-    agencia_norm = normalizar(agencia)
-    
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id FROM reportes WHERE agencia = %s AND fecha = %s", (agencia_norm, fecha))
-    existente = cursor.fetchone()
-    
-    if existente:
-        cursor.execute("UPDATE reportes SET monto = %s, ventas = %s, premios = %s, detalle_html = %s WHERE agencia = %s AND fecha = %s", (monto, ventas, premios, detalle_html, agencia_norm, fecha))
-    else:
-        cursor.execute("INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html) VALUES (%s, %s, %s, %s, %s, %s)", (agencia_norm, fecha, monto, ventas, premios, detalle_html))
-        
-    if cashea_monto and cashea_monto > 0:
-        cursor.execute("SELECT id FROM pagos WHERE agencia = %s AND fecha = %s AND tipo = 'CASHEA'", (agencia_norm, fecha))
-        existe_cashea = cursor.fetchone()
-        if not existe_cashea:
-            cursor.execute(
-                "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, %s, %s, 'CASHEA', 'APROBADO')",
-                (agencia_norm, fecha, cashea_monto, cashea_detalle or "CASHEA Automático", cashea_detalle or "Sincronizado de Sheet")
-            )
-
-    conn.commit()
-    conn.close()
-
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    return {"status": "ok", "mensaje": f"Reporte y Cashea sincronizados para {agencia_norm}"}
