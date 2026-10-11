@@ -168,7 +168,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     cursor.execute("SELECT * FROM pagos WHERE agencia = %s AND fecha = %s AND estado = 'APROBADO'", (agencia_norm, fecha_reporte))
     todos_pagos = cursor.fetchall()
     
-    # BUSCAR AJUSTES / PENDIENTES DE DÍAS ANTERIORES PARA ESTA AGENCIA
     cursor.execute("SELECT * FROM pagos WHERE agencia = %s AND tipo = 'AJUSTE_PENDIENTE' AND estado = 'APROBADO'", (agencia_norm,))
     ajustes_anteriores = cursor.fetchall()
 
@@ -342,7 +341,6 @@ async def guardar_reporte_colab(request: Request):
     cursor.execute("SELECT * FROM reportes WHERE agencia = %s AND fecha = %s", (agencia, fecha))
     rep = cursor.fetchone()
 
-    # CONTROL DE REPORTE DÍA ANTERIOR
     if rep and fecha < hoy_str:
         monto_anterior = rep['monto'] or 0.0
         diferencial = monto - monto_anterior
@@ -525,7 +523,7 @@ def get_admin(
                 elif t_type in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
                     totales_auxiliares["abonos_banca"] += m_val
 
-        # ESTRUCTURA CON LAS COMISIONES COMPLETAS REALES PEDIDAS POR ADMIN
+        # CONFIGURACIÓN CON CÁLCULO DE EXCEDENTE REAL Y DIFERENCIAL
         ESTRUCTURA_BANQUEROS = {
             "COMERCIALIZADORA SUPER APUESTAS": {
                 "sistemas": [
@@ -581,9 +579,9 @@ def get_admin(
         }
 
         desglose_banqueros = {}
-        total_ganancia_comision_global = 0.0
+        total_ganancia_diferencial_global = 0.0
         total_ganancia_participacion_global = 0.0
-        total_neto_acumulado_bancas = 0.0
+        total_acumulado_cuentas_bancarias = 0.0
 
         for b_nombre, cfg in ESTRUCTURA_BANQUEROS.items():
             desglose_banqueros[b_nombre] = {
@@ -600,41 +598,45 @@ def get_admin(
                 s_name = item["sistema"]
                 v_sys = sistemas_consolidados.get(s_name, {}).get("venta", 0.0)
                 p_sys = sistemas_consolidados.get(s_name, {}).get("premio", 0.0)
-                c_agencia = v_sys * item["pct_comision_completa"]
+                c_taquillas_pagada = sistemas_consolidados.get(s_name, {}).get("comision", 0.0)
                 
-                t_banquero_sistema = v_sys - c_agencia - p_sys
+                c_banquero_total = v_sys * item["pct_comision_completa"]
+                
+                t_banquero_sistema = v_sys - c_banquero_total - p_sys
                 subtotal_banquero += t_banquero_sistema
 
-                g_comision = c_agencia
-                g_participacion = 0.0
+                # EXCEDENTE Y DIFERENCIAL REAL (GANANCIA EXCLUSIVA POR PORCENTAJE)
+                g_excedente_pct = c_banquero_total - c_taquillas_pagada
+                pct_excedente_real = (g_excedente_pct / v_sys * 100) if v_sys > 0 else (item["pct_comision_completa"] * 100 - 13.0)
 
+                g_participacion = 0.0
                 if item["tipo_participacion"] in ["SALDO", "TOTAL"]:
                     g_participacion = t_banquero_sistema * item["pct_participacion"]
 
-                g_total = g_comision + g_participacion
+                g_total_privada = g_excedente_pct + g_participacion
 
-                total_ganancia_comision_global += g_comision
+                total_ganancia_diferencial_global += g_excedente_pct
                 total_ganancia_participacion_global += g_participacion
 
                 desglose_banqueros[b_nombre]["sistemas"].append({
                     "sistema": s_name,
                     "venta": v_sys,
-                    "comision_agencia": c_agencia,
+                    "comision_agencia": c_banquero_total,
                     "premios": p_sys,
                     "total_banquero": t_banquero_sistema,
-                    "pct_comision_mía": item["pct_comision_completa"] * 100,
+                    "pct_diferencial": pct_excedente_real,
                     "pct_participacion": item["pct_participacion"] * 100,
-                    "ganancia_comision": g_comision,
+                    "ganancia_diferencial": g_excedente_pct,
                     "ganancia_participacion": g_participacion,
-                    "mi_ganancia_total": g_total
+                    "mi_ganancia_total": g_total_privada
                 })
-                desglose_banqueros[b_nombre]["total_mi_ganancia_banca"] += g_total
+                desglose_banqueros[b_nombre]["total_mi_ganancia_banca"] += g_total_privada
 
             final_banquero = subtotal_banquero - desglose_banqueros[b_nombre]["cashea_descontado"]
             desglose_banqueros[b_nombre]["total_a_pagar_banquero"] = final_banquero
-            total_neto_acumulado_bancas += final_banquero
+            total_acumulado_cuentas_bancarias += final_banquero
 
-        total_mi_ganancia_global = total_ganancia_comision_global + total_ganancia_participacion_global
+        total_mi_ganancia_global = total_ganancia_diferencial_global + total_ganancia_participacion_global
         neto_final_agencia = totales_generales["neto"] - totales_auxiliares["abonos_banca"] - totales_auxiliares["adelantos"] - totales_auxiliares["cashea"]
         neto_menos_cashea = totales_generales["neto"] - totales_auxiliares["cashea"]
 
@@ -648,7 +650,7 @@ def get_admin(
         totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
         totales_auxiliares = {"cashea": 0.0, "adelantos": 0.0, "abonos_banca": 0.0}
         desglose_banqueros = {}
-        total_ganancia_comision_global, total_ganancia_participacion_global, total_mi_ganancia_global, total_neto_acumulado_bancas = 0.0, 0.0, 0.0, 0.0
+        total_ganancia_diferencial_global, total_ganancia_participacion_global, total_mi_ganancia_global, total_acumulado_cuentas_bancarias = 0.0, 0.0, 0.0, 0.0
         neto_final_agencia, neto_menos_cashea = 0.0, 0.0
         total_taquillas_creadas, taquillas_activas_hoy = 0, 0
         f_desde, f_hasta, agencia_filtro = datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%Y-%m-%d'), ""
@@ -667,10 +669,10 @@ def get_admin(
         "neto_final_agencia": neto_final_agencia,
         "neto_menos_cashea": neto_menos_cashea,
         "desglose_banqueros": desglose_banqueros,
-        "total_ganancia_comision_global": total_ganancia_comision_global,
+        "total_ganancia_diferencial_global": total_ganancia_diferencial_global,
         "total_ganancia_participacion_global": total_ganancia_participacion_global,
         "total_mi_ganancia_global": total_mi_ganancia_global,
-        "total_neto_acumulado_bancas": total_neto_acumulado_bancas,
+        "total_acumulado_cuentas_bancarias": total_acumulado_cuentas_bancarias,
         "total_taquillas_creadas": total_taquillas_creadas,
         "taquillas_activas_hoy": taquillas_activas_hoy,
         "agencia_filtro": agencia_filtro,
@@ -682,7 +684,7 @@ def get_admin(
 @app.post("/admin/procesar-solicitud-dinero")
 async def procesar_solicitud_dinero(
     pago_id: int = Form(...),
-    tipo_procesamiento: str = Form("PAGO_COMPLETO"), # PAGO_COMPLETO o ABONO
+    tipo_procesamiento: str = Form("PAGO_COMPLETO"),
     monto_abono: Optional[str] = Form(None),
     comprobante: Optional[UploadFile] = File(None)
 ):
