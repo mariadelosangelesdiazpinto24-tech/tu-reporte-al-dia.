@@ -416,11 +416,9 @@ def get_admin(
         cursor.execute("SELECT * FROM reportes ORDER BY id DESC")
         reportes = [dict(row) for row in cursor.fetchall()]
         
-        # EXCLUIR CASHEA DE TRANSACCIONES GENERALES
         cursor.execute("SELECT * FROM pagos WHERE tipo != 'CASHEA' ORDER BY id DESC")
         pagos = [dict(row) for row in cursor.fetchall()]
 
-        # OBTENER REGISTROS EXCLUSIVOS DE CASHEA
         cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' ORDER BY id DESC")
         casheas_generales = [dict(row) for row in cursor.fetchall()]
         
@@ -430,7 +428,6 @@ def get_admin(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
 
-        # MANEJO DE RANGO DE FECHAS
         hoy_str = datetime.now().strftime('%Y-%m-%d')
         f_desde = desde_fecha if desde_fecha else hoy_str
         f_hasta = hasta_fecha if hasta_fecha else hoy_str
@@ -456,7 +453,6 @@ def get_admin(
                             cols = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', f, re.DOTALL)
                             if len(cols) >= 5:
                                 sys_nombre = re.sub(r'<[^>]+>', '', cols[0]).strip()
-                                # FILTRAR TOTALES O TRIPLETAS SECUNDARIAS
                                 if not sys_nombre or "SISTEMA" in sys_nombre.upper() or "TOTALES" in sys_nombre.upper() or "TRIPLETA" in sys_nombre.upper():
                                     continue
                                 try:
@@ -480,6 +476,15 @@ def get_admin(
                                 totales_generales["premio"] += p
                                 totales_generales["neto"] += t
 
+        # CALCULAR TOTAL CASHEA EN EL RANGO
+        total_cashea_rango = 0.0
+        for c in casheas_generales:
+            if f_desde <= c['fecha'] <= f_hasta:
+                if not agencia_filtro or normalizar(c['agencia']) == normalizar(agencia_filtro):
+                    total_cashea_rango += (c['monto'] or 0.0)
+
+        neto_menos_cashea = totales_generales["neto"] - total_cashea_rango
+
         positivos = [r for r in reportes if r['monto'] > 0]
         negativos = [r for r in reportes if r['monto'] < 0]
 
@@ -488,6 +493,8 @@ def get_admin(
         print("Error en admin:", e)
         reportes, pagos, casheas_generales, agencias, comunicados, positivos, negativos, sistemas_consolidados = [], [], [], [], [], [], [], {}
         totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
+        total_cashea_rango = 0.0
+        neto_menos_cashea = 0.0
         f_desde, f_hasta, agencia_filtro = datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%Y-%m-%d'), ""
 
     return templates.TemplateResponse(request=request, name="admin.html", context={
@@ -500,6 +507,8 @@ def get_admin(
         "negativos": negativos,
         "sistemas_consolidados": sistemas_consolidados,
         "totales_generales": totales_generales,
+        "total_cashea_rango": total_cashea_rango,
+        "neto_menos_cashea": neto_menos_cashea,
         "agencia_filtro": agencia_filtro,
         "desde_fecha": f_desde,
         "hasta_fecha": f_hasta,
