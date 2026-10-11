@@ -194,7 +194,7 @@
                 </div>
             </div>
 
-            <!-- 3. DATA CASHEA GENERAL -->
+            <!-- 3. DATA CASHEA GENERAL CON BUSCADOR DE FECHA -->
             <div class="tab-pane fade {% if tab_activa == 'cashea' %}show active{% endif %}" id="cashea" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #00bcd4 !important;">
                     <div class="card-body">
@@ -202,6 +202,34 @@
                             <h5 class="fw-bold" style="color: #00bcd4;"><i class="fas fa-shopping-cart"></i> Consolidado General de Cashea</h5>
                             <button onclick="copiarCasheaCompleto()" class="btn btn-sm btn-info text-white fw-bold"><i class="fas fa-copy"></i> Copiar Todo</button>
                         </div>
+
+                        <!-- BUSCADOR POR FECHAS Y AGENCIA PARA AUDITAR FACTURAS CASHEA -->
+                        <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm">
+                            <input type="hidden" name="tab" value="cashea">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold small">Filtrar por Agencia</label>
+                                <select name="agencia" class="form-select form-select-sm border-info">
+                                    <option value="">-- TODAS LAS AGENCIAS --</option>
+                                    {% for ag in agencias %}
+                                        <option value="{{ ag.agencia }}" {% if agencia_filtro == ag.agencia %}selected{% endif %}>{{ ag.agencia }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold small">Desde Fecha</label>
+                                <input type="date" name="desde_fecha" class="form-control form-control-sm border-info" value="{{ desde_fecha }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold small">Hasta Fecha</label>
+                                <input type="date" name="hasta_fecha" class="form-control form-control-sm border-info" value="{{ hasta_fecha }}">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-sm w-100 fw-bold btn-info text-white shadow-sm py-2">
+                                    <i class="fas fa-search me-1"></i> Filtrar Cashea
+                                </button>
+                            </div>
+                        </form>
+
                         <div class="table-responsive">
                             <table class="table table-hover align-middle" id="tablaCashea" style="font-size: 13px;">
                                 <thead class="table-dark">
@@ -218,7 +246,7 @@
                                         </tr>
                                         {% endfor %}
                                     {% else %}
-                                        <tr><td colspan="4" class="text-center text-muted py-3">No hay registros de Cashea.</td></tr>
+                                        <tr><td colspan="4" class="text-center text-muted py-3">No hay registros de Cashea en este periodo.</td></tr>
                                     {% endif %}
                                 </tbody>
                             </table>
@@ -417,7 +445,7 @@
                 </div>
             </div>
 
-            <!-- 6. PESTAÑA: DESGLOSE BANCA (AGRUPADO POR COMERCIALIZADORA/BANQUERO) -->
+            <!-- 6. DESGLOSE BANCA CON BOTÓN DE COPIAR Y PARTICIPACIÓN REAL -->
             <div class="tab-pane fade {% if tab_activa == 'desglose_banca' %}show active{% endif %}" id="desglose_banca" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
@@ -426,7 +454,7 @@
                             <span class="badge bg-success fs-6 p-2">Mi Ganancia Total: Bs. {{ total_mi_ganancia_global | dinero }}</span>
                         </div>
 
-                        <!-- FORMULARIO RANGO FECHAS DESGLOSE BANCA -->
+                        <!-- BUSCADOR DE RANGO DE FECHAS BÚSQUEDA SEMANAL -->
                         <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm">
                             <input type="hidden" name="tab" value="desglose_banca">
                             <div class="col-md-5">
@@ -444,15 +472,16 @@
                             </div>
                         </form>
 
-                        <!-- TABLAS DE CADA COMERCIALIZADORA -->
+                        <!-- TARJETAS BANQUEROS CON BOTÓN DE COPIAR Y DESGLOSE COMPLETO -->
                         {% for banquero, items in desglose_banqueros.items() %}
                         <div class="card mb-4 border-0 shadow-sm" style="border-radius: 12px; border-left: 5px solid #198754 !important;">
-                            <div class="card-header bg-success text-white fw-bold py-2" style="border-top-left-radius: 12px; border-top-right-radius: 12px;">
-                                <i class="fas fa-building me-1"></i> {{ banquero }}
+                            <div class="card-header bg-success text-white fw-bold d-flex justify-content-between align-items-center py-2" style="border-top-left-radius: 12px; border-top-right-radius: 12px;">
+                                <span><i class="fas fa-building me-1"></i> {{ banquero }}</span>
+                                <button onclick="copiarBanquero('tabla_{{ loop.index }}', '{{ banquero }}')" class="btn btn-sm btn-light text-success fw-bold py-0"><i class="fas fa-copy me-1"></i> Copiar {{ banquero }}</button>
                             </div>
                             <div class="card-body p-0">
                                 <div class="table-responsive">
-                                    <table class="table table-sm table-hover mb-0 align-middle" style="font-size: 13px;">
+                                    <table class="table table-sm table-hover mb-0 align-middle" id="tabla_{{ loop.index }}" style="font-size: 13px;">
                                         <thead class="table-light">
                                             <tr>
                                                 <th style="padding: 10px;">SISTEMA</th>
@@ -460,8 +489,8 @@
                                                 <th style="padding: 10px; text-align: right;">COMIS. TAQUILLA</th>
                                                 <th style="padding: 10px; text-align: right;">PREMIOS</th>
                                                 <th style="padding: 10px; text-align: right;">TOTAL BANQUERO</th>
-                                                <th style="padding: 10px; text-align: center;">% MI GANANCIA</th>
-                                                <th style="padding: 10px; text-align: right;">MI GANANCIA (Bs.)</th>
+                                                <th style="padding: 10px; text-align: center;">% COMISIÓN / % PARTIC.</th>
+                                                <th style="padding: 10px; text-align: right;">MI GANANCIA TOTAL</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -472,7 +501,10 @@
                                                 <td style="padding: 8px; text-align: right;">Bs. {{ sys.comision_agencia | dinero }}</td>
                                                 <td style="padding: 8px; text-align: right;">Bs. {{ sys.premios | dinero }}</td>
                                                 <td style="padding: 8px; text-align: right;" class="fw-bold">Bs. {{ sys.total_neto | dinero }}</td>
-                                                <td style="padding: 8px; text-align: center;"><span class="badge bg-info text-dark">{{ "{:.1f}%".format(sys.pct_mi_ganancia) }}</span></td>
+                                                <td style="padding: 8px; text-align: center;">
+                                                    <span class="badge bg-primary text-white">{{ "{:.1f}%".format(sys.pct_comision_mía) }} Comis</span>
+                                                    <span class="badge bg-warning text-dark">{{ "{:.1f}%".format(sys.pct_participacion) }} Part</span>
+                                                </td>
                                                 <td style="padding: 8px; text-align: right;" class="fw-bold text-success">+ Bs. {{ sys.mi_ganancia | dinero }}</td>
                                             </tr>
                                             {% endfor %}
@@ -510,7 +542,32 @@
             }
 
             navigator.clipboard.writeText(textoCopiar).then(function() {
-                alert("¡Reporte de Cashea copiado al portapapeles exitosamente!");
+                alert("¡Reporte de Cashea copiado exitosamente!");
+            }, function(err) {
+                alert("Error al copiar: " + err);
+            });
+        }
+
+        function copiarBanquero(tablaId, nombreBanquero) {
+            var tabla = document.getElementById(tablaId);
+            var textoCopiar = "--- " + nombreBanquero + " ---\n\n";
+            var filas = tabla.getElementsByTagName("tr");
+            
+            for (var i = 1; i < filas.length; i++) {
+                var cols = filas[i].getElementsByTagName("td");
+                if (cols.length >= 7) {
+                    var sistema = cols[0].innerText.trim();
+                    var venta = cols[1].innerText.trim();
+                    var comision = cols[2].innerText.trim();
+                    var premios = cols[3].innerText.trim();
+                    var totalNeto = cols[4].innerText.trim();
+                    var ganancia = cols[6].innerText.trim();
+                    textoCopiar += "🎰 " + sistema + "\n  • Venta: " + venta + "\n  • Comis: " + comision + "\n  • Premios: " + premios + "\n  • Total Banquero: " + totalNeto + "\n  💰 Mi Ganancia: " + ganancia + "\n-------------------------------\n";
+                }
+            }
+
+            navigator.clipboard.writeText(textoCopiar).then(function() {
+                alert("¡Reporte de " + nombreBanquero + " copiado al portapapeles!");
             }, function(err) {
                 alert("Error al copiar: " + err);
             });
