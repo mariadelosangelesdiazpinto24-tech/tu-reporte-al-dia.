@@ -461,6 +461,26 @@ def cambiar_clave_taquilla(agencia: str = Form(...), clave_actual: str = Form(..
     conn.close()
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&error=Clave+actual+incorrecta", status_code=status.HTTP_303_SEE_OTHER)
 
+@app.post("/reportar")
+async def reportar_pago(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...), factura: str = Form(...), comprobante: UploadFile = File(...)):
+    agencia_norm = normalizar(agencia)
+    try:
+        monto_val = float(monto.replace(',', '')) if monto else 0.0
+    except:
+        monto_val = 0.0
+        
+    ruta_archivo = f"uploads/{agencia_norm}_{factura}_{comprobante.filename}"
+    with open(ruta_archivo, "wb") as buffer:
+        buffer.write(await comprobante.read())
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, %s, %s, 'PAGO_TAQUILLA', 'APROBADO')", (agencia_norm, fecha, monto_val, factura, ruta_archivo))
+    conn.commit()
+    conn.close()
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
+
 @app.post("/solicitar-banca")
 def solicitar_banca(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...)):
     agencia_norm = normalizar(agencia)
@@ -492,6 +512,116 @@ def solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), monto: 
     cursor.execute("INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, %s, %s, 'ADELANTO', 'APROBADO')", (agencia_norm, fecha, monto_val, observacion, observacion))
     conn.commit()
     conn.close()
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/actualizar-reporte-sistema")
+def actualizar_reporte_sistema(agencia: str = Form(...), fecha: str = Form(...), sistema: str = Form(...), venta: str = Form(...), premio: str = Form(...)):
+    agencia_norm = normalizar(agencia)
+    sistema_buscado = normalizar(sistema)
+    
+    try:
+        venta_val = float(str(venta).replace(',', '')) if venta else 0.0
+    except:
+        venta_val = 0.0
+        
+    try:
+        premio_val = float(str(premio).replace(',', '')) if premio else 0.0
+    except:
+        premio_val = 0.0
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM reportes WHERE agencia = %s AND fecha = %s", (agencia_norm, fecha))
+    rep = cursor.fetchone()
+
+    if rep:
+        detalle_html = rep['detalle_html'] or ""
+        
+        match_sistemas_div = re.search(r'(<div class="mb-3"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_html, re.DOTALL)
+        if match_sistemas_div:
+            tabla_html_actual = match_sistemas_div.group(1)
+            filas_datos = re.findall(r'<tr>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<\/tr>', tabla_html_actual, re.DOTALL)
+            
+            sum_ventas = 0.0
+            sum_comis = 0.0
+            sum_premios = 0.0
+            sum_totales = 0.0
+            
+            filas_nuevas_html = '''
+            <div class="mb-3">
+                <h6 style="color: #0d47a1; font-weight: bold; border-bottom: 2px solid #0d47a1; padding-bottom: 5px; margin-bottom: 10px;"><i class="fas fa-chart-bar"></i> REPORTE DE SISTEMAS</h6>
+                <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 12px; width: 100%; background: #ffffff; color: #1a252c;">
+                    <tr style="background-color: #e3f2fd; color: #0d47a1; font-weight: bold;">
+                        <th style="padding: 8px;">SISTEMA</th>
+                        <th style="padding: 8px; text-align: right;">VENTA</th>
+                        <th style="padding: 8px; text-align: right;">COMIS.</th>
+                        <th style="padding: 8px; text-align: right;">PREMIO</th>
+                        <th style="padding: 8px; text-align: right;">TOTAL</th>
+                    </tr>
+            '''
+            
+            for f in filas_datos:
+                sys_nombre_raw = f[0].replace('<b>', '').replace('</b>', '').strip()
+                sys_nombre_norm = normalizar(sys_nombre_raw)
+                
+                if "SISTEMA" in sys_nombre_norm or "TOTALES" in sys_nombre_norm:
+                    continue
+                
+                if sys_nombre_norm == sistema_buscado:
+                    v = venta_val
+                    p = premio_val
+                    c = v * 0.14
+                    t = v - c - p
+                else:
+                    try:
+                        v = float(str(f[1]).replace(',', ''))
+                        c = float(str(f[2]).replace(',', ''))
+                        p = float(str(f[3]).replace(',', ''))
+                        t = float(str(f[4]).replace(',', ''))
+                    except:
+                        v, c, p, t = 0.0, 0.0, 0.0, 0.0
+                
+                sum_ventas += v
+                sum_comis += c
+                sum_premios += p
+                sum_totales += t
+                
+                filas_nuevas_html += f'''
+                <tr>
+                  <td style="padding: 8px; font-weight: bold;">{sys_nombre_raw}</td>
+                  <td style="padding: 8px; text-align: right;">{v:,.2f}</td>
+                  <td style="padding: 8px; text-align: right;">{c:,.2f}</td>
+                  <td style="padding: 8px; text-align: right;">{p:,.2f}</td>
+                  <td style="padding: 8px; text-align: right;">{t:,.2f}</td>
+                </tr>
+                '''
+            
+            filas_nuevas_html += f'''
+                <tr style="background-color: #f5f5f5; font-weight: bold;">
+                  <td style="padding: 8px;">TOTALES</td>
+                  <td style="padding: 8px; text-align: right;">{sum_ventas:,.2f}</td>
+                  <td style="padding: 8px; text-align: right;">{sum_comis:,.2f}</td>
+                  <td style="padding: 8px; text-align: right;">{sum_premios:,.2f}</td>
+                  <td style="padding: 8px; text-align: right; color: #0d47a1;">{sum_totales:,.2f}</td>
+                </tr>
+            </table></div>
+            '''
+            
+            detalle_html = detalle_html.replace(tabla_html_actual, filas_nuevas_html)
+            cursor.execute("UPDATE reportes SET ventas = %s WHERE id = %s", (sum_totales, rep['id']))
+
+        cursor.execute("UPDATE reportes SET detalle_html = %s WHERE id = %s", (detalle_html, rep['id']))
+        conn.commit()
+
+    detalle_transaccion = f"Modificación {sistema}"
+    cursor.execute(
+        "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'MODIFICACION', %s, 'MODIFICACION', 'APROBADO')",
+        (agencia_norm, fecha, 0.0, detalle_transaccion)
+    )
+    conn.commit()
+    conn.close()
+
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -537,12 +667,6 @@ def get_admin(
 
         sistemas_consolidados = {}
         totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
-        
-        totales_auxiliares = {
-            "cashea": 0.0,
-            "adelantos": 0.0,
-            "abonos_banca": 0.0
-        }
 
         agencias_a_procesar = [normalizar(agencia_filtro)] if agencia_filtro else [a['agencia'] for a in agencias]
 
@@ -584,28 +708,13 @@ def get_admin(
                                 totales_generales["premio"] += p
                                 totales_generales["neto"] += t
 
-            cursor.execute(
-                "SELECT tipo, monto FROM pagos WHERE agencia = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'",
-                (ag, f_desde, f_hasta)
-            )
-            pagos_aux = cursor.fetchall()
-            for pa in pagos_aux:
-                m_val = pa['monto'] or 0.0
-                t_type = str(pa['tipo']).strip().upper() if pa['tipo'] else ''
-                if t_type == 'CASHEA':
-                    totales_auxiliares["cashea"] += m_val
-                elif t_type == 'ADELANTO':
-                    totales_auxiliares["adelantos"] += m_val
-                elif t_type in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
-                    totales_auxiliares["abonos_banca"] += m_val
-
         positivos = [r for r in reportes if r['monto'] > 0]
         negativos = [r for r in reportes if r['monto'] < 0]
 
         conn.close()
     except Exception as e:
         print("Error en admin:", e)
-        reportes, pagos, agencias, comunicados, positivos, negativos, sistemas_consolidados, totales_generales = [], [], [], [], [], [], {}, {}
+        reportes, pagos, agencias, comunicados, positivos, negativos, sistemas_consolidados, totales_generales, casheas_generales = [], [], [], [], [], [], {}, {}, []
 
     return templates.TemplateResponse(request=request, name="admin.html", context={
         "reportes": reportes, 
@@ -621,7 +730,3 @@ def get_admin(
         "hasta_fecha": f_hasta,
         "casheas_generales": casheas_generales
     })
-    except Exception:
-        pass
-    conn.close()
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
