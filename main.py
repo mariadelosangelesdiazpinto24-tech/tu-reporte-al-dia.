@@ -523,7 +523,6 @@ def get_admin(
                 elif t_type in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
                     totales_auxiliares["abonos_banca"] += m_val
 
-        # CONFIGURACIÓN CON CÁLCULO DE EXCEDENTE REAL Y DIFERENCIAL
         ESTRUCTURA_BANQUEROS = {
             "COMERCIALIZADORA SUPER APUESTAS": {
                 "sistemas": [
@@ -589,7 +588,8 @@ def get_admin(
                 "cobranza": cfg["cobranza"],
                 "cashea_descontado": totales_auxiliares["cashea"] if cfg["absorbe_cashea"] else 0.0,
                 "total_a_pagar_banquero": 0.0,
-                "total_mi_ganancia_banca": 0.0
+                "total_mi_ganancia_banca": 0.0,
+                "total": 0.0
             }
 
             subtotal_banquero = 0.0
@@ -601,24 +601,12 @@ def get_admin(
                 c_taquillas_pagada = sistemas_consolidados.get(s_name, {}).get("comision", 0.0)
                 
                 c_banquero_total = v_sys * item["pct_comision_completa"]
-                
                 t_banquero_sistema = v_sys - c_banquero_total - p_sys
                 subtotal_banquero += t_banquero_sistema
 
-                # EXCEDENTE Y DIFERENCIAL REAL (GANANCIA EXCLUSIVA POR PORCENTAJE)
                 g_excedente_pct = c_banquero_total - c_taquillas_pagada
                 pct_excedente_real = (g_excedente_pct / v_sys * 100) if v_sys > 0 else (item["pct_comision_completa"] * 100 - 13.0)
 
-                g_participacion = 0.0
-                if item["tipo_participacion"] in ["SALDO", "TOTAL"]:
-                    g_participacion = t_banquero_sistema * item["pct_participacion"]
-
-                g_total_privada = g_excedente_pct + g_participacion
-
-                total_ganancia_diferencial_global += g_excedente_pct
-                total_ganancia_participacion_global += g_participacion
-
-                # REGLAS DE PORCENTAJES FIJOS SOLICITADOS
                 s_upper = s_name.upper()
                 pct_dif_val = pct_excedente_real  
                 pct_part_val = item.get("pct_participacion", 0.0) * 100 if "pct_participacion" in item else 0.0
@@ -651,7 +639,6 @@ def get_admin(
                     "mi_ganancia_total": g_total_privada
                 })
 
-Acumular el total definitivo del banquero para que no salga en 0
-            if "total" not in desglose_banqueros[b_nombre]:
-                desglose_banqueros[b_nombre]["total"] = 0.0
-            desglose_banqueros[b_nombre]["total"] += t_banquero_sistema
+                desglose_banqueros[b_nombre]["total"] += t_banquero_sistema
+    except Exception as e:
+        print("Error en admin:", e)
