@@ -67,7 +67,10 @@
         <!-- PESTAÑAS DE NAVEGACIÓN -->
         <ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'taquillas' %}active{% endif %}" id="taquillas-tab" data-bs-toggle="tab" data-bs-target="#taquillas" type="button"><i class="fas fa-users-cog"></i> Taquillas Activas 📱</button>
+                <button class="nav-link {% if tab_activa == 'taquillas' %}active{% endif %}" id="taquillas-tab" data-bs-toggle="tab" data-bs-target="#taquillas" type="button"><i class="fas fa-users-cog"></i> Taquillas Creadas 📱</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link {% if tab_activa == 'comunicados' %}active{% endif %}" id="comunicados-tab" data-bs-toggle="tab" data-bs-target="#comunicados" type="button"><i class="fas fa-bullhorn"></i> Enviar Notificaciones 📢</button>
             </li>
             <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'transacciones' %}active{% endif %}" id="transacciones-tab" data-bs-toggle="tab" data-bs-target="#transacciones" type="button"><i class="fas fa-list"></i> Transacciones y Solicitudes</button>
@@ -91,31 +94,13 @@
 
         <div class="tab-content" id="adminTabsContent">
 
-            <!-- 0. TAQUILLAS ACTIVAS -->
+            <!-- TAQUILLAS CREADAS -->
             <div class="tab-pane fade {% if tab_activa == 'taquillas' %}show active{% endif %}" id="taquillas" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
-                        <h5 class="fw-bold text-success mb-3"><i class="fas fa-users-cog"></i> Monitoreo y Control de Taquillas Creadas</h5>
-
-                        <div class="row g-3 mb-4">
-                            <div class="col-md-4">
-                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-success border-4">
-                                    <span class="text-muted small fw-bold">TOTAL TAQUILLAS CREADAS</span>
-                                    <h3 class="fw-bold text-dark mt-1">{{ total_taquillas_creadas }}</h3>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-primary border-4">
-                                    <span class="text-muted small fw-bold">ACTIVAS HOY EN LA APP</span>
-                                    <h3 class="fw-bold text-primary mt-1">{{ taquillas_activas_hoy }}</h3>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-secondary border-4">
-                                    <span class="text-muted small fw-bold">INACTIVAS HOY</span>
-                                    <h3 class="fw-bold text-secondary mt-1">{{ total_taquillas_creadas - taquillas_activas_hoy }}</h3>
-                                </div>
-                            </div>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="fw-bold text-success m-0"><i class="fas fa-users-cog"></i> Taquillas Creadas y Estado de Cuenta Pendiente</h5>
+                            <span class="badge bg-success fs-6 p-2">Total Creadas: {{ total_taquillas_creadas }}</span>
                         </div>
 
                         <div class="table-responsive">
@@ -125,8 +110,7 @@
                                         <th>Nombre Agencia</th>
                                         <th>Clave de Acceso</th>
                                         <th>Tema Visual</th>
-                                        <th>Último Acceso Registrado</th>
-                                        <th class="text-center">Estado Conexión</th>
+                                        <th class="text-end">Saldo Pendiente Hoy</th>
                                         <th class="text-end">Acciones</th>
                                     </tr>
                                 </thead>
@@ -143,15 +127,8 @@
                                                     <span class="badge bg-success-subtle text-success border border-success">☘️ Masculino</span>
                                                 {% endif %}
                                             </td>
-                                            <td>{{ ag.ultima_conexion or 'Sin conexión registrada' }}</td>
-                                            <td class="text-center">
-                                                {% if ag.estado_conexion == 'ACTIVA' %}
-                                                    <span class="badge bg-success p-2"><i class="fas fa-wifi me-1"></i> En Línea / Activa Hoy</span>
-                                                {% elif ag.estado_conexion == 'RECIENTE' %}
-                                                    <span class="badge bg-warning text-dark p-2"><i class="fas fa-clock me-1"></i> Conexión Anterior</span>
-                                                {% else %}
-                                                    <span class="badge bg-secondary p-2"><i class="fas fa-power-off me-1"></i> Inactiva</span>
-                                                {% endif %}
+                                            <td class="text-end fw-bold {% if ag.saldo_pendiente > 0 %}text-danger{% elif ag.saldo_pendiente < 0 %}text-success{% else %}text-muted{% endif %}">
+                                                Bs. {{ ag.saldo_pendiente | dinero }}
                                             </td>
                                             <td class="text-end">
                                                 <form action="/admin/eliminar-agencia" method="POST" style="display:inline;" onsubmit="return confirm('¿Seguro deseas eliminar la taquilla {{ ag.agencia }}?');">
@@ -162,7 +139,7 @@
                                         </tr>
                                         {% endfor %}
                                     {% else %}
-                                        <tr><td colspan="6" class="text-center text-muted py-4">No hay taquillas creadas actualmente.</td></tr>
+                                        <tr><td colspan="5" class="text-center text-muted py-4">No hay taquillas creadas actualmente.</td></tr>
                                     {% endif %}
                                 </tbody>
                             </table>
@@ -172,7 +149,56 @@
                 </div>
             </div>
 
-            <!-- 1. TRANSACCIONES Y SOLICITUDES -->
+            <!-- ENVIAR NOTIFICACIONES / COMUNICADOS -->
+            <div class="tab-pane fade {% if tab_activa == 'comunicados' %}show active{% endif %}" id="comunicados" role="tabpanel">
+                <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #ff9800 !important;">
+                    <div class="card-body">
+                        <h5 class="fw-bold text-warning mb-3" style="color: #e65100 !important;"><i class="fas fa-bullhorn"></i> Enviar Notificación o Comunicado a las Taquillas</h5>
+                        
+                        <form action="/admin/crear-comunicado" method="POST" class="mb-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small">Mensaje o Anuncio para el Panel de las Agencias:</label>
+                                <textarea name="mensaje" class="form-control border-warning" rows="3" placeholder="Escribe aquí el comunicado oficial que verán todas las taquillas..." required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-warning fw-bold text-dark"><i class="fas fa-paper-plane me-1"></i> Publicar Comunicado</button>
+                        </form>
+
+                        <h6 class="fw-bold text-dark border-bottom pb-2">Historial de Comunicados Publicados</h6>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle" style="font-size: 13px;">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Mensaje Publicado</th>
+                                        <th class="text-end">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if comunicados %}
+                                        {% for c in comunicados %}
+                                        <tr>
+                                            <td style="width: 180px;">{{ c.fecha }}</td>
+                                            <td class="fw-bold text-dark">{{ c.mensaje }}</td>
+                                            <td class="text-end" style="width: 100px;">
+                                                <form action="/admin/eliminar-comunicado" method="POST" style="display:inline;">
+                                                    <input type="hidden" name="comunicado_id" value="{{ c.id }}">
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash"></i></button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr><td colspan="3" class="text-center text-muted py-3">No hay comunicados activos.</td></tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- TRANSACCIONES Y SOLICITUDES -->
             <div class="tab-pane fade {% if tab_activa == 'transacciones' %}show active{% endif %}" id="transacciones" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
                     <div class="card-body">
@@ -272,7 +298,7 @@
                 </div>
             </div>
 
-            <!-- 2. BALANCES GLOBALES (+ / -) -->
+            <!-- BALANCES GLOBALES (+ / -) -->
             <div class="tab-pane fade {% if tab_activa == 'balances' %}show active{% endif %}" id="balances" role="tabpanel">
                 <div class="row">
                     <div class="col-md-6 mb-4">
@@ -332,7 +358,7 @@
                 </div>
             </div>
 
-            <!-- 3. DATA CASHEA GENERAL -->
+            <!-- DATA CASHEA GENERAL -->
             <div class="tab-pane fade {% if tab_activa == 'cashea' %}show active{% endif %}" id="cashea" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #00bcd4 !important;">
                     <div class="card-body">
@@ -392,7 +418,7 @@
                 </div>
             </div>
 
-            <!-- 4. CONSOLIDADO POR SISTEMAS -->
+            <!-- CONSOLIDADO POR SISTEMAS -->
             <div class="tab-pane fade {% if tab_activa == 'consolidado' %}show active{% endif %}" id="consolidado" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
                     <div class="card-body">
@@ -464,11 +490,11 @@
                 </div>
             </div>
 
-            <!-- 5. TOTALIZADOR FINANCIERO CORREGIDO -->
+            <!-- TOTALIZADOR -->
             <div class="tab-pane fade {% if tab_activa == 'totalizador' %}show active{% endif %}" id="totalizador" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #0d47a1 !important;">
                     <div class="card-body">
-                        <h5 class="fw-bold mb-3" style="color: #0d47a1;"><i class="fas fa-calculator"></i> Totalizador Financiero y Resumen Global</h5>
+                        <h5 class="fw-bold mb-3" style="color: #0d47a1;"><i class="fas fa-calculator"></i> Totalizador Financiero</h5>
                         
                         <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm">
                             <input type="hidden" name="tab" value="totalizador">
@@ -497,41 +523,28 @@
                         </form>
 
                         <div class="row g-3 mb-4">
-                            <div class="col-md-3">
+                            <div class="col-md-6">
                                 <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-primary border-4">
-                                    <span class="text-muted small fw-bold">TOTAL VENTAS GLOBALES</span>
-                                    <h4 class="fw-bold text-dark mt-1">Bs. {{ totales_generales.venta | dinero }}</h4>
+                                    <span class="text-muted small fw-bold">GANANCIA DE %</span>
+                                    <h4 class="fw-bold text-primary mt-1">Bs. {{ total_ganancia_diferencial_global | dinero }}</h4>
                                 </div>
                             </div>
-                            <div class="col-md-3">
-                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-info border-4">
-                                    <span class="text-muted small fw-bold">TOTAL CASHEAS (DESCUENTOS)</span>
-                                    <h4 class="fw-bold text-info mt-1">- Bs. {{ totales_auxiliares.cashea | dinero }}</h4>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-success border-4">
-                                    <span class="text-muted small fw-bold">MI GANANCIA DIFERENCIAL (%)</span>
-                                    <h4 class="fw-bold text-success mt-1">Bs. {{ total_ganancia_diferencial_global | dinero }}</h4>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
+                            <div class="col-md-6">
                                 <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-warning border-4">
-                                    <span class="text-muted small fw-bold">MI GANANCIA PARTICIPACIÓN</span>
+                                    <span class="text-muted small fw-bold">GANANCIA DE PARTICIPACIÓN</span>
                                     <h4 class="fw-bold text-warning mt-1">Bs. {{ total_ganancia_participacion_global | dinero }}</h4>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="card border-0 shadow-sm bg-light p-4" style="border-radius: 12px; border-left: 6px solid #0d47a1;">
-                            <h6 class="fw-bold text-secondary mb-3"><i class="fas fa-university me-2"></i> BALANCE FINAL CUENTAS BANCARIAS Y BANQUEROS</h6>
+                        <div class="card border-0 shadow-sm bg-light p-3" style="border-radius: 12px; border-left: 6px solid #0d47a1;">
                             <ul class="list-group list-group-flush shadow-sm rounded">
                                 <li class="list-group-item d-flex justify-content-between align-items-center py-3 bg-white">
-                                    <span class="fw-bold text-dark"><i class="fas fa-coins text-warning me-2"></i> Mi Ganancia Privada Total (Diferencial % + Participación)</span>
+                                    <span class="fw-bold text-dark"><i class="fas fa-coins text-warning me-2"></i> TOTAL GANANCIA PRIVADA (TOTAL QUE GANÉ)</span>
                                     <span class="fw-bold text-success fs-5">Bs. {{ total_mi_ganancia_global | dinero }}</span>
                                 </li>
                                 <li class="list-group-item d-flex justify-content-between align-items-center py-3 bg-primary text-white rounded-bottom">
-                                    <span class="fw-bold fs-5"><i class="fas fa-wallet me-2"></i> TOTAL A TENER EN LA CUENTA / BANCOS (SUMA DE BANCAS)</span>
+                                    <span class="fw-bold fs-5"><i class="fas fa-wallet me-2"></i> TOTAL A TENER EN LA CUENTA (SUMA DE BANCAS)</span>
                                     <span class="fw-bold fs-4">Bs. {{ total_acumulado_cuentas_bancarias | dinero }}</span>
                                 </li>
                             </ul>
@@ -541,7 +554,7 @@
                 </div>
             </div>
 
-            <!-- 6. DESGLOSE BANCA -->
+            <!-- DESGLOSE BANCA -->
             <div class="tab-pane fade {% if tab_activa == 'desglose_banca' %}show active{% endif %}" id="desglose_banca" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
