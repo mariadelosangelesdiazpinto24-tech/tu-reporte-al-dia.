@@ -78,6 +78,9 @@
             <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'consolidado' %}active{% endif %}" id="consolidado-tab" data-bs-toggle="tab" data-bs-target="#consolidado" type="button"><i class="fas fa-chart-pie"></i> Consolidado por Sistemas</button>
             </li>
+            <li class="nav-item">
+                <button class="nav-link {% if tab_activa == 'totalizador' %}active{% endif %}" id="totalizador-tab" data-bs-toggle="tab" data-bs-target="#totalizador" type="button"><i class="fas fa-calculator"></i> Totalizador 📊</button>
+            </li>
         </ul>
 
         <div class="tab-content" id="adminTabsContent">
@@ -130,22 +133,17 @@
                 </div>
             </div>
 
-            <!-- 2. BALANCES GLOBALES (+ / -) Y PENDIENTES -->
+            <!-- 2. BALANCES GLOBALES (+ / -) -->
             <div class="tab-pane fade {% if tab_activa == 'balances' %}show active{% endif %}" id="balances" role="tabpanel">
                 <div class="row">
-                    <!-- QUIÉNES DEBEN (POSITIVOS) -->
                     <div class="col-md-6 mb-4">
                         <div class="card shadow-sm border-0" style="border-radius: 15px; border-top: 4px solid #dc3545 !important;">
                             <div class="card-body">
-                                <h5 class="fw-bold text-danger mb-3"><i class="fas fa-arrow-down text-danger"></i> Agencias que Deben (Positivos)</h5>
+                                <h5 class="fw-bold text-danger mb-3"><i class="fas fa-arrow-down"></i> Agencias que Deben (Positivos)</h5>
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover align-middle" style="font-size: 13px;">
                                         <thead class="table-light">
-                                            <tr>
-                                                <th>Agencia</th>
-                                                <th>Fecha</th>
-                                                <th class="text-end">Deuda Total</th>
-                                            </tr>
+                                            <tr><th>Agencia</th><th>Fecha</th><th class="text-end">Deuda Total</th></tr>
                                         </thead>
                                         <tbody>
                                             {% if positivos %}
@@ -165,20 +163,14 @@
                             </div>
                         </div>
                     </div>
-
-                    <!-- A QUIÉNES SE LES DEBE (NEGATIVOS) -->
                     <div class="col-md-6 mb-4">
                         <div class="card shadow-sm border-0" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                             <div class="card-body">
-                                <h5 class="fw-bold text-success mb-3"><i class="fas fa-arrow-up text-success"></i> Saldo a Favor Agencias (Negativos)</h5>
+                                <h5 class="fw-bold text-success mb-3"><i class="fas fa-arrow-up"></i> Saldo a Favor Agencias (Negativos)</h5>
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover align-middle" style="font-size: 13px;">
                                         <thead class="table-light">
-                                            <tr>
-                                                <th>Agencia</th>
-                                                <th>Fecha</th>
-                                                <th class="text-end">Saldo a Favor</th>
-                                            </tr>
+                                            <tr><th>Agencia</th><th>Fecha</th><th class="text-end">Saldo a Favor</th></tr>
                                         </thead>
                                         <tbody>
                                             {% if negativos %}
@@ -206,18 +198,13 @@
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #00bcd4 !important;">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="fw-bold style="color: #00bcd4;"><i class="fas fa-shopping-cart"></i> Consolidado General de Cashea (Todas las Taquillas)</h5>
+                            <h5 class="fw-bold" style="color: #00bcd4;"><i class="fas fa-shopping-cart"></i> Consolidado General de Cashea</h5>
                             <button onclick="copiarCasheaCompleto()" class="btn btn-sm btn-info text-white fw-bold"><i class="fas fa-copy"></i> Copiar Todo</button>
                         </div>
                         <div class="table-responsive">
                             <table class="table table-hover align-middle" id="tablaCashea" style="font-size: 13px;">
                                 <thead class="table-dark">
-                                    <tr>
-                                        <th>Agencia</th>
-                                        <th>Fecha</th>
-                                        <th>Detalle / Factura</th>
-                                        <th class="text-end">Monto Absorbido</th>
-                                    </tr>
+                                    <tr><th>Agencia</th><th>Fecha</th><th>Detalle / Factura</th><th class="text-end">Monto Absorbido</th></tr>
                                 </thead>
                                 <tbody>
                                     {% if casheas_generales %}
@@ -230,9 +217,7 @@
                                         </tr>
                                         {% endfor %}
                                     {% else %}
-                                        <tr>
-                                            <td colspan="4" class="text-center text-muted py-3">No hay registros de Cashea.</td>
-                                        </tr>
+                                        <tr><td colspan="4" class="text-center text-muted py-3">No hay registros de Cashea.</td></tr>
                                     {% endif %}
                                 </tbody>
                             </table>
@@ -241,13 +226,12 @@
                 </div>
             </div>
 
-            <!-- 4. CONSOLIDADO POR SISTEMAS CON RANGO DE FECHAS Y TOTALES -->
+            <!-- 4. CONSOLIDADO POR SISTEMAS -->
             <div class="tab-pane fade {% if tab_activa == 'consolidado' %}show active{% endif %}" id="consolidado" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
                     <div class="card-body">
                         <h5 class="fw-bold text-admin-theme mb-3"><i class="fas fa-chart-pie"></i> Consolidado y Totalizador por Sistema</h5>
                         
-                        <!-- FORMULARIO DE BÚSQUEDA MANTENIENDO PESTAÑA -->
                         <form method="GET" action="/admin" class="row g-3 align-items-end mb-4">
                             <input type="hidden" name="tab" value="consolidado">
                             <div class="col-md-4">
@@ -296,7 +280,6 @@
                                             <td class="fw-bold" style="padding: 8px; text-align: right; color: #e91e63;">{{ "{:,.2f}".format(valores.neto) }}</td>
                                         </tr>
                                         {% endfor %}
-                                        <!-- FILA FINAL DE TOTALES ACUMULADOS -->
                                         <tr style="background-color: #fce4ec; font-weight: bold; font-size: 14px; color: #e91e63;">
                                             <td style="padding: 10px;">TOTALES ACUMULADOS</td>
                                             <td style="padding: 10px; text-align: right;">Bs. {{ "{:,.2f}".format(totales_generales.venta) }}</td>
@@ -305,13 +288,95 @@
                                             <td style="padding: 10px; text-align: right; color: #c2185b;">Bs. {{ "{:,.2f}".format(totales_generales.neto) }}</td>
                                         </tr>
                                     {% else %}
-                                        <tr>
-                                            <td colspan="5" class="text-center text-muted py-4">No hay ventas registradas para las fechas y agencia seleccionadas.</td>
-                                        </tr>
+                                        <tr><td colspan="5" class="text-center text-muted py-4">No hay ventas registradas para este periodo.</td></tr>
                                     {% endif %}
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. NUEVA PESTAÑA: TOTALIZATOR (RESUMEN FINANCIERO Y CASHEA) -->
+            <div class="tab-pane fade {% if tab_activa == 'totalizador' %}show active{% endif %}" id="totalizador" role="tabpanel">
+                <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #0d47a1 !important;">
+                    <div class="card-body">
+                        <h5 class="fw-bold mb-3" style="color: #0d47a1;"><i class="fas fa-calculator"></i> Totalizador Financiero y Resumen de Cuenta</h5>
+                        
+                        <!-- FILTRO DE FECHAS PARA EL TOTALIZADOR -->
+                        <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm">
+                            <input type="hidden" name="tab" value="totalizador">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold small">Filtrar por Agencia</label>
+                                <select name="agencia" class="form-select form-select-sm border-primary">
+                                    <option value="">-- TODAS LAS AGENCIAS --</option>
+                                    {% for ag in agencias %}
+                                        <option value="{{ ag.agencia }}" {% if agencia_filtro == ag.agencia %}selected{% endif %}>{{ ag.agencia }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold small">Desde Fecha</label>
+                                <input type="date" name="desde_fecha" class="form-control form-control-sm border-primary" value="{{ desde_fecha }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold small">Hasta Fecha</label>
+                                <input type="date" name="hasta_fecha" class="form-control form-control-sm border-primary" value="{{ hasta_fecha }}">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-sm w-100 fw-bold btn-primary shadow-sm py-2">
+                                    <i class="fas fa-search me-1"></i> Calcular
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- TARJETAS DE RESUMEN TIPO EXCEL -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-3">
+                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-primary border-4">
+                                    <span class="text-muted small fw-bold">TOTAL VENTA</span>
+                                    <h4 class="fw-bold text-dark mt-1">Bs. {{ totales_generales.venta | dinero }}</h4>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-success border-4">
+                                    <span class="text-muted small fw-bold">TOTAL COMISIONES</span>
+                                    <h4 class="fw-bold text-success mt-1">Bs. {{ totales_generales.comision | dinero }}</h4>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-warning border-4">
+                                    <span class="text-muted small fw-bold">TOTAL PREMIOS</span>
+                                    <h4 class="fw-bold text-warning mt-1">Bs. {{ totales_generales.premio | dinero }}</h4>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-danger border-4">
+                                    <span class="text-muted small fw-bold">NETO SISTEMAS</span>
+                                    <h4 class="fw-bold text-danger mt-1">Bs. {{ totales_generales.neto | dinero }}</h4>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- DESGLOSE DETALLADO DE SALIDAS Y CASHEA -->
+                        <div class="card border-0 shadow-sm bg-light p-4" style="border-radius: 12px;">
+                            <h6 class="fw-bold text-secondary mb-3"><i class="fas fa-file-invoice-dollar"></i> Resumen de Salidas y Balance General</h6>
+                            <ul class="list-group list-group-flush shadow-sm rounded">
+                                <li class="list-group-item d-flex justify-content-between align-items-center py-3">
+                                    <span class="fw-bold text-dark"><i class="fas fa-chart-line text-primary me-2"></i> Neto Total de Sistemas</span>
+                                    <span class="fw-bold text-dark">Bs. {{ totales_generales.neto | dinero }}</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center py-3 bg-white">
+                                    <span class="fw-bold text-danger"><i class="fas fa-shopping-cart me-2"></i> Total Cashea (Salida / Descuento)</span>
+                                    <span class="fw-bold text-danger">- Bs. {{ total_cashea_rango | dinero }}</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center py-3 bg-primary text-white rounded-bottom">
+                                    <span class="fw-bold fs-5"><i class="fas fa-wallet me-2"></i> TOTAL A TENER EN CUENTA (NETO - CASHEA)</span>
+                                    <span class="fw-bold fs-4">Bs. {{ neto_menos_cashea | dinero }}</span>
+                                </li>
+                            </ul>
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -324,7 +389,7 @@
     <script>
         function copiarCasheaCompleto() {
             var tabla = document.getElementById("tablaCashea");
-            var textoCopiar = "--- CASHEA GENERAL DE HOY ---\n\n";
+            var textoCopiar = "--- CASHEA GENERAL ---\n\n";
             var filas = tabla.getElementsByTagName("tr");
             
             for (var i = 1; i < filas.length; i++) {
