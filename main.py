@@ -412,6 +412,37 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
 
     return templates.TemplateResponse(request=request, name="login.html", context={"error": "Usuario o clave incorrectos"})
 
+@app.get("/agencia", response_class=HTMLResponse)
+def get_agencia(request: Request, nombre: Optional[str] = None):
+    if not nombre:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    
+    agencia_norm = normalizar(nombre)
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT * FROM usuarios WHERE agencia = %s", (agencia_norm,))
+    agencia_info = cursor.fetchone()
+    
+    cursor.execute("SELECT * FROM reportes WHERE agencia = %s ORDER BY fecha DESC", (agencia_norm,))
+    reportes_agencia = [dict(row) for row in cursor.fetchall()]
+    
+    cursor.execute("SELECT * FROM pagos WHERE agencia = %s ORDER BY id DESC", (agencia_norm,))
+    pagos_agencia = [dict(row) for row in cursor.fetchall()]
+    
+    cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
+    comunicados = [dict(row) for row in cursor.fetchall()]
+    
+    conn.close()
+    
+    return templates.TemplateResponse(request=request, name="agencia.html", context={
+        "agencia": agencia_info,
+        "reportes": reportes_agencia,
+        "pagos": pagos_agencia,
+        "comunicados": comunicados,
+        "nombre_agencia": agencia_norm
+    })
+
 @app.get("/admin", response_class=HTMLResponse)
 def get_admin(
     request: Request, 
@@ -578,10 +609,6 @@ def get_admin(
         }
 
         desglose_banqueros = {}
-        total_ganancia_diferencial_global = 0.0
-        total_ganancia_participacion_global = 0.0
-        total_acumulado_cuentas_bancarias = 0.0
-
         for b_nombre, cfg in ESTRUCTURA_BANQUEROS.items():
             desglose_banqueros[b_nombre] = {
                 "sistemas": [],
@@ -592,8 +619,6 @@ def get_admin(
                 "total": 0.0
             }
 
-            subtotal_banquero = 0.0
-
             for item in cfg["sistemas"]:
                 s_name = item["sistema"]
                 v_sys = sistemas_consolidados.get(s_name, {}).get("venta", 0.0)
@@ -602,7 +627,6 @@ def get_admin(
                 
                 c_banquero_total = v_sys * item["pct_comision_completa"]
                 t_banquero_sistema = v_sys - c_banquero_total - p_sys
-                subtotal_banquero += t_banquero_sistema
 
                 g_excedente_pct = c_banquero_total - c_taquillas_pagada
                 pct_excedente_real = (g_excedente_pct / v_sys * 100) if v_sys > 0 else (item["pct_comision_completa"] * 100 - 13.0)
@@ -640,5 +664,27 @@ def get_admin(
                 })
 
                 desglose_banqueros[b_nombre]["total"] += t_banquero_sistema
+
+        conn.close()
+
+        return templates.TemplateResponse(request=request, name="admin.html", context={
+            "reportes": reportes,
+            "pagos": pagos,
+            "agencias": agencias,
+            "comunicados": comunicados,
+            "casheas_generales": casheas_generales,
+            "total_taquillas_creadas": total_taquillas_creadas,
+            "taquillas_activas_hoy": taquillas_activas_hoy,
+            "sistemas_consolidados": sistemas_consolidados,
+            "totales_generales": totales_generales,
+            "totales_auxiliares": totales_auxiliares,
+            "desglose_banqueros": desglose_banqueros,
+            "desde_fecha": f_desde,
+            "hasta_fecha": f_hasta,
+            "agencia_filtro": agencia_filtro,
+            "tab": tab
+        })
+
     except Exception as e:
         print("Error en admin:", e)
+        return HTMLResponse(content=f"Error interno en admin: {e}", status_code=500)
