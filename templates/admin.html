@@ -148,15 +148,15 @@
                 </div>
             </div>
 
-            <!-- ENVIAR NOTIFICACIONES / COMUNICADOS -->
+            <!-- COMUNICADOS -->
             <div class="tab-pane fade {% if tab_activa == 'comunicados' %}show active{% endif %}" id="comunicados" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #ff9800 !important;">
                     <div class="card-body">
                         <h5 class="fw-bold text-warning mb-3" style="color: #e65100 !important;"><i class="fas fa-bullhorn"></i> Enviar Notificación o Comunicado a las Taquillas</h5>
                         <form action="/admin/crear-comunicado" method="POST" class="mb-4">
                             <div class="mb-3">
-                                <label class="form-label fw-bold small">Mensaje o Anuncio para el Panel de las Agencias:</label>
-                                <textarea name="mensaje" class="form-control border-warning" rows="3" placeholder="Escribe aquí el comunicado oficial que verán todas las taquillas..." required></textarea>
+                                <label class="form-label fw-bold small">Mensaje o Anuncio:</label>
+                                <textarea name="mensaje" class="form-control border-warning" rows="3" placeholder="Escribe aquí el comunicado oficial..." required></textarea>
                             </div>
                             <button type="submit" class="btn btn-warning fw-bold text-dark"><i class="fas fa-paper-plane me-1"></i> Publicar Comunicado</button>
                         </form>
@@ -164,20 +164,14 @@
                         <h6 class="fw-bold text-dark border-bottom pb-2">Historial de Comunicados Publicados</h6>
                         <div class="table-responsive">
                             <table class="table table-hover align-middle" style="font-size: 13px;">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Fecha</th>
-                                        <th>Mensaje Publicado</th>
-                                        <th class="text-end">Acción</th>
-                                    </tr>
-                                </thead>
+                                <thead class="table-light"><tr><th>Fecha</th><th>Mensaje</th><th class="text-end">Acción</th></tr></thead>
                                 <tbody>
                                     {% if comunicados %}
                                         {% for c in comunicados %}
                                         <tr>
-                                            <td style="width: 180px;">{{ c.fecha }}</td>
-                                            <td class="fw-bold text-dark">{{ c.mensaje }}</td>
-                                            <td class="text-end" style="width: 100px;">
+                                            <td>{{ c.fecha }}</td>
+                                            <td class="fw-bold">{{ c.mensaje }}</td>
+                                            <td class="text-end">
                                                 <form action="/admin/eliminar-comunicado" method="POST" style="display:inline;">
                                                     <input type="hidden" name="comunicado_id" value="{{ c.id }}">
                                                     <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash"></i></button>
@@ -195,22 +189,15 @@
                 </div>
             </div>
 
-            <!-- TRANSACCIONES Y SOLICITUDES -->
+            <!-- TRANSACCIONES -->
             <div class="tab-pane fade {% if tab_activa == 'transacciones' %}show active{% endif %}" id="transacciones" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
                     <div class="card-body">
-                        <h5 class="fw-bold text-admin-theme mb-3"><i class="fas fa-history"></i> Historial y Procesamiento de Solicitudes de Dinero</h5>
+                        <h5 class="fw-bold text-admin-theme mb-3"><i class="fas fa-history"></i> Historial y Procesamiento de Solicitudes</h5>
                         <div class="table-responsive">
                             <table class="table table-hover align-middle" style="font-size: 13px;">
                                 <thead class="table-dark">
-                                    <tr>
-                                        <th>Agencia</th>
-                                        <th>Fecha</th>
-                                        <th>Tipo / Ref</th>
-                                        <th>Monto Solicitado</th>
-                                        <th>Comprobante / Detalle</th>
-                                        <th>Estado</th>
-                                    </tr>
+                                    <tr><th>Agencia</th><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Comprobante</th><th>Estado</th><th class="text-center">Acciones</th></tr>
                                 </thead>
                                 <tbody>
                                     {% if pagos %}
@@ -222,10 +209,16 @@
                                             <td class="fw-bold text-danger">Bs. {{ p.monto | default(0) | dinero }}</td>
                                             <td>{{ p.factura or p.comprobante }}</td>
                                             <td><span class="badge bg-success p-2">{{ p.estado }}</span></td>
+                                            <td class="text-center">
+                                                <form action="/admin/eliminar-transaccion" method="POST" style="display:inline;">
+                                                    <input type="hidden" name="pago_id" value="{{ p.id }}">
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash"></i></button>
+                                                </form>
+                                            </td>
                                         </tr>
                                         {% endfor %}
                                     {% else %}
-                                        <tr><td colspan="6" class="text-center text-muted py-3">No hay transacciones registradas.</td></tr>
+                                        <tr><td colspan="7" class="text-center text-muted py-3">No hay transacciones registradas.</td></tr>
                                     {% endif %}
                                 </tbody>
                             </table>
@@ -234,116 +227,73 @@
                 </div>
             </div>
 
-            <!-- BALANCES GLOBALES (+ / -) -->
+            <!-- BALANCES -->
             <div class="tab-pane fade {% if tab_activa == 'balances' %}show active{% endif %}" id="balances" role="tabpanel">
                 <div class="row">
                     <div class="col-md-6 mb-4">
-                        <div class="card shadow-sm border-0" style="border-radius: 15px; border-top: 4px solid #dc3545 !important;">
+                        <div class="card shadow-sm border-0" style="border-top: 4px solid #dc3545;">
                             <div class="card-body">
-                                <h5 class="fw-bold text-danger mb-3"><i class="fas fa-arrow-down"></i> Agencias que Deben (Positivos)</h5>
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-hover align-middle" style="font-size: 13px;">
-                                        <thead class="table-light"><tr><th>Agencia</th><th>Fecha</th><th class="text-end">Deuda Total</th></tr></thead>
-                                        <tbody>
-                                            {% if positivos %}
-                                                {% for pos in positivos %}
-                                                <tr><td class="fw-bold">{{ pos.agencia }}</td><td>{{ pos.fecha }}</td><td class="text-end fw-bold text-danger">Bs. {{ pos.monto | default(0) | dinero }}</td></tr>
-                                                {% endfor %}
-                                            {% else %}
-                                                <tr><td colspan="3" class="text-center text-muted py-3">Nadie debe actualmente.</td></tr>
-                                            {% endif %}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                <h5 class="fw-bold text-danger">Agencias que Deben</h5>
+                                <table class="table table-sm">
+                                    {% for pos in positivos %}
+                                    <tr><td>{{ pos.agencia }}</td><td>{{ pos.fecha }}</td><td class="text-end text-danger">Bs. {{ pos.monto | default(0) | dinero }}</td></tr>
+                                    {% endfor %}
+                                </table>
                             </div>
                         </div>
                     </div>
                     <div class="col-md-6 mb-4">
-                        <div class="card shadow-sm border-0" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
+                        <div class="card shadow-sm border-0" style="border-top: 4px solid #198754;">
                             <div class="card-body">
-                                <h5 class="fw-bold text-success mb-3"><i class="fas fa-arrow-up"></i> Saldo a Favor Agencias (Negativos)</h5>
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-hover align-middle" style="font-size: 13px;">
-                                        <thead class="table-light"><tr><th>Agencia</th><th>Fecha</th><th class="text-end">Saldo a Favor</th></tr></thead>
-                                        <tbody>
-                                            {% if negativos %}
-                                                {% for neg in negativos %}
-                                                <tr><td class="fw-bold">{{ neg.agencia }}</td><td>{{ neg.fecha }}</td><td class="text-end fw-bold text-success">Bs. {{ neg.monto | default(0) | dinero }}</td></tr>
-                                                {% endfor %}
-                                            {% else %}
-                                                <tr><td colspan="3" class="text-center text-muted py-3">Sin saldos a favor.</td></tr>
-                                            {% endif %}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                <h5 class="fw-bold text-success">Saldo a Favor</h5>
+                                <table class="table table-sm">
+                                    {% for neg in negativos %}
+                                    <tr><td>{{ neg.agencia }}</td><td>{{ neg.fecha }}</td><td class="text-end text-success">Bs. {{ neg.monto | default(0) | dinero }}</td></tr>
+                                    {% endfor %}
+                                </table>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- DATA CASHEA GENERAL -->
+            <!-- CASHEA -->
             <div class="tab-pane fade {% if tab_activa == 'cashea' %}show active{% endif %}" id="cashea" role="tabpanel">
-                <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #00bcd4 !important;">
+                <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #00bcd4;">
                     <div class="card-body">
-                        <h5 class="fw-bold" style="color: #00bcd4;"><i class="fas fa-shopping-cart"></i> Consolidado General de Cashea</h5>
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle" id="tablaCashea" style="font-size: 13px;">
-                                <thead class="table-dark"><tr><th>Agencia</th><th>Fecha</th><th>Detalle</th><th class="text-end">Monto Absorbido</th></tr></thead>
-                                <tbody>
-                                    {% if casheas_generales %}
-                                        {% for c in casheas_generales %}
-                                        <tr><td class="fw-bold">{{ c.agencia }}</td><td>{{ c.fecha }}</td><td>{{ c.factura or c.comprobante }}</td><td class="text-end fw-bold text-danger">Bs. {{ c.monto | default(0) | dinero }}</td></tr>
-                                        {% endfor %}
-                                    {% else %}
-                                        <tr><td colspan="4" class="text-center text-muted py-3">No hay registros de Cashea.</td></tr>
-                                    {% endif %}
-                                </tbody>
-                            </table>
-                        </div>
+                        <h5 class="fw-bold text-info">Consolidado Cashea</h5>
+                        <table class="table table-sm" id="tablaCashea">
+                            {% for c in casheas_generales %}
+                            <tr><td>{{ c.agencia }}</td><td>{{ c.fecha }}</td><td>{{ c.factura or c.comprobante }}</td><td class="text-end">Bs. {{ c.monto | default(0) | dinero }}</td></tr>
+                            {% endfor %}
+                        </table>
                     </div>
                 </div>
             </div>
 
-            <!-- CONSOLIDADO POR SISTEMAS -->
+            <!-- CONSOLIDADO -->
             <div class="tab-pane fade {% if tab_activa == 'consolidado' %}show active{% endif %}" id="consolidado" role="tabpanel">
-                <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
+                <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #e91e63;">
                     <div class="card-body">
-                        <h5 class="fw-bold text-admin-theme mb-3"><i class="fas fa-chart-pie"></i> Consolidado por Sistema</h5>
-                        <div class="table-responsive">
-                            <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 13px;">
-                                <thead class="table-light"><tr><th>Sistema</th><th class="text-end">Venta</th><th class="text-end">Comisión</th><th class="text-end">Premios</th><th class="text-end">Neto</th></tr></thead>
-                                <tbody>
-                                    {% if sistemas_consolidados %}
-                                        {% for sistema, valores in sistemas_consolidados.items() %}
-                                        <tr>
-                                            <td class="fw-bold">{{ sistema }}</td>
-                                            <td class="text-end">Bs. {{ valores.venta | default(0) | dinero }}</td>
-                                            <td class="text-end">Bs. {{ valores.comision | default(0) | dinero }}</td>
-                                            <td class="text-end">Bs. {{ valores.premio | default(0) | dinero }}</td>
-                                            <td class="text-end fw-bold text-admin-theme">Bs. {{ valores.neto | default(0) | dinero }}</td>
-                                        </tr>
-                                        {% endfor %}
-                                    {% else %}
-                                        <tr><td colspan="5" class="text-center text-muted py-3">Sin registros.</td></tr>
-                                    {% endif %}
-                                </tbody>
-                            </table>
-                        </div>
+                        <h5 class="fw-bold text-admin-theme">Consolidado por Sistemas</h5>
+                        <table class="table table-sm table-bordered">
+                            {% for sistema, valores in sistemas_consolidados.items() %}
+                            <tr><td>{{ sistema }}</td><td class="text-end">Bs. {{ valores.neto | default(0) | dinero }}</td></tr>
+                            {% endfor %}
+                        </table>
                     </div>
                 </div>
             </div>
 
             <!-- TOTALIZADOR -->
             <div class="tab-pane fade {% if tab_activa == 'totalizador' %}show active{% endif %}" id="totalizador" role="tabpanel">
-                <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #0d47a1 !important;">
+                <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #0d47a1;">
                     <div class="card-body">
-                        <h5 class="fw-bold mb-3" style="color: #0d47a1;"><i class="fas fa-calculator"></i> Totalizador Financiero</h5>
-                        <p class="fs-5 fw-bold text-success">Total Ganancia Privada: Bs. {{ total_mi_ganancia_global | default(0) | dinero }}</p>
+                        <h5 class="fw-bold text-primary">Totalizador Financiero</h5>
+                        <p class="fs-5">Ganancia Privada: Bs. {{ total_mi_ganancia_global | default(0) | dinero }}</p>
                     </div>
                 </div>
             </div>
-
             <!-- DESGLOSE BANCA -->
             <div class="tab-pane fade {% if tab_activa == 'desglose_banca' %}show active{% endif %}" id="desglose_banca" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
@@ -505,7 +455,6 @@
 
                     totalDefinitivoBanquero += totalNeto;
 
-                    // REGLAS DE PORCENTAJES EXACTAS
                     let pctDif = 3;
                     let pctPart = 0;
 
