@@ -391,7 +391,7 @@ async def pagar_solicitud_banca(
     pago_id: int = Form(...), 
     comprobante: Optional[UploadFile] = File(None),
     monto_abono: Optional[str] = Form(None),
-    accion_pago: str = Form(...) # 'ABONO' o 'TOTAL'
+    accion_pago: str = Form(...)
 ):
     conn = get_db()
     cursor = conn.cursor()
@@ -419,9 +419,7 @@ async def pagar_solicitud_banca(
 
             if abono_val > 0 and abono_val < monto_original:
                 nuevo_restante = monto_original - abono_val
-                # Actualizamos la solicitud actual con el monto restante
                 cursor.execute("UPDATE pagos SET monto = %s WHERE id = %s", (nuevo_restante, pago_id))
-                # Insertamos el registro del abono aprobado
                 cursor.execute(
                     "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'ABONO A SOLICITUD', %s, 'PAGO_BANCA', 'APROBADO')",
                     (agencia_norm, fecha_pago, abono_val, ruta_archivo)
@@ -431,7 +429,6 @@ async def pagar_solicitud_banca(
                 recalcular_y_actualizar_reporte(agencia_norm, fecha_pago)
                 return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
-        # Si es pago total o el abono cubre el total
         cursor.execute("UPDATE pagos SET estado = 'APROBADO', comprobante = %s WHERE id = %s", (ruta_archivo, pago_id))
         cursor.execute(
             "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'PAGO DE REPORTES', %s, 'PAGO_BANCA', 'APROBADO')",
@@ -498,23 +495,40 @@ def marcar_comunicado_leido(agencia: str = Form(...), comunicado_id: int = Form(
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/reportar")
-async def reportar_pago(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...), factura: str = Form(...), comprobante: UploadFile = File(...)):
+async def reportar_pago(
+    agencia: str = Form(...), 
+    fecha: str = Form(...), 
+    monto: str = Form(...), 
+    factura: str = Form(...), 
+    tipo_pago: str = Form("COMPLETO"), # 'COMPLETO' o 'ABONO'
+    comprobante: Optional[UploadFile] = File(None)
+):
     agencia_norm = normalizar(agencia)
     try:
         monto_val = float(monto.replace(',', '')) if monto else 0.0
     except:
         monto_val = 0.0
         
-    ruta_archivo = f"uploads/{agencia_norm}_{factura}_{comprobante.filename}"
-    with open(ruta_archivo, "wb") as buffer:
-        buffer.write(await comprobante.read())
+    ruta_archivo = ""
+    if comprobante and comprobante.filename:
+        ruta_archivo = f"uploads/{agencia_norm}_{factura}_{comprobante.filename}"
+        with open(ruta_archivo, "wb") as buffer:
+            buffer.write(await comprobante.read())
+
+    estado_pago = "APROBADO" if tipo_pago == "COMPLETO" else "EN ESPERA"
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, %s, %s, 'PAGO_TAQUILLA', 'EN ESPERA')", (agencia_norm, fecha, monto_val, factura, ruta_archivo))
+    cursor.execute(
+        "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, %s, %s, 'PAGO_TAQUILLA', %s)", 
+        (agencia_norm, fecha, monto_val, factura, ruta_archivo, estado_pago)
+    )
     conn.commit()
     conn.close()
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
+    
+    if estado_pago == "APROBADO":
+        recalcular_y_actualizar_reporte(agencia_norm, fecha)
+        
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/solicitar-banca")
@@ -700,7 +714,7 @@ def guardar_reporte_colab(
     if existente:
         cursor.execute("UPDATE reportes SET monto = %s, ventas = %s, premios = %s, detalle_html = %s WHERE agencia = %s AND fecha = %s", (monto, ventas, premios, detalle_html, agencia_norm, fecha))
     else:
-        cursor.execute("INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html) VALUES (%s, %s, %s, %s, %s, %s)", (agencia_norm, fecha, monto, ventas, premios, detalle_html))
+        cursor.execute("INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html) VALUES (%s, %s, %s, %s, %s, %s)", (agencia_norm, fecha, monto, ventas, premios, fecha))
         
     if cashea_monto and cashea_monto > 0:
         cursor.execute("SELECT id FROM pagos WHERE agencia = %s AND fecha = %s AND tipo = 'CASHEA'", (agencia_norm, fecha))
