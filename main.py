@@ -403,6 +403,100 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
 
     return templates.TemplateResponse(request=request, name="login.html", context={"error": "Usuario o clave incorrectos"})
 
+# === RUTA AGENCIA ===
+@app.get("/agencia", response_class=HTMLResponse)
+def get_agencia(request: Request, nombre: str = ""):
+    nombre_norm = normalizar(nombre)
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    genero_taquilla = "FEMENINO"
+    cursor.execute("SELECT genero FROM usuarios WHERE agencia = %s", (nombre_norm,))
+    usr = cursor.fetchone()
+    if usr and 'genero' in usr.keys() and usr['genero']:
+        genero_taquilla = usr['genero']
+
+    cursor.execute("SELECT * FROM reportes WHERE agencia = %s ORDER BY id DESC", (nombre_norm,))
+    mis_reportes = [dict(row) for row in cursor.fetchall()]
+    
+    cursor.execute("SELECT * FROM pagos WHERE agencia = %s ORDER BY id DESC", (nombre_norm,))
+    mis_pagos = [dict(row) for row in cursor.fetchall()]
+    mis_casheas = [p for p in mis_pagos if str(p['tipo']).strip().upper() == 'CASHEA']
+    
+    cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
+    todos_comunicados = [dict(row) for row in cursor.fetchall()]
+    
+    cursor.execute("SELECT comunicado_id FROM lecturas_comunicados WHERE agencia = %s", (nombre_norm,))
+    leidos_ids = [row['comunicado_id'] for row in cursor.fetchall()]
+    
+    comunicados_pendientes = [c for c in todos_comunicados if c['id'] not in leidos_ids]
+
+    conn.close()
+
+    return templates.TemplateResponse(request=request, name="agencia.html", context={
+        "agencia": nombre_norm, 
+        "genero": genero_taquilla,
+        "reportes": mis_reportes, 
+        "pagos": mis_pagos, 
+        "casheas": mis_casheas,
+        "comunicados_pendientes": comunicados_pendientes,
+        "todos_comunicados": todos_comunicados,
+        "sistemas": SISTEMAS_OFICIALES
+    })
+
+@app.post("/agencia/cambiar-clave")
+def cambiar_clave_taquilla(agencia: str = Form(...), clave_actual: str = Form(...), nueva_clave: str = Form(...)):
+    agencia_norm = normalizar(agencia)
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT clave FROM usuarios WHERE agencia = %s", (agencia_norm,))
+    usr = cursor.fetchone()
+
+    if usr and usr['clave'] == clave_actual:
+        cursor.execute("UPDATE usuarios SET clave = %s WHERE agencia = %s", (nueva_clave, agencia_norm))
+        conn.commit()
+        conn.close()
+        return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&msg=Clave+actualizada+con+éxito", status_code=status.HTTP_303_SEE_OTHER)
+    
+    conn.close()
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&error=Clave+actual+incorrecta", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/solicitar-banca")
+def solicitar_banca(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...)):
+    agencia_norm = normalizar(agencia)
+    try:
+        monto_val = abs(float(str(monto).replace(',', '')))
+    except:
+        monto_val = 0.0
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'SOLICITUD BANCA', 'Solicitud de cobro por saldo a favor', 'SOLICITUD_BANCA', 'PENDIENTE BANCA')",
+        (agencia_norm, fecha, monto_val)
+    )
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/solicitar-adelanto")
+def solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...), observacion: str = Form(...)):
+    agencia_norm = normalizar(agencia)
+    try:
+        monto_val = float(monto.replace(',', '')) if monto else 0.0
+    except:
+        monto_val = 0.0
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, %s, %s, 'ADELANTO', 'APROBADO')", (agencia_norm, fecha, monto_val, observacion, observacion))
+    conn.commit()
+    conn.close()
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
+
+# === RUTA ADMIN ===
 @app.get("/admin", response_class=HTMLResponse)
 def get_admin(
     request: Request, 
@@ -656,6 +750,91 @@ def get_admin(
         "hasta_fecha": f_hasta,
         "tab_activa": tab
     })
+
+@app.post("/admin/procesar-solicitud-dinero")
+async def procesar_solicitud_dinero(
+    pago_id: int = Form(...),
+    tipo_procesamiento: str = Form("PAGO_COMPLETO"),
+    monto_abono: Optional[str] = Form(None),
+    comprobante: Optional[UploadFile] = File(None)
+):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM pagos WHERE id = %s", (pago_id,))
+    solicitud = cursor.fetchone()
+
+    if solicitud:
+        agencia_norm = normalizar(solicitud['agencia'])
+        fecha_sol = solicitud['fecha']
+        monto_original = solicitud['monto'] or 0.0
+
+        ruta_cap = ""
+        if comprobante and comprobante.filename:
+            ruta_cap = f"uploads/CAP_{agencia_norm}_{pago_id}_{comprobante.filename}"
+            with open(ruta_cap, "wb") as buffer:
+                buffer.write(await comprobante.read())
+        else:
+            ruta_cap = "Comprobante sin adjunto"
+
+        if tipo_procesamiento == "ABONO" and monto_abono:
+            try:
+                val_abono = float(monto_abono.replace(',', ''))
+            except:
+                val_abono = 0.0
+
+            if val_abono > 0 and val_abono < monto_original:
+                monto_restante = monto_original - val_abono
+                cursor.execute("UPDATE pagos SET monto = %s WHERE id = %s", (monto_restante, pago_id))
+                cursor.execute(
+                    "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'ABONO A SOLICITUD', %s, 'PAGO_BANCA', 'APROBADO')",
+                    (agencia_norm, fecha_sol, val_abono, ruta_cap)
+                )
+                conn.commit()
+                conn.close()
+                recalcular_y_actualizar_reporte(agencia_norm, fecha_sol)
+                return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+
+        cursor.execute("UPDATE pagos SET estado = 'APROBADO', comprobante = %s WHERE id = %s", (ruta_cap, pago_id))
+        cursor.execute(
+            "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'PAGO TOTAL SOLICITUD BANCA', %s, 'PAGO_BANCA', 'APROBADO')",
+            (agencia_norm, fecha_sol, monto_original, ruta_cap)
+        )
+        conn.commit()
+        conn.close()
+        recalcular_y_actualizar_reporte(agencia_norm, fecha_sol)
+
+    else:
+        conn.close()
+
+    return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/eliminar-agencia")
+def eliminar_agencia(agencia_id: int = Form(...)):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM usuarios WHERE id = %s", (agencia_id,))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/crear-agencia")
+def crear_agencia(agencia: str = Form(...), clave: str = Form(...), genero: str = Form("FEMENINO")):
+    agencia_norm = normalizar(agencia)
+    genero_val = genero.upper()
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT id FROM usuarios WHERE agencia = %s", (agencia_norm,))
+    existe = cursor.fetchone()
+    
+    if existe:
+        cursor.execute("UPDATE usuarios SET clave = %s, genero = %s WHERE agencia = %s", (clave, genero_val, agencia_norm))
+    else:
+        cursor.execute("INSERT INTO usuarios (agencia, clave, genero) VALUES (%s, %s, %s)", (agencia_norm, clave, genero_val))
+            
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/crear-comunicado")
 def crear_comunicado(mensaje: str = Form(...)):
