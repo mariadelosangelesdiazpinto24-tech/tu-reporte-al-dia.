@@ -443,12 +443,67 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
         "nombre_agencia": agencia_norm
     })
 
+@app.post("/admin/comunicado")
+def post_comunicado(mensaje: str = Form(...)):
+    if mensaje and mensaje.strip():
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje.strip(),))
+        conn.commit()
+        conn.close()
+    return RedirectResponse(url="/admin?tab=comunicados", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/procesar-solicitud")
+def post_procesar_solicitud(
+    solicitud_id: int = Form(...),
+    accion: str = Form(...),
+    monto_abono: Optional[float] = Form(0.0),
+    agencia: str = Form(...),
+    fecha: str = Form(...)
+):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM pagos WHERE id = %s", (solicitud_id,))
+    solicitud = cursor.fetchone()
+
+    if solicitud:
+        monto_original = float(solicitud['monto'] or 0.0)
+        monto_pagar = monto_original if accion == "COMPLETO" else float(monto_abono or 0.0)
+        
+        cursor.execute("UPDATE pagos SET estado = 'PROCESADO' WHERE id = %s", (solicitud_id,))
+        
+        cursor.execute(
+            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) 
+               VALUES (%s, %s, %s, %s, %s, 'ADELANTO', 'APROBADO')""",
+            (normalizar(agencia), fecha, monto_pagar, f"Liquidación Solicitud #{solicitud_id}", f"Abono Pago Banca ({accion})")
+        )
+        conn.commit()
+
+    conn.close()
+    recalcular_y_actualizar_reporte(agencia, fecha)
+    return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/crear-taquilla")
+def post_crear_taquilla(agencia: str = Form(...), clave: str = Form(...), genero: str = Form("FEMENINO")):
+    agencia_norm = normalizar(agencia)
+    if agencia_norm and clave:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO usuarios (agencia, clave, genero) VALUES (%s, %s, %s)
+               ON CONFLICT (agencia) DO UPDATE SET clave = EXCLUDED.clave, genero = EXCLUDED.genero""",
+            (agencia_norm, clave, genero)
+        )
+        conn.commit()
+        conn.close()
+    return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
+
 @app.get("/admin", response_class=HTMLResponse)
 def get_admin(
     request: Request, 
     agencia: Optional[str] = None, 
-    desde_fecha: Optional[str] = None,
-    hasta_fecha: Optional[str] = None,
+    desde_fecha: Optional[str] = None, 
+    hasta_fecha: Optional[str] = None, 
     tab: str = "transacciones"
 ):
     try:
@@ -489,6 +544,18 @@ def get_admin(
                 ag['estado_conexion'] = 'RECIENTE'
             else:
                 ag['estado_conexion'] = 'SIN_CONEXION'
+
+        agencias_deben = []
+        agencias_a_favor = []
+        for ag in agencias:
+            cursor.execute("SELECT monto FROM reportes WHERE agencia = %s ORDER BY fecha DESC LIMIT 1", (ag['agencia'],))
+            u_rep = cursor.fetchone()
+            if u_rep:
+                monto_rep = float(u_rep['monto'] or 0.0)
+                if monto_rep > 0:
+                    agencias_deben.append({"agencia": ag['agencia'], "saldo": monto_rep})
+                elif monto_rep < 0:
+                    agencias_a_favor.append({"agencia": ag['agencia'], "saldo": abs(monto_rep)})
 
         sistemas_consolidados = {}
         totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
@@ -557,51 +624,48 @@ def get_admin(
         ESTRUCTURA_BANQUEROS = {
             "COMERCIALIZADORA SUPER APUESTAS": {
                 "sistemas": [
-                    {"sistema": "BETSOL", "pct_comision_completa": 0.15, "pct_participacion": 0.10, "tipo_participacion": "SALDO"}
+                    {"sistema": "BETSOL", "pct_banquero": 0.15, "pct_taquilla": 0.12, "pct_participacion": 0.10}
                 ],
                 "cobranza": [],
                 "absorbe_cashea": False
             },
             "COMERCIALIZADORA LOTTOLUCKY": {
                 "sistemas": [
-                    {"sistema": "LOTTOLUCKY", "pct_comision_completa": 0.17, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
+                    {"sistema": "LOTTOLUCKY", "pct_banquero": 0.17, "pct_taquilla": 0.13, "pct_participacion": 0.00}
                 ],
                 "cobranza": [],
                 "absorbe_cashea": False
             },
             "COMERCIALIZADORA NYS": {
                 "sistemas": [
-                    {"sistema": "POZO", "pct_comision_completa": 0.11, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"},
-                    {"sistema": "LA IMAGINARIA", "pct_comision_completa": 0.17, "pct_participacion": 0.35, "tipo_participacion": "TOTAL"},
-                    {"sistema": "WINBIG POLLAS", "pct_comision_completa": 0.18, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
+                    {"sistema": "POZO", "pct_banquero": 0.13, "pct_taquilla": 0.11, "pct_participacion": 0.00},
+                    {"sistema": "LA IMAGINARIA", "pct_banquero": 0.17, "pct_taquilla": 0.14, "pct_participacion": 0.35},
+                    {"sistema": "WINBIG POLLAS", "pct_banquero": 0.18, "pct_taquilla": 0.14, "pct_participacion": 0.00}
                 ],
                 "cobranza": [
-                    {"nombre": "CALAMAR A", "pct_comision_completa": 0.17, "pct_participacion": 0.25},
-                    {"nombre": "CALAMAR B", "pct_comision_completa": 0.17, "pct_participacion": 0.25}
+                    {"nombre": "CALAMAR", "pct_banquero": 0.17, "pct_taquilla": 0.13, "pct_participacion": 0.25}
                 ],
                 "absorbe_cashea": True
             },
             "COMERCIALIZADORA LIDER": {
                 "sistemas": [
-                    {"sistema": "MAXPLAY", "pct_comision_completa": 0.16, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                    {"sistema": "MATRIX", "pct_comision_completa": 0.16, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                    {"sistema": "SRQ", "pct_comision_completa": 0.16, "pct_participacion": 0.30, "tipo_participacion": "TOTAL"},
-                    {"sistema": "LOTIPOS", "pct_comision_completa": 0.17, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                    {"sistema": "GATO", "pct_comision_completa": 0.16, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                    {"sistema": "PREMIER", "pct_comision_completa": 0.16, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"},
-                    {"sistema": "POSNET", "pct_comision_completa": 0.15, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                    {"sistema": "PARLEY", "pct_comision_completa": 0.12, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"}
+                    {"sistema": "MAXPLAY", "pct_banquero": 0.16, "pct_taquilla": 0.12, "pct_participacion": 0.20},
+                    {"sistema": "MATRIX", "pct_banquero": 0.16, "pct_taquilla": 0.12, "pct_participacion": 0.20},
+                    {"sistema": "SRQ", "pct_banquero": 0.16, "pct_taquilla": 0.12, "pct_participacion": 0.30},
+                    {"sistema": "LOTIPOS", "pct_banquero": 0.17, "pct_taquilla": 0.13, "pct_participacion": 0.20},
+                    {"sistema": "GATO", "pct_banquero": 0.16, "pct_taquilla": 0.12, "pct_participacion": 0.20},
+                    {"sistema": "PREMIER", "pct_banquero": 0.16, "pct_taquilla": 0.12, "pct_participacion": 0.00},
+                    {"sistema": "POSNET", "pct_banquero": 0.15, "pct_taquilla": 0.12, "pct_participacion": 0.20},
+                    {"sistema": "PARLEY", "pct_banquero": 0.12, "pct_taquilla": 0.10, "pct_participacion": 0.00}
                 ],
                 "cobranza": [
-                    {"nombre": "GUACA", "pct_comision_completa": 0.17, "pct_participacion": 0.30},
-                    {"nombre": "MEGA GUACA", "pct_comision_completa": 0.17, "pct_participacion": 0.30},
-                    {"nombre": "TRIPLE GUACA", "pct_comision_completa": 0.17, "pct_participacion": 0.30}
+                    {"nombre": "GUACA", "pct_banquero": 0.17, "pct_taquilla": 0.13, "pct_participacion": 0.30}
                 ],
                 "absorbe_cashea": False
             },
             "COMERCIALIZADORA LOTTIPLAY": {
                 "sistemas": [
-                    {"sistema": "LOTTIPLAY", "pct_comision_completa": 0.15, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
+                    {"sistema": "LOTTIPLAY", "pct_banquero": 0.15, "pct_taquilla": 0.12, "pct_participacion": 0.00}
                 ],
                 "cobranza": [],
                 "absorbe_cashea": False
@@ -623,46 +687,36 @@ def get_admin(
                 s_name = item["sistema"]
                 v_sys = sistemas_consolidados.get(s_name, {}).get("venta", 0.0)
                 p_sys = sistemas_consolidados.get(s_name, {}).get("premio", 0.0)
-                c_taquillas_pagada = sistemas_consolidados.get(s_name, {}).get("comision", 0.0)
                 
-                c_banquero_total = v_sys * item["pct_comision_completa"]
-                t_banquero_sistema = v_sys - c_banquero_total - p_sys
+                pct_b = item["pct_banquero"]
+                pct_t = item["pct_taquilla"]
+                pct_part = item["pct_participacion"]
 
-                g_excedente_pct = c_banquero_total - c_taquillas_pagada
-                pct_excedente_real = (g_excedente_pct / v_sys * 100) if v_sys > 0 else (item["pct_comision_completa"] * 100 - 13.0)
+                c_banquero = v_sys * pct_b
+                t_banquero_sistema = v_sys - c_banquero - p_sys
 
-                s_upper = s_name.upper()
-                pct_dif_val = pct_excedente_real  
-                pct_part_val = item.get("pct_participacion", 0.0) * 100 if "pct_participacion" in item else 0.0
-
-                if "BETSOL" in s_upper:
-                    pct_dif_val = 3.0
-                    pct_part_val = 10.0
-                elif "POZO" in s_upper:
-                    pct_dif_val = 1.0
-                    pct_part_val = 0.0
-                elif "MATRIX" in s_upper:
-                    pct_dif_val = 4.0
-                elif "GATO" in s_upper:
-                    pct_dif_val = 4.0
-                elif "POSNET" in s_upper:
-                    pct_dif_val = 3.0
-                elif "PARLEY" in s_upper:
-                    pct_dif_val = 2.0
-
-                g_total_privada = v_sys * (pct_dif_val / 100.0)
+                c_taquilla = v_sys * pct_t
+                pct_excedente = (pct_b - pct_t) * 100.0
+                g_excedente = v_sys * (pct_b - pct_t)
+                g_participacion = (t_banquero_sistema * pct_part) if (pct_part > 0 and t_banquero_sistema > 0) else 0.0
+                g_total = g_excedente + g_participacion
 
                 desglose_banqueros[b_nombre]["sistemas"].append({
                     "sistema": s_name,
                     "venta": v_sys,
-                    "comision_agencia": c_taquillas_pagada,
+                    "comision_taquilla": c_taquilla,
+                    "comision_banquero": c_banquero,
                     "premios": p_sys,
                     "total_banquero": t_banquero_sistema,
-                    "pct_diferencial": int(pct_dif_val) if pct_dif_val.is_integer() else pct_dif_val,
-                    "pct_participacion": int(pct_part_val) if pct_part_val.is_integer() else pct_part_val,
-                    "mi_ganancia_total": g_total_privada
+                    "pct_banquero": int(pct_b * 100),
+                    "pct_taquilla": int(pct_t * 100),
+                    "pct_excedente": int(round(pct_excedente)),
+                    "pct_participacion": int(pct_part * 100),
+                    "ganancia_total": g_total
                 })
 
+                desglose_banqueros[b_nombre]["total_a_pagar_banquero"] += t_banquero_sistema
+                desglose_banqueros[b_nombre]["total_mi_ganancia_banca"] += g_total
                 desglose_banqueros[b_nombre]["total"] += t_banquero_sistema
 
         conn.close()
@@ -675,6 +729,8 @@ def get_admin(
             "casheas_generales": casheas_generales,
             "total_taquillas_creadas": total_taquillas_creadas,
             "taquillas_activas_hoy": taquillas_activas_hoy,
+            "agencias_deben": agencias_deben,
+            "agencias_a_favor": agencias_a_favor,
             "sistemas_consolidados": sistemas_consolidados,
             "totales_generales": totales_generales,
             "totales_auxiliares": totales_auxiliares,
