@@ -67,6 +67,9 @@
         <!-- PESTAÑAS DE NAVEGACIÓN -->
         <ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
             <li class="nav-item">
+                <button class="nav-link {% if tab_activa == 'taquillas' %}active{% endif %}" id="taquillas-tab" data-bs-toggle="tab" data-bs-target="#taquillas" type="button"><i class="fas fa-users-cog"></i> Taquillas Activas 📱</button>
+            </li>
+            <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'transacciones' %}active{% endif %}" id="transacciones-tab" data-bs-toggle="tab" data-bs-target="#transacciones" type="button"><i class="fas fa-list"></i> Transacciones y Solicitudes</button>
             </li>
             <li class="nav-item">
@@ -87,7 +90,90 @@
         </ul>
 
         <div class="tab-content" id="adminTabsContent">
-            
+
+            <!-- 0. PESTAÑA DE TAQUILLAS ACTIVAS Y GESTIÓN DE ACCESOS -->
+            <div class="tab-pane fade {% if tab_activa == 'taquillas' %}show active{% endif %}" id="taquillas" role="tabpanel">
+                <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
+                    <div class="card-body">
+                        <h5 class="fw-bold text-success mb-3"><i class="fas fa-users-cog"></i> Monitoreo y Control de Taquillas Creadas</h5>
+
+                        <!-- METRICAS DE CONEXIÓN -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-success border-4">
+                                    <span class="text-muted small fw-bold">TOTAL TAQUILLAS CREADAS</span>
+                                    <h3 class="fw-bold text-dark mt-1">{{ total_taquillas_creadas }}</h3>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-primary border-4">
+                                    <span class="text-muted small fw-bold">ACTIVAS HOY EN LA APP</span>
+                                    <h3 class="fw-bold text-primary mt-1">{{ taquillas_activas_hoy }}</h3>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-secondary border-4">
+                                    <span class="text-muted small fw-bold">INACTIVAS HOY</span>
+                                    <h3 class="fw-bold text-secondary mt-1">{{ total_taquillas_creadas - taquillas_activas_hoy }}</h3>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TABLA DE TAQUILLAS -->
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle" style="font-size: 13px;">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Nombre Agencia</th>
+                                        <th>Clave de Acceso</th>
+                                        <th>Tema Visual</th>
+                                        <th>Último Acceso Registrado</th>
+                                        <th class="text-center">Estado Conexión</th>
+                                        <th class="text-end">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if agencias %}
+                                        {% for ag in agencias %}
+                                        <tr>
+                                            <td class="fw-bold text-uppercase"><i class="fas fa-store me-1 text-success"></i> {{ ag.agencia }}</td>
+                                            <td><code>{{ ag.clave }}</code></td>
+                                            <td>
+                                                {% if ag.genero == 'FEMENINO' %}
+                                                    <span class="badge bg-danger-subtle text-danger border border-danger">🌺 Femenino</span>
+                                                {% else %}
+                                                    <span class="badge bg-success-subtle text-success border border-success">☘️ Masculino</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ ag.ultima_conexion or 'Sin conexión registrada' }}</td>
+                                            <td class="text-center">
+                                                {% if ag.estado_conexion == 'ACTIVA' %}
+                                                    <span class="badge bg-success p-2"><i class="fas fa-wifi me-1"></i> En Línea / Activa Hoy</span>
+                                                {% elif ag.estado_conexion == 'RECIENTE' %}
+                                                    <span class="badge bg-warning text-dark p-2"><i class="fas fa-clock me-1"></i> Conexión Anterior</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary p-2"><i class="fas fa-power-off me-1"></i> Inactiva</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-end">
+                                                <form action="/admin/eliminar-agencia" method="POST" style="display:inline;" onsubmit="return confirm('¿Seguro deseas eliminar la taquilla {{ ag.agencia }}?');">
+                                                    <input type="hidden" name="agencia_id" value="{{ ag.id }}">
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash-alt"></i> Eliminar</button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr><td colspan="6" class="text-center text-muted py-4">No hay taquillas creadas actualmente.</td></tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
             <!-- 1. TRANSACCIONES Y SOLICITUDES -->
             <div class="tab-pane fade {% if tab_activa == 'transacciones' %}show active{% endif %}" id="transacciones" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
@@ -203,7 +289,6 @@
                             <button onclick="copiarCasheaCompleto()" class="btn btn-sm btn-info text-white fw-bold"><i class="fas fa-copy"></i> Copiar Todo</button>
                         </div>
 
-                        <!-- BUSCADOR POR FECHAS Y AGENCIA PARA AUDITAR FACTURAS CASHEA -->
                         <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm">
                             <input type="hidden" name="tab" value="cashea">
                             <div class="col-md-4">
@@ -255,7 +340,7 @@
                 </div>
             </div>
 
-            <!-- 4. CONSOLIDADO POR SISTEMAS Y RESUMEN DETALLADO INFERIOR -->
+            <!-- 4. CONSOLIDADO POR SISTEMAS -->
             <div class="tab-pane fade {% if tab_activa == 'consolidado' %}show active{% endif %}" id="consolidado" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
                     <div class="card-body">
@@ -323,7 +408,6 @@
                             </table>
                         </div>
 
-                        <!-- RESUMEN INFERIOR COMPLETO DE CASHEA, TRIPLETAS, ADELANTOS Y ABONOS -->
                         <div class="card border-0 shadow-sm p-3 bg-light" style="border-radius: 12px; border-left: 5px solid #e91e63 !important;">
                             <h6 class="fw-bold text-admin-theme mb-3"><i class="fas fa-file-invoice"></i> Resumen de Cuenta de la Selección (Cashea, Tripletas, Adelantos)</h6>
                             <div class="row g-2 text-center" style="font-size: 13px;">
@@ -368,7 +452,7 @@
             <div class="tab-pane fade {% if tab_activa == 'totalizador' %}show active{% endif %}" id="totalizador" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #0d47a1 !important;">
                     <div class="card-body">
-                        <h5 class="fw-bold mb-3" style="color: #0d47a1;"><i class="fas fa-calculator"></i> Totalizador Financiero y Resumen de Cuenta</h5>
+                        <h5 class="fw-bold mb-3" style="color: #0d47a1;"><i class="fas fa-calculator"></i> Totalizador Financiero y Resumen Global</h5>
                         
                         <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm">
                             <input type="hidden" name="tab" value="totalizador">
@@ -399,32 +483,32 @@
                         <div class="row g-3 mb-4">
                             <div class="col-md-3">
                                 <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-primary border-4">
-                                    <span class="text-muted small fw-bold">TOTAL VENTA</span>
-                                    <h4 class="fw-bold text-dark mt-1">Bs. {{ totales_generales.venta | dinero }}</h4>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-success border-4">
-                                    <span class="text-muted small fw-bold">TOTAL COMISIONES</span>
-                                    <h4 class="fw-bold text-success mt-1">Bs. {{ totales_generales.comision | dinero }}</h4>
+                                    <span class="text-muted small fw-bold">MI GANANCIA COMISIONES (%)</span>
+                                    <h4 class="fw-bold text-primary mt-1">Bs. {{ total_ganancia_comision_global | dinero }}</h4>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-warning border-4">
-                                    <span class="text-muted small fw-bold">TOTAL PREMIOS</span>
-                                    <h4 class="fw-bold text-warning mt-1">Bs. {{ totales_generales.premio | dinero }}</h4>
+                                    <span class="text-muted small fw-bold">MI GANANCIA PARTICIPACIÓN</span>
+                                    <h4 class="fw-bold text-warning mt-1">Bs. {{ total_ganancia_participacion_global | dinero }}</h4>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-success border-4">
+                                    <span class="text-muted small fw-bold">MI GANANCIA TOTAL REAL</span>
+                                    <h4 class="fw-bold text-success mt-1">Bs. {{ total_mi_ganancia_global | dinero }}</h4>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-danger border-4">
-                                    <span class="text-muted small fw-bold">NETO SISTEMAS</span>
-                                    <h4 class="fw-bold text-danger mt-1">Bs. {{ totales_generales.neto | dinero }}</h4>
+                                    <span class="text-muted small fw-bold">ESTADO BANCAS (NETO CON BANQUEROS)</span>
+                                    <h4 class="fw-bold text-danger mt-1">Bs. {{ total_neto_acumulado_bancas | dinero }}</h4>
                                 </div>
                             </div>
                         </div>
 
                         <div class="card border-0 shadow-sm bg-light p-4" style="border-radius: 12px;">
-                            <h6 class="fw-bold text-secondary mb-3"><i class="fas fa-file-invoice-dollar"></i> Resumen de Salidas y Balance General</h6>
+                            <h6 class="fw-bold text-secondary mb-3"><i class="fas fa-file-invoice-dollar"></i> Resumen General de Salidas y Cuentas</h6>
                             <ul class="list-group list-group-flush shadow-sm rounded">
                                 <li class="list-group-item d-flex justify-content-between align-items-center py-3">
                                     <span class="fw-bold text-dark"><i class="fas fa-chart-line text-primary me-2"></i> Neto Total de Sistemas</span>
@@ -445,16 +529,15 @@
                 </div>
             </div>
 
-            <!-- 6. DESGLOSE BANCA CON BOTÓN DE COPIAR Y PARTICIPACIÓN REAL -->
+            <!-- 6. DESGLOSE BANCA -->
             <div class="tab-pane fade {% if tab_activa == 'desglose_banca' %}show active{% endif %}" id="desglose_banca" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="fw-bold text-success m-0"><i class="fas fa-university"></i> Desglose por Banqueros y Diferencial de Ganancias</h5>
+                            <h5 class="fw-bold text-success m-0"><i class="fas fa-university"></i> Desglose por Banqueros y Diferencial Privado de Ganancias</h5>
                             <span class="badge bg-success fs-6 p-2">Mi Ganancia Total: Bs. {{ total_mi_ganancia_global | dinero }}</span>
                         </div>
 
-                        <!-- BUSCADOR DE RANGO DE FECHAS BÚSQUEDA SEMANAL -->
                         <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm">
                             <input type="hidden" name="tab" value="desglose_banca">
                             <div class="col-md-5">
@@ -472,44 +555,96 @@
                             </div>
                         </form>
 
-                        <!-- TARJETAS BANQUEROS CON BOTÓN DE COPIAR Y DESGLOSE COMPLETO -->
-                        {% for banquero, items in desglose_banqueros.items() %}
+                        {% for banquero, data in desglose_banqueros.items() %}
                         <div class="card mb-4 border-0 shadow-sm" style="border-radius: 12px; border-left: 5px solid #198754 !important;">
                             <div class="card-header bg-success text-white fw-bold d-flex justify-content-between align-items-center py-2" style="border-top-left-radius: 12px; border-top-right-radius: 12px;">
                                 <span><i class="fas fa-building me-1"></i> {{ banquero }}</span>
-                                <button onclick="copiarBanquero('tabla_{{ loop.index }}', '{{ banquero }}')" class="btn btn-sm btn-light text-success fw-bold py-0"><i class="fas fa-copy me-1"></i> Copiar {{ banquero }}</button>
+                                <button onclick="copiarBanquero('tabla_banquero_{{ loop.index }}', '{{ banquero }}')" class="btn btn-sm btn-light text-success fw-bold py-0"><i class="fas fa-copy me-1"></i> Copiar Reporte para {{ banquero }}</button>
                             </div>
-                            <div class="card-body p-0">
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-hover mb-0 align-middle" id="tabla_{{ loop.index }}" style="font-size: 13px;">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th style="padding: 10px;">SISTEMA</th>
-                                                <th style="padding: 10px; text-align: right;">VENTA</th>
-                                                <th style="padding: 10px; text-align: right;">COMIS. TAQUILLA</th>
-                                                <th style="padding: 10px; text-align: right;">PREMIOS</th>
-                                                <th style="padding: 10px; text-align: right;">TOTAL BANQUERO</th>
-                                                <th style="padding: 10px; text-align: center;">% COMISIÓN / % PARTIC.</th>
-                                                <th style="padding: 10px; text-align: right;">MI GANANCIA TOTAL</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for sys in items %}
-                                            <tr>
-                                                <td class="fw-bold" style="padding: 8px;">{{ sys.sistema }}</td>
-                                                <td style="padding: 8px; text-align: right;">Bs. {{ sys.venta | dinero }}</td>
-                                                <td style="padding: 8px; text-align: right;">Bs. {{ sys.comision_agencia | dinero }}</td>
-                                                <td style="padding: 8px; text-align: right;">Bs. {{ sys.premios | dinero }}</td>
-                                                <td style="padding: 8px; text-align: right;" class="fw-bold">Bs. {{ sys.total_neto | dinero }}</td>
-                                                <td style="padding: 8px; text-align: center;">
-                                                    <span class="badge bg-primary text-white">{{ "{:.1f}%".format(sys.pct_comision_mía) }} Comis</span>
-                                                    <span class="badge bg-warning text-dark">{{ "{:.1f}%".format(sys.pct_participacion) }} Part</span>
-                                                </td>
-                                                <td style="padding: 8px; text-align: right;" class="fw-bold text-success">+ Bs. {{ sys.mi_ganancia | dinero }}</td>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
+                            <div class="card-body p-3">
+                                <div class="row g-3">
+                                    <div class="col-lg-7">
+                                        <div class="border rounded p-2 bg-white shadow-sm">
+                                            <span class="badge bg-secondary mb-2">📋 REPORTE COMPARTIBLE CON EL BANQUERO</span>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-hover mb-0 align-middle" id="tabla_banquero_{{ loop.index }}" style="font-size: 12px;">
+                                                    <thead class="table-light">
+                                                        <tr>
+                                                            <th>SISTEMA</th>
+                                                            <th class="text-end">VENTA</th>
+                                                            <th class="text-end">COMIS.</th>
+                                                            <th class="text-end">PREMIOS</th>
+                                                            <th class="text-end">TOTAL</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for sys in data.sistemas %}
+                                                        <tr>
+                                                            <td class="fw-bold">{{ sys.sistema }}</td>
+                                                            <td class="text-end">{{ "{:,.2f}".format(sys.venta) }}</td>
+                                                            <td class="text-end">{{ "{:,.2f}".format(sys.comision_agencia) }}</td>
+                                                            <td class="text-end">{{ "{:,.2f}".format(sys.premios) }}</td>
+                                                            <td class="text-end fw-bold">{{ "{:,.2f}".format(sys.total_banquero) }}</td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                        
+                                                        {% if data.cobranza %}
+                                                        <tr class="table-warning">
+                                                            <td class="fw-bold" colspan="4"><i class="fas fa-hand-holding-usd"></i> AREA DE COBRANZA ({{ data.cobranza | join(', ') }})</td>
+                                                            <td class="text-end fw-bold text-dark">0.00</td>
+                                                        </tr>
+                                                        {% endif %}
+
+                                                        {% if data.cashea_descontado > 0 %}
+                                                        <tr class="table-danger">
+                                                            <td class="fw-bold" colspan="4"><i class="fas fa-shopping-cart"></i> DESCUENTO CASHEA ABSORBIDO</td>
+                                                            <td class="text-end fw-bold text-danger">- {{ "{:,.2f}".format(data.cashea_descontado) }}</td>
+                                                        </tr>
+                                                        {% endif %}
+
+                                                        <tr class="table-success fw-bold">
+                                                            <td colspan="4">TOTAL DEFINITIVO BANQUERO</td>
+                                                            <td class="text-end text-success fs-6">Bs. {{ "{:,.2f}".format(data.total_a_pagar_banquero) }}</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-lg-5">
+                                        <div class="border rounded p-2 bg-light shadow-sm">
+                                            <span class="badge bg-success mb-2">💰 MIS GANANCIAS (PRIVADO)</span>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-hover mb-0 align-middle" style="font-size: 12px;">
+                                                    <thead class="table-dark">
+                                                        <tr>
+                                                            <th>SISTEMA</th>
+                                                            <th class="text-center">% COM / % PART</th>
+                                                            <th class="text-end">MI GANANCIA</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for sys in data.sistemas %}
+                                                        <tr>
+                                                            <td class="fw-bold">{{ sys.sistema }}</td>
+                                                            <td class="text-center">
+                                                                <span class="badge bg-primary">{{ "{:.1f}%".format(sys.pct_comision_mía) }}</span>
+                                                                <span class="badge bg-warning text-dark">{{ "{:.1f}%".format(sys.pct_participacion) }}</span>
+                                                            </td>
+                                                            <td class="text-end fw-bold text-success">+ {{ "{:,.2f}".format(sys.mi_ganancia_total) }}</td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                        <tr class="table-dark fw-bold">
+                                                            <td colspan="2">GANANCIA TOTAL BANCA</td>
+                                                            <td class="text-end text-warning">Bs. {{ "{:,.2f}".format(data.total_mi_ganancia_banca) }}</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                 </div>
                             </div>
                         </div>
@@ -555,19 +690,18 @@
             
             for (var i = 1; i < filas.length; i++) {
                 var cols = filas[i].getElementsByTagName("td");
-                if (cols.length >= 7) {
+                if (cols.length >= 5) {
                     var sistema = cols[0].innerText.trim();
                     var venta = cols[1].innerText.trim();
                     var comision = cols[2].innerText.trim();
                     var premios = cols[3].innerText.trim();
                     var totalNeto = cols[4].innerText.trim();
-                    var ganancia = cols[6].innerText.trim();
-                    textoCopiar += "🎰 " + sistema + "\n  • Venta: " + venta + "\n  • Comis: " + comision + "\n  • Premios: " + premios + "\n  • Total Banquero: " + totalNeto + "\n  💰 Mi Ganancia: " + ganancia + "\n-------------------------------\n";
+                    textoCopiar += "🎰 " + sistema + "\n  • Venta: " + venta + "\n  • Comis: " + comision + "\n  • Premios: " + premios + "\n  • Total: " + totalNeto + "\n-------------------------------\n";
                 }
             }
 
             navigator.clipboard.writeText(textoCopiar).then(function() {
-                alert("¡Reporte de " + nombreBanquero + " copiado al portapapeles!");
+                alert("¡Reporte para " + nombreBanquero + " copiado al portapapeles!");
             }, function(err) {
                 alert("Error al copiar: " + err);
             });
