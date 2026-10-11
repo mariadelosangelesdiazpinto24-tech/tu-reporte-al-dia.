@@ -167,32 +167,28 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     cursor.execute("SELECT * FROM pagos WHERE agencia = %s AND fecha = %s AND estado = 'APROBADO'", (agencia_norm, fecha_reporte))
     todos_pagos = cursor.fetchall()
+    
+    # BUSCAR AJUSTES / PENDIENTES DE DÍAS ANTERIORES PARA ESTA AGENCIA
+    cursor.execute("SELECT * FROM pagos WHERE agencia = %s AND tipo = 'AJUSTE_PENDIENTE' AND estado = 'APROBADO'", (agencia_norm,))
+    ajustes_anteriores = cursor.fetchall()
+
     conn.close()
 
-    total_tripletas = 0.0
     total_adelantos = 0.0
     total_pagos_taquilla = 0.0
     total_cashea = 0.0
+    total_ajustes_pendientes = 0.0
     
-    tripletas_rows_html = ""
     adelantos_rows_html = ""
     cashea_rows_html = ""
     pagos_banca_rows_html = ""
+    ajustes_rows_html = ""
 
     for p in todos_pagos:
         monto_p = p['monto'] or 0.0
         tipo_p = str(p['tipo']).strip().upper() if p['tipo'] else 'PAGO_TAQUILLA'
         
-        if tipo_p == 'TRIPLETA':
-            total_tripletas += monto_p
-            tripletas_rows_html += f'''
-            <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['comprobante']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #2e7d32; font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
-            </tr>
-            '''
-        elif tipo_p == 'ADELANTO':
+        if tipo_p == 'ADELANTO':
             total_adelantos += monto_p
             adelantos_rows_html += f'''
             <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
@@ -220,6 +216,18 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             </tr>
             '''
 
+    for aj in ajustes_anteriores:
+        monto_aj = aj['monto'] or 0.0
+        total_ajustes_pendientes += monto_aj
+        color_aj = "#2e7d32" if monto_aj < 0 else "#e91e63"
+        ajustes_rows_html += f'''
+        <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
+            <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{aj['fecha']}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{aj['comprobante']}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: {color_aj}; font-weight: bold;">Bs. {monto_aj:,.2f}</td>
+        </tr>
+        '''
+
     detalle_original = rep['detalle_html'] or ""
     match_sistemas = re.search(r'(<div class="mb-3"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_original, re.DOTALL)
     tabla_sistemas_html = match_sistemas.group(1) if match_sistemas else ""
@@ -238,7 +246,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
 
-    monto_final = total_neto_sistemas - total_pagos_taquilla + total_tripletas - total_adelantos - total_cashea
+    monto_final = total_neto_sistemas - total_pagos_taquilla - total_adelantos - total_cashea + total_ajustes_pendientes
 
     bloque_pagos_banca = f'''
     <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #2e7d32;">
@@ -249,7 +257,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
                 <th style="padding: 10px;">REFERENCIA / DETALLE</th>
                 <th style="padding: 10px; text-align: right;">MONTO ABONADO</th>
             </tr>
-            {pagos_banca_rows_html if pagos_banca_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">No hay pagos a la banca abonados aún.</td></tr>'}
+            {pagos_banca_rows_html if pagos_banca_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">No hay pagos abonados aún.</td></tr>'}
         </table>
     </div>
     '''
@@ -268,23 +276,23 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     </div>
     '''
 
-    bloque_tripletas = f'''
-    <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ffb300;">
-        <h5 style="color: #ffb300; font-weight: bold; border-bottom: 2px solid #ffb300; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-star"></i> TRIPLETAS (Premios pagados por taquilla)</h5>
+    bloque_ajustes = f'''
+    <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ff9800;">
+        <h5 style="color: #ff9800; font-weight: bold; border-bottom: 2px solid #ff9800; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-exclamation-triangle"></i> PENDIENTES / AJUSTES DE DÍAS ANTERIORES</h5>
         <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #fff8e1; color: #ff8f00; font-size: 13px;">
-                <th style="padding: 10px;">FECHA TICKET</th>
-                <th style="padding: 10px;">DETALLE</th>
-                <th style="padding: 10px; text-align: right;">MONTO A FAVOR</th>
+            <tr style="background-color: #fff3e0; color: #e65100; font-size: 13px;">
+                <th style="padding: 10px;">FECHA DÍA ANTERIOR</th>
+                <th style="padding: 10px;">DETALLE AJUSTE</th>
+                <th style="padding: 10px; text-align: right;">DIFERENCIAL ACUMULADO</th>
             </tr>
-            {tripletas_rows_html if tripletas_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Ninguna (0)</td></tr>'}
+            {ajustes_rows_html if ajustes_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Sin ajustes pendientes acumulados.</td></tr>'}
         </table>
     </div>
     '''
 
     bloque_adelantos = f'''
     <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #e91e63;">
-        <h5 style="color: #e91e63; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-hand-holding-usd"></i> ADELANTOS (Plata entregada por Admin - Se resta)</h5>
+        <h5 style="color: #e91e63; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-hand-holding-usd"></i> ADELANTOS (Plata entregada por Admin)</h5>
         <table class="table table-sm align-middle mb-0" style="width: 100%;">
             <tr style="background-color: #fce4ec; color: #880e4f; font-size: 13px;">
                 <th style="padding: 10px;">FECHA</th>
@@ -307,7 +315,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     </div>
     '''
 
-    detalle_actualizado = tabla_sistemas_html + bloque_pagos_banca + bloque_cashea + bloque_tripletas + bloque_adelantos + bloque_pendientes
+    detalle_actualizado = tabla_sistemas_html + bloque_pagos_banca + bloque_cashea + bloque_ajustes + bloque_adelantos + bloque_pendientes
 
     conn = get_db()
     cursor = conn.cursor()
@@ -327,11 +335,23 @@ async def guardar_reporte_colab(request: Request):
     cashea_monto = float(data.get("cashea_monto", 0.0))
     cashea_detalle = data.get("cashea_detalle", "")
 
+    hoy_str = datetime.now().strftime('%Y-%m-%d')
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT id FROM reportes WHERE agencia = %s AND fecha = %s", (agencia, fecha))
+    cursor.execute("SELECT * FROM reportes WHERE agencia = %s AND fecha = %s", (agencia, fecha))
     rep = cursor.fetchone()
+
+    # CONTROL DE REPORTE DÍA ANTERIOR
+    if rep and fecha < hoy_str:
+        monto_anterior = rep['monto'] or 0.0
+        diferencial = monto - monto_anterior
+        if diferencial != 0.0:
+            cursor.execute(
+                "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, %s, %s, 'AJUSTE_PENDIENTE', 'APROBADO')",
+                (agencia, hoy_str, diferencial, f"Ajuste reporte del {fecha}", f"Excedente/Diferencial día anterior del {fecha}")
+            )
+
     if rep:
         cursor.execute(
             "UPDATE reportes SET monto = %s, ventas = %s, premios = %s, detalle_html = %s WHERE id = %s",
@@ -361,7 +381,8 @@ async def guardar_reporte_colab(request: Request):
     conn.close()
 
     recalcular_y_actualizar_reporte(agencia, fecha)
-    return {"status": "ok", "mensaje": "Reporte guardado con éxito"}
+    recalcular_y_actualizar_reporte(agencia, hoy_str)
+    return {"status": "ok", "mensaje": "Reporte y ajustes actualizados con éxito"}
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/login", response_class=HTMLResponse)
@@ -428,7 +449,6 @@ def get_admin(
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (f_desde, f_hasta))
         casheas_generales = [dict(row) for row in cursor.fetchall()]
 
-        # CÁLCULO DE TAQUILLAS ACTIVAS E INACTIVAS
         total_taquillas_creadas = len(agencias)
         taquillas_activas_hoy = 0
         for ag in agencias:
@@ -446,7 +466,6 @@ def get_admin(
         
         totales_auxiliares = {
             "cashea": 0.0,
-            "tripletas": 0.0,
             "adelantos": 0.0,
             "abonos_banca": 0.0
         }
@@ -468,7 +487,7 @@ def get_admin(
                             cols = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', f, re.DOTALL)
                             if len(cols) >= 5:
                                 sys_nombre = re.sub(r'<[^>]+>', '', cols[0]).strip()
-                                if not sys_nombre or "SISTEMA" in sys_nombre.upper() or "TOTALES" in sys_nombre.upper() or "TRIPLETA" in sys_nombre.upper():
+                                if not sys_nombre or "SISTEMA" in sys_nombre.upper() or "TOTALES" in sys_nombre.upper():
                                     continue
                                 try:
                                     v = float(re.sub(r'[^\d.-]', '', cols[1]))
@@ -501,54 +520,60 @@ def get_admin(
                 t_type = str(pa['tipo']).strip().upper() if pa['tipo'] else ''
                 if t_type == 'CASHEA':
                     totales_auxiliares["cashea"] += m_val
-                elif t_type == 'TRIPLETA':
-                    totales_auxiliares["tripletas"] += m_val
                 elif t_type == 'ADELANTO':
                     totales_auxiliares["adelantos"] += m_val
                 elif t_type in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
                     totales_auxiliares["abonos_banca"] += m_val
 
+        # ESTRUCTURA CON LAS COMISIONES COMPLETAS REALES PEDIDAS POR ADMIN
         ESTRUCTURA_BANQUEROS = {
             "COMERCIALIZADORA SUPER APUESTAS": {
                 "sistemas": [
-                    {"sistema": "BETSOL", "pct_agencia": 0.12, "pct_comision_mía": 0.03, "pct_participacion": 0.10, "tipo_participacion": "SALDO"}
+                    {"sistema": "BETSOL", "pct_comision_completa": 0.15, "pct_participacion": 0.10, "tipo_participacion": "SALDO"}
                 ],
                 "cobranza": [],
                 "absorbe_cashea": False
             },
             "COMERCIALIZADORA LOTTOLUCKY": {
                 "sistemas": [
-                    {"sistema": "LOTTOLUCKY", "pct_agencia": 0.13, "pct_comision_mía": 0.04, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
+                    {"sistema": "LOTTOLUCKY", "pct_comision_completa": 0.17, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
                 ],
                 "cobranza": [],
                 "absorbe_cashea": False
             },
             "COMERCIALIZADORA NYS": {
                 "sistemas": [
-                    {"sistema": "POZO", "pct_agencia": 0.11, "pct_comision_mía": 0.01, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"},
-                    {"sistema": "LA IMAGINARIA", "pct_agencia": 0.14, "pct_comision_mía": 0.03, "pct_participacion": 0.35, "tipo_participacion": "TOTAL"},
-                    {"sistema": "WINBIG POLLAS", "pct_agencia": 0.14, "pct_comision_mía": 0.18, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
+                    {"sistema": "POZO", "pct_comision_completa": 0.11, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"},
+                    {"sistema": "LA IMAGINARIA", "pct_comision_completa": 0.17, "pct_participacion": 0.35, "tipo_participacion": "TOTAL"},
+                    {"sistema": "WINBIG POLLAS", "pct_comision_completa": 0.18, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
                 ],
-                "cobranza": ["CALAMAR A", "CALAMAR B"],
+                "cobranza": [
+                    {"nombre": "CALAMAR A", "pct_comision_completa": 0.17, "pct_participacion": 0.25},
+                    {"nombre": "CALAMAR B", "pct_comision_completa": 0.17, "pct_participacion": 0.25}
+                ],
                 "absorbe_cashea": True
             },
             "COMERCIALIZADORA LIDER": {
                 "sistemas": [
-                    {"sistema": "MAXPLAY", "pct_agencia": 0.12, "pct_comision_mía": 0.04, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                    {"sistema": "SRQ", "pct_agencia": 0.12, "pct_comision_mía": 0.04, "pct_participacion": 0.30, "tipo_participacion": "TOTAL"},
-                    {"sistema": "WINBIG VENTAS", "pct_agencia": 0.14, "pct_comision_mía": 0.03, "pct_participacion": 0.30, "tipo_participacion": "TOTAL"},
-                    {"sistema": "GATO", "pct_agencia": 0.12, "pct_comision_mía": 0.04, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                    {"sistema": "LOTIPOS", "pct_agencia": 0.13, "pct_comision_mía": 0.03, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                    {"sistema": "PREMIER", "pct_agencia": 0.12, "pct_comision_mía": 0.04, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"},
-                    {"sistema": "POSNET", "pct_agencia": 0.12, "pct_comision_mía": 0.03, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                    {"sistema": "PARLEY", "pct_agencia": 0.10, "pct_comision_mía": 0.02, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"}
+                    {"sistema": "MAXPLAY", "pct_comision_completa": 0.16, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
+                    {"sistema": "MATRIX", "pct_comision_completa": 0.16, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
+                    {"sistema": "SRQ", "pct_comision_completa": 0.16, "pct_participacion": 0.30, "tipo_participacion": "TOTAL"},
+                    {"sistema": "LOTIPOS", "pct_comision_completa": 0.17, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
+                    {"sistema": "GATO", "pct_comision_completa": 0.16, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
+                    {"sistema": "PREMIER", "pct_comision_completa": 0.16, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"},
+                    {"sistema": "POSNET", "pct_comision_completa": 0.15, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
+                    {"sistema": "PARLEY", "pct_comision_completa": 0.12, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"}
                 ],
-                "cobranza": ["GUACA", "MEGA GUACA", "TRIPLE GUACA"],
+                "cobranza": [
+                    {"nombre": "GUACA", "pct_comision_completa": 0.17, "pct_participacion": 0.30},
+                    {"nombre": "MEGA GUACA", "pct_comision_completa": 0.17, "pct_participacion": 0.30},
+                    {"nombre": "TRIPLE GUACA", "pct_comision_completa": 0.17, "pct_participacion": 0.30}
+                ],
                 "absorbe_cashea": False
             },
             "COMERCIALIZADORA LOTTIPLAY": {
                 "sistemas": [
-                    {"sistema": "LOTTIPLAY", "pct_agencia": 0.12, "pct_comision_mía": 0.03, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
+                    {"sistema": "LOTTIPLAY", "pct_comision_completa": 0.15, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
                 ],
                 "cobranza": [],
                 "absorbe_cashea": False
@@ -575,12 +600,12 @@ def get_admin(
                 s_name = item["sistema"]
                 v_sys = sistemas_consolidados.get(s_name, {}).get("venta", 0.0)
                 p_sys = sistemas_consolidados.get(s_name, {}).get("premio", 0.0)
-                c_agencia = v_sys * item["pct_agencia"]
+                c_agencia = v_sys * item["pct_comision_completa"]
                 
                 t_banquero_sistema = v_sys - c_agencia - p_sys
                 subtotal_banquero += t_banquero_sistema
 
-                g_comision = v_sys * item["pct_comision_mía"]
+                g_comision = c_agencia
                 g_participacion = 0.0
 
                 if item["tipo_participacion"] in ["SALDO", "TOTAL"]:
@@ -597,7 +622,7 @@ def get_admin(
                     "comision_agencia": c_agencia,
                     "premios": p_sys,
                     "total_banquero": t_banquero_sistema,
-                    "pct_comision_mía": item["pct_comision_mía"] * 100,
+                    "pct_comision_mía": item["pct_comision_completa"] * 100,
                     "pct_participacion": item["pct_participacion"] * 100,
                     "ganancia_comision": g_comision,
                     "ganancia_participacion": g_participacion,
@@ -610,7 +635,7 @@ def get_admin(
             total_neto_acumulado_bancas += final_banquero
 
         total_mi_ganancia_global = total_ganancia_comision_global + total_ganancia_participacion_global
-        neto_final_agencia = totales_generales["neto"] - totales_auxiliares["abonos_banca"] + totales_auxiliares["tripletas"] - totales_auxiliares["adelantos"] - totales_auxiliares["cashea"]
+        neto_final_agencia = totales_generales["neto"] - totales_auxiliares["abonos_banca"] - totales_auxiliares["adelantos"] - totales_auxiliares["cashea"]
         neto_menos_cashea = totales_generales["neto"] - totales_auxiliares["cashea"]
 
         positivos = [r for r in reportes if r['monto'] > 0]
@@ -621,7 +646,7 @@ def get_admin(
         print("Error en admin:", e)
         reportes, pagos, casheas_generales, agencias, comunicados, positivos, negativos, sistemas_consolidados = [], [], [], [], [], [], [], {}
         totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
-        totales_auxiliares = {"cashea": 0.0, "tripletas": 0.0, "adelantos": 0.0, "abonos_banca": 0.0}
+        totales_auxiliares = {"cashea": 0.0, "adelantos": 0.0, "abonos_banca": 0.0}
         desglose_banqueros = {}
         total_ganancia_comision_global, total_ganancia_participacion_global, total_mi_ganancia_global, total_neto_acumulado_bancas = 0.0, 0.0, 0.0, 0.0
         neto_final_agencia, neto_menos_cashea = 0.0, 0.0
@@ -654,6 +679,63 @@ def get_admin(
         "tab_activa": tab
     })
 
+@app.post("/admin/procesar-solicitud-dinero")
+async def procesar_solicitud_dinero(
+    pago_id: int = Form(...),
+    tipo_procesamiento: str = Form("PAGO_COMPLETO"), # PAGO_COMPLETO o ABONO
+    monto_abono: Optional[str] = Form(None),
+    comprobante: Optional[UploadFile] = File(None)
+):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM pagos WHERE id = %s", (pago_id,))
+    solicitud = cursor.fetchone()
+
+    if solicitud:
+        agencia_norm = normalizar(solicitud['agencia'])
+        fecha_sol = solicitud['fecha']
+        monto_original = solicitud['monto'] or 0.0
+
+        ruta_cap = ""
+        if comprobante and comprobante.filename:
+            ruta_cap = f"uploads/CAP_{agencia_norm}_{pago_id}_{comprobante.filename}"
+            with open(ruta_cap, "wb") as buffer:
+                buffer.write(await comprobante.read())
+        else:
+            ruta_cap = "Comprobante sin adjunto"
+
+        if tipo_procesamiento == "ABONO" and monto_abono:
+            try:
+                val_abono = float(monto_abono.replace(',', ''))
+            except:
+                val_abono = 0.0
+
+            if val_abono > 0 and val_abono < monto_original:
+                monto_restante = monto_original - val_abono
+                cursor.execute("UPDATE pagos SET monto = %s WHERE id = %s", (monto_restante, pago_id))
+                cursor.execute(
+                    "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'ABONO A SOLICITUD', %s, 'PAGO_BANCA', 'APROBADO')",
+                    (agencia_norm, fecha_sol, val_abono, ruta_cap)
+                )
+                conn.commit()
+                conn.close()
+                recalcular_y_actualizar_reporte(agencia_norm, fecha_sol)
+                return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+
+        cursor.execute("UPDATE pagos SET estado = 'APROBADO', comprobante = %s WHERE id = %s", (ruta_cap, pago_id))
+        cursor.execute(
+            "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'PAGO TOTAL SOLICITUD BANCA', %s, 'PAGO_BANCA', 'APROBADO')",
+            (agencia_norm, fecha_sol, monto_original, ruta_cap)
+        )
+        conn.commit()
+        conn.close()
+        recalcular_y_actualizar_reporte(agencia_norm, fecha_sol)
+
+    else:
+        conn.close()
+
+    return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+
 @app.post("/admin/eliminar-agencia")
 def eliminar_agencia(agencia_id: int = Form(...)):
     conn = get_db()
@@ -682,89 +764,22 @@ def crear_agencia(agencia: str = Form(...), clave: str = Form(...), genero: str 
     conn.close()
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
-@app.post("/admin/publicar-comunicado")
-def publicar_comunicado(mensaje: str = Form(...)):
+@app.post("/agencia/cambiar-clave")
+def cambiar_clave_taquilla(agencia: str = Form(...), clave_actual: str = Form(...), nueva_clave: str = Form(...)):
+    agencia_norm = normalizar(agencia)
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje,))
-    conn.commit()
-    conn.close()
-    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+    cursor.execute("SELECT clave FROM usuarios WHERE agencia = %s", (agencia_norm,))
+    usr = cursor.fetchone()
 
-@app.post("/admin/pagar-solicitud-banca")
-async def pagar_solicitud_banca(
-    pago_id: int = Form(...), 
-    comprobante: Optional[UploadFile] = File(None),
-    monto_abono: Optional[str] = Form(None),
-    pago_id_accion: str = Form("TOTAL")
-):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM pagos WHERE id = %s", (pago_id,))
-    pago = cursor.fetchone()
-
-    if pago:
-        agencia_norm = normalizar(pago['agencia'])
-        fecha_pago = pago['fecha']
-        monto_original = pago['monto']
-        
-        ruta_archivo = ""
-        if comprobante and comprobante.filename:
-            ruta_archivo = f"uploads/BANCA_{agencia_norm}_{pago_id}_{comprobante.filename}"
-            with open(ruta_archivo, "wb") as buffer:
-                buffer.write(await comprobante.read())
-        else:
-            ruta_archivo = pago['comprobante'] or "Pago procesado por Banca"
-
-        if pago_id_accion == 'ABONO' and monto_abono:
-            try:
-                abono_val = float(monto_abono.replace(',', ''))
-            except:
-                abono_val = 0.0
-
-            if abono_val > 0 and abono_val < monto_original:
-                nuevo_restante = monto_original - abono_val
-                cursor.execute("UPDATE pagos SET monto = %s WHERE id = %s", (nuevo_restante, pago_id))
-                cursor.execute(
-                    "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'ABONO A SOLICITUD', %s, 'PAGO_BANCA', 'APROBADO')",
-                    (agencia_norm, fecha_pago, abono_val, ruta_archivo)
-                )
-                conn.commit()
-                conn.close()
-                recalcular_y_actualizar_reporte(agencia_norm, fecha_pago)
-                return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
-
-        cursor.execute("UPDATE pagos SET estado = 'APROBADO', comprobante = %s WHERE id = %s", (ruta_archivo, pago_id))
-        cursor.execute(
-            "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'PAGO DE REPORTES', %s, 'PAGO_BANCA', 'APROBADO')",
-            (agencia_norm, fecha_pago, monto_original, ruta_archivo)
-        )
+    if usr and usr['clave'] == clave_actual:
+        cursor.execute("UPDATE usuarios SET clave = %s WHERE agencia = %s", (nueva_clave, agencia_norm))
         conn.commit()
         conn.close()
-        recalcular_y_actualizar_reporte(agencia_norm, fecha_pago)
-    else:
-        conn.close()
-
-    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/eliminar-transaccion")
-def eliminar_transaccion(pago_id: int = Form(...)):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM pagos WHERE id = %s", (pago_id,))
-    pago = cursor.fetchone()
+        return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&msg=Clave+actualizada+con+éxito", status_code=status.HTTP_303_SEE_OTHER)
     
-    if pago:
-        agencia_norm = normalizar(pago['agencia'])
-        fecha_pago = pago['fecha']
-        cursor.execute("DELETE FROM pagos WHERE id = %s", (pago_id,))
-        conn.commit()
-        conn.close()
-        recalcular_y_actualizar_reporte(agencia_norm, fecha_pago)
-    else:
-        conn.close()
-
-    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+    conn.close()
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&error=Clave+actual+incorrecta", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/agencia", response_class=HTMLResponse)
 def get_agencia(request: Request, nombre: str = ""):
@@ -808,36 +823,6 @@ def get_agencia(request: Request, nombre: str = ""):
         "sistemas": SISTEMAS_OFICIALES
     })
 
-@app.post("/marcar-comunicado-leido")
-def marcar_comunicado_leido(agencia: str = Form(...), comunicado_id: int = Form(...)):
-    agencia_norm = normalizar(agencia)
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO lecturas_comunicados (comunicado_id, agencia, leido) VALUES (%s, %s, 1) ON CONFLICT (comunicado_id, agencia) DO NOTHING", (comunicado_id, agencia_norm))
-    conn.commit()
-    conn.close()
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/reportar")
-async def reportar_pago(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...), factura: str = Form(...), comprobante: UploadFile = File(...)):
-    agencia_norm = normalizar(agencia)
-    try:
-        monto_val = float(monto.replace(',', '')) if monto else 0.0
-    except:
-        monto_val = 0.0
-        
-    ruta_archivo = f"uploads/{agencia_norm}_{factura}_{comprobante.filename}"
-    with open(ruta_archivo, "wb") as buffer:
-        buffer.write(await comprobante.read())
-
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, %s, %s, 'PAGO_TAQUILLA', 'APROBADO')", (agencia_norm, fecha, monto_val, factura, ruta_archivo))
-    conn.commit()
-    conn.close()
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
-
 @app.post("/solicitar-banca")
 def solicitar_banca(agencia: str = Form(...), fecha: str = Form(...), monto: str = Form(...)):
     agencia_norm = normalizar(agencia)
@@ -867,24 +852,6 @@ def solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), monto: 
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, %s, %s, 'ADELANTO', 'APROBADO')", (agencia_norm, fecha, monto_val, observacion, observacion))
-    conn.commit()
-    conn.close()
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/reportar-tripleta")
-def reportar_tripleta(agencia: str = Form(...), fecha: str = Form(...), sistema: str = Form(...), ticket: str = Form(...), monto: str = Form(...)):
-    agencia_norm = normalizar(agencia)
-    try:
-        monto_val = float(monto.replace(',', '')) if monto else 0.0
-    except:
-        monto_val = 0.0
-        
-    detalle_str = f"Sistema: {sistema} | Ticket: {ticket}"
-
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, %s, %s, 'TRIPLETA', 'APROBADO')", (agencia_norm, fecha, monto_val, ticket, detalle_str))
     conn.commit()
     conn.close()
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
