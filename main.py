@@ -45,20 +45,36 @@ templates.env.filters["dinero"] = formatear_monto
 def get_db():
     database_url = os.environ.get("DATABASE_URL")
     if database_url:
-        # Desglosamos la URL de forma segura para que psycopg2 reciba los parámetros limpios
-        url = urlparse.urlparse(database_url)
-        # urlparse.unquote recupera la contraseña original sin importar cómo esté codificada
-        password_original = urlparse.unquote(url.password) if url.password else ""
-        
-        conn = psycopg2.connect(
-            dbname=url.path[1:],
-            user=url.username,
-            password=password_original,
-            host=url.hostname,
-            port=url.port if url.port else 6543,
-            sslmode='require',
-            cursor_factory=psycopg2.extras.RealDictCursor
-        )
+        # Extraemos la contraseña cruda asegurando que admita cualquier carácter especial sin fallos
+        try:
+            # Separamos manualmente por partes para evitar el fallo de urlparse con el símbolo #
+            # Formato esperado: postgresql://usuario:contraseña@host:puerto/dbname
+            without_prefix = database_url.replace("postgresql://", "")
+            auth_part, rest = without_prefix.split("@")
+            user, password = auth_part.split(":", 1)
+            host_port, dbname = rest.split("/")
+            
+            if ":" in host_port:
+                host, port = host_port.split(":")
+            else:
+                host, port = host_port, "6543"
+
+            conn = psycopg2.connect(
+                dbname=dbname,
+                user=user,
+                password=urlparse.unquote(password),
+                host=host,
+                port=port,
+                sslmode='require',
+                cursor_factory=psycopg2.extras.RealDictCursor
+            )
+        except Exception:
+            # Plan de respaldo si la estructura varía: conexión directa por DSN
+            conn = psycopg2.connect(
+                database_url,
+                sslmode='require',
+                cursor_factory=psycopg2.extras.RealDictCursor
+            )
     else:
         # Fallback local si no hay variable de entorno
         import sqlite3
