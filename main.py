@@ -617,38 +617,41 @@ def get_admin(
 
                 total_ganancia_diferencial_global += g_excedente_pct
                 total_ganancia_participacion_global += g_participacion
-# REGLAS DE PORCENTAJES FIJOS SOLICITADOS
-                        s_upper = s_name.upper()
-                        pct_dif_val = pct_excedente_real  
-                        pct_part_val = item.get("pct_participacion", 0.0) * 100 if "pct_participacion" in item else 0.0
 
-                        if "BETSOL" in s_upper:
-                            pct_dif_val = 3.0
-                            pct_part_val = 10.0
-                        elif "POZO" in s_upper:
-                            pct_dif_val = 1.0
-                            pct_part_val = 0.0
-                        elif "MATRIX" in s_upper:
-                            pct_dif_val = 4.0
-                        elif "GATO" in s_upper:
-                            pct_dif_val = 4.0
-                        elif "POSNET" in s_upper:
-                            pct_dif_val = 3.0
-                        elif "PARLEY" in s_upper:
-                            pct_dif_val = 2.0
+                # REGLAS DE PORCENTAJES FIJOS SOLICITADOS
+                s_upper = s_name.upper()
+                pct_dif_val = pct_excedente_real  
+                pct_part_val = item.get("pct_participacion", 0.0) * 100 if "pct_participacion" in item else 0.0
 
-                        g_total_privada = v_sys * (pct_dif_val / 100.0)
+                if "BETSOL" in s_upper:
+                    pct_dif_val = 3.0
+                    pct_part_val = 10.0
+                elif "POZO" in s_upper:
+                    pct_dif_val = 1.0
+                    pct_part_val = 0.0
+                elif "MATRIX" in s_upper:
+                    pct_dif_val = 4.0
+                elif "GATO" in s_upper:
+                    pct_dif_val = 4.0
+                elif "POSNET" in s_upper:
+                    pct_dif_val = 3.0
+                elif "PARLEY" in s_upper:
+                    pct_dif_val = 2.0
 
-                        desglose_banqueros[b_nombre]["sistemas"].append({
-                            "sistema": s_name,
-                            "venta": v_sys,
-                            "comision_agencia": c_taquillas_pagada,
-                            "premios": p_sys,
-                            "total_banquero": t_banquero_sistema,
-                            "pct_diferencial": int(pct_dif_val) if pct_dif_val.is_integer() else pct_dif_val,
-                            "pct_participacion": int(pct_part_val) if pct_part_val.is_integer() else pct_part_val,
-                            "mi_ganancia_total": g_total_privada
-                        })
+                g_total_privada = v_sys * (pct_dif_val / 100.0)
 
-                        # Acumular el total definitivo del banquero para que no salga en 0
-                        desglose_banqueros[b_nombre]["total"] += t_banquero_sistema
+                desglose_banqueros[b_nombre]["sistemas"].append({
+                    "sistema": s_name,
+                    "venta": v_sys,
+                    "comision_agencia": c_taquillas_pagada,
+                    "premios": p_sys,
+                    "total_banquero": t_banquero_sistema,
+                    "pct_diferencial": int(pct_dif_val) if pct_dif_val.is_integer() else pct_dif_val,
+                    "pct_participacion": int(pct_part_val) if pct_part_val.is_integer() else pct_part_val,
+                    "mi_ganancia_total": g_total_privada
+                })
+
+                # Acumular el total definitivo del banquero para que no salga en 0
+                if "total" not in desglose_banqueros[b_nombre]:
+                    desglose_banqueros[b_nombre]["total"] = 0.0
+                desglose_banqueros[b_nombre]["total"] += t_banquero_sistema
