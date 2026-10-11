@@ -45,10 +45,7 @@ templates.env.filters["dinero"] = formatear_monto
 def get_db():
     database_url = os.environ.get("DATABASE_URL")
     if database_url:
-        # Extraemos la contraseña cruda asegurando que admita cualquier carácter especial sin fallos
         try:
-            # Separamos manualmente por partes para evitar el fallo de urlparse con el símbolo #
-            # Formato esperado: postgresql://usuario:contraseña@host:puerto/dbname
             without_prefix = database_url.replace("postgresql://", "")
             auth_part, rest = without_prefix.split("@")
             user, password = auth_part.split(":", 1)
@@ -69,14 +66,12 @@ def get_db():
                 cursor_factory=psycopg2.extras.RealDictCursor
             )
         except Exception:
-            # Plan de respaldo si la estructura varía: conexión directa por DSN
             conn = psycopg2.connect(
                 database_url,
                 sslmode='require',
                 cursor_factory=psycopg2.extras.RealDictCursor
             )
     else:
-        # Fallback local si no hay variable de entorno
         import sqlite3
         conn = sqlite3.connect("database.db", timeout=30.0)
         conn.row_factory = sqlite3.Row
@@ -86,7 +81,6 @@ def init_db():
     conn = get_db()
     cursor = conn.cursor()
     
-    # Supabase / PostgreSQL tables setup
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             id SERIAL PRIMARY KEY,
@@ -393,7 +387,12 @@ def publicar_comunicado(mensaje: str = Form(...)):
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/pagar-solicitud-banca")
-async def pagar_solicitud_banca(pago_id: int = Form(...), comprobante: UploadFile = File(...)):
+async def pagar_solicitud_banca(
+    pago_id: int = Form(...), 
+    comprobante: Optional[UploadFile] = File(None),
+    monto_abono: Optional[str] = Form(None),
+    accion_pago: str = Form(...) # 'ABONO' o 'TOTAL'
+):
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM pagos WHERE id = %s", (pago_id,))
@@ -402,16 +401,41 @@ async def pagar_solicitud_banca(pago_id: int = Form(...), comprobante: UploadFil
     if pago:
         agencia_norm = normalizar(pago['agencia'])
         fecha_pago = pago['fecha']
-        monto_pago = pago['monto']
+        monto_original = pago['monto']
         
-        ruta_archivo = f"uploads/BANCA_{agencia_norm}_{pago_id}_{comprobante.filename}"
-        with open(ruta_archivo, "wb") as buffer:
-            buffer.write(await comprobante.read())
+        ruta_archivo = ""
+        if comprobante and comprobante.filename:
+            ruta_archivo = f"uploads/BANCA_{agencia_norm}_{pago_id}_{comprobante.filename}"
+            with open(ruta_archivo, "wb") as buffer:
+                buffer.write(await comprobante.read())
+        else:
+            ruta_archivo = pago['comprobante'] or "Pago procesado por Banca"
 
+        if accion_pago == 'ABONO' and monto_abono:
+            try:
+                abono_val = float(monto_abono.replace(',', ''))
+            except:
+                abono_val = 0.0
+
+            if abono_val > 0 and abono_val < monto_original:
+                nuevo_restante = monto_original - abono_val
+                # Actualizamos la solicitud actual con el monto restante
+                cursor.execute("UPDATE pagos SET monto = %s WHERE id = %s", (nuevo_restante, pago_id))
+                # Insertamos el registro del abono aprobado
+                cursor.execute(
+                    "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'ABONO A SOLICITUD', %s, 'PAGO_BANCA', 'APROBADO')",
+                    (agencia_norm, fecha_pago, abono_val, ruta_archivo)
+                )
+                conn.commit()
+                conn.close()
+                recalcular_y_actualizar_reporte(agencia_norm, fecha_pago)
+                return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+
+        # Si es pago total o el abono cubre el total
         cursor.execute("UPDATE pagos SET estado = 'APROBADO', comprobante = %s WHERE id = %s", (ruta_archivo, pago_id))
         cursor.execute(
             "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'PAGO DE REPORTES', %s, 'PAGO_BANCA', 'APROBADO')",
-            (agencia_norm, fecha_pago, monto_pago, ruta_archivo)
+            (agencia_norm, fecha_pago, monto_original, ruta_archivo)
         )
         conn.commit()
         conn.close()
@@ -644,7 +668,7 @@ def actualizar_reporte_sistema(agencia: str = Form(...), fecha: str = Form(...),
         cursor.execute("UPDATE reportes SET detalle_html = %s WHERE id = %s", (detalle_html, rep['id']))
         conn.commit()
 
-    detalle_transaccion = f"Modificación {sistema} - Venta: {venta_val:,.2f} | Premio: {premio_val:,.2f}"
+    detalle_transaccion = f"Modificación {sistema}"
     cursor.execute(
         "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'MODIFICACION', %s, 'MODIFICACION', 'APROBADO')",
         (agencia_norm, fecha, 0.0, detalle_transaccion)
