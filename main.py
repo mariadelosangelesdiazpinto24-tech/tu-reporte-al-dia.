@@ -87,7 +87,8 @@ def init_db():
             id SERIAL PRIMARY KEY,
             agencia TEXT UNIQUE,
             clave TEXT,
-            genero TEXT DEFAULT 'FEMENINO'
+            genero TEXT DEFAULT 'FEMENINO',
+            ultima_conexion TEXT
         )
     ''')
 
@@ -138,6 +139,19 @@ def init_db():
     conn.close()
 
 init_db()
+
+def actualizar_ultima_conexion(agencia: str):
+    agencia_norm = normalizar(agencia)
+    if agencia_norm and agencia_norm != "ADMIN":
+        try:
+            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE usuarios SET ultima_conexion = %s WHERE agencia = %s", (now_str, agencia_norm))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print("Error actualizando conexion:", e)
 
 def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     agencia_norm = normalizar(agencia)
@@ -372,6 +386,7 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
     conn.close()
 
     if user_data and user_data['clave'] == clave:
+        actualizar_ultima_conexion(usuario_norm)
         response = RedirectResponse(url=f"/agencia?nombre={usuario_norm}", status_code=status.HTTP_303_SEE_OTHER)
         response.set_cookie(key="user", value=usuario_norm)
         return response
@@ -412,6 +427,19 @@ def get_admin(
         else:
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (f_desde, f_hasta))
         casheas_generales = [dict(row) for row in cursor.fetchall()]
+
+        # CÁLCULO DE TAQUILLAS ACTIVAS E INACTIVAS
+        total_taquillas_creadas = len(agencias)
+        taquillas_activas_hoy = 0
+        for ag in agencias:
+            u_conn = ag.get('ultima_conexion') or ''
+            if u_conn and u_conn.startswith(hoy_str):
+                ag['estado_conexion'] = 'ACTIVA'
+                taquillas_activas_hoy += 1
+            elif u_conn:
+                ag['estado_conexion'] = 'RECIENTE'
+            else:
+                ag['estado_conexion'] = 'SIN_CONEXION'
 
         sistemas_consolidados = {}
         totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
@@ -480,7 +508,6 @@ def get_admin(
                 elif t_type in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
                     totales_auxiliares["abonos_banca"] += m_val
 
-        # ESTRUCTURA DE CONFIGURACIÓN DE BANQUEROS, COBRANZAS Y REGLAS FINANCIERAS
         ESTRUCTURA_BANQUEROS = {
             "COMERCIALIZADORA SUPER APUESTAS": {
                 "sistemas": [
@@ -550,11 +577,9 @@ def get_admin(
                 p_sys = sistemas_consolidados.get(s_name, {}).get("premio", 0.0)
                 c_agencia = v_sys * item["pct_agencia"]
                 
-                # TOTAL PARA EL BANQUERO (LO QUE SE LE IMPRIME AL BANQUERO)
                 t_banquero_sistema = v_sys - c_agencia - p_sys
                 subtotal_banquero += t_banquero_sistema
 
-                # CÁLCULOS PRIVADOS DE GANANCIA
                 g_comision = v_sys * item["pct_comision_mía"]
                 g_participacion = 0.0
 
@@ -600,6 +625,7 @@ def get_admin(
         desglose_banqueros = {}
         total_ganancia_comision_global, total_ganancia_participacion_global, total_mi_ganancia_global, total_neto_acumulado_bancas = 0.0, 0.0, 0.0, 0.0
         neto_final_agencia, neto_menos_cashea = 0.0, 0.0
+        total_taquillas_creadas, taquillas_activas_hoy = 0, 0
         f_desde, f_hasta, agencia_filtro = datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%Y-%m-%d'), ""
 
     return templates.TemplateResponse(request=request, name="admin.html", context={
@@ -620,11 +646,22 @@ def get_admin(
         "total_ganancia_participacion_global": total_ganancia_participacion_global,
         "total_mi_ganancia_global": total_mi_ganancia_global,
         "total_neto_acumulado_bancas": total_neto_acumulado_bancas,
+        "total_taquillas_creadas": total_taquillas_creadas,
+        "taquillas_activas_hoy": taquillas_activas_hoy,
         "agencia_filtro": agencia_filtro,
         "desde_fecha": f_desde,
         "hasta_fecha": f_hasta,
         "tab_activa": tab
     })
+
+@app.post("/admin/eliminar-agencia")
+def eliminar_agencia(agencia_id: int = Form(...)):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM usuarios WHERE id = %s", (agencia_id,))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/crear-agencia")
 def crear_agencia(agencia: str = Form(...), clave: str = Form(...), genero: str = Form("FEMENINO")):
@@ -732,6 +769,8 @@ def eliminar_transaccion(pago_id: int = Form(...)):
 @app.get("/agencia", response_class=HTMLResponse)
 def get_agencia(request: Request, nombre: str = ""):
     nombre_norm = normalizar(nombre)
+    actualizar_ultima_conexion(nombre_norm)
+    
     conn = get_db()
     cursor = conn.cursor()
     
