@@ -668,6 +668,13 @@ def get_admin(
         sistemas_consolidados = {}
         totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
 
+        # Cálculo para el desglose de banqueros y ganancias
+        total_ganancia_diferencial_global = 0.0
+        total_ganancia_participacion_global = 0.0
+        total_acumulado_cuentas_bancarias = 0.0
+        total_mi_ganancia_global = 0.0
+        desglose_banqueros = {}
+
         agencias_a_procesar = [normalizar(agencia_filtro)] if agencia_filtro else [a['agencia'] for a in agencias]
 
         for ag in agencias_a_procesar:
@@ -677,6 +684,14 @@ def get_admin(
             )
             reps_db = cursor.fetchall()
             for rep_db in reps_db:
+                neto_rep = rep_db['monto'] or 0.0
+                total_mi_ganancia_global += neto_rep
+                
+                if ag not in desglose_banqueros:
+                    desglose_banqueros[ag] = {"total": 0.0, "cantidad": 0}
+                desglose_banqueros[ag]["total"] += neto_rep
+                desglose_banqueros[ag]["cantidad"] += 1
+
                 if rep_db and rep_db['detalle_html']:
                     tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', rep_db['detalle_html'], re.DOTALL)
                     if tabla_match:
@@ -714,7 +729,11 @@ def get_admin(
         conn.close()
     except Exception as e:
         print("Error en admin:", e)
-        reportes, pagos, agencias, comunicados, positivos, negativos, sistemas_consolidados, totales_generales, casheas_generales = [], [], [], [], [], [], {}, {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}, []
+        reportes, pagos, agencias, comunicados, positivos, negativos, sistemas_consolidados, totales_generales, casheas_generales, desglose_banqueros = [], [], [], [], [], [], {}, {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}, [], {}
+        total_ganancia_diferencial_global = 0.0
+        total_ganancia_participacion_global = 0.0
+        total_acumulado_cuentas_bancarias = 0.0
+        total_mi_ganancia_global = 0.0
 
     return templates.TemplateResponse(request=request, name="admin.html", context={
         "reportes": reportes, 
@@ -730,11 +749,11 @@ def get_admin(
         "hasta_fecha": f_hasta,
         "casheas_generales": casheas_generales,
         "tab_activa": tab,
-        "total_ganancia_diferencial_global": 0.0,
-        "total_ganancia_participacion_global": 0.0,
-        "total_acumulado_cuentas_bancarias": 0.0,
-        "total_mi_ganancia_global": 0.0,
-        "desglose_banqueros": {}
+        "total_ganancia_diferencial_global": total_ganancia_diferencial_global,
+        "total_ganancia_participacion_global": total_ganancia_participacion_global,
+        "total_acumulado_cuentas_bancarias": total_acumulado_cuentas_bancarias,
+        "total_mi_ganancia_global": total_mi_ganancia_global,
+        "desglose_banqueros": desglose_banqueros
     })
 
 @app.post("/admin/crear-agencia")
