@@ -33,7 +33,21 @@
             </div>
         </div>
 
-        <!-- NOTIFICACIONES Y COMUNICADOS PENDIENTES DE LECTURA -->
+        <!-- MENSAJES / ALERTAS -->
+        {% if request.query_params.get('msg') %}
+        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+            {{ request.query_params.get('msg') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endif %}
+        {% if request.query_params.get('error') %}
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+            {{ request.query_params.get('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endif %}
+
+        <!-- COMUNICADOS PENDIENTES -->
         {% if comunicados_pendientes %}
             {% for com in comunicados_pendientes %}
             <div class="alert alert-warning alert-dismissible fade show shadow-sm border-2 border-warning mb-4" role="alert" style="border-radius: 12px;">
@@ -52,7 +66,7 @@
             {% endfor %}
         {% endif %}
 
-        <!-- CAMBIO DE CONTRASEÑA -->
+        <!-- CAMBIO DE CLAVE -->
         <div class="card shadow-sm border-0 mb-4" style="border-radius: 12px; border-left: 5px solid #0d6efd;">
             <div class="card-body">
                 <h6 class="fw-bold text-primary mb-3"><i class="fas fa-key me-1"></i> Cambiar mi Contraseña de Acceso</h6>
@@ -73,7 +87,7 @@
             </div>
         </div>
 
-        <!-- SOLICITAR DINERO A LA BANCA -->
+        <!-- SOLICITAR BANCA -->
         <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
             <div class="card-body">
                 <h5 class="fw-bold text-agency-theme mb-3"><i class="fas fa-hand-holding-usd"></i> Solicitar Cobro / Dinero a la Banca</h5>
@@ -94,20 +108,23 @@
             </div>
         </div>
 
-        <!-- REPORTE MÁS RECIENTE DE LA TAQUILLA -->
+        <!-- REPORTES DIARIOS DE LA TAQUILLA -->
         {% if reportes %}
         <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px;">
             <div class="card-body">
-                <h5 class="fw-bold text-dark mb-3"><i class="fas fa-file-invoice-dollar me-2"></i> Mi Reporte Diario de Cuentas</h5>
-                <div class="border rounded p-3 bg-white shadow-sm">
-                    {{ reportes[0].detalle_html | safe }}
+                <h5 class="fw-bold text-dark mb-3"><i class="fas fa-file-invoice-dollar me-2"></i> Mis Reportes Diarios de Cuentas</h5>
+                {% for rep in reportes %}
+                <div class="border rounded p-3 bg-white shadow-sm mb-3">
+                    <h6 class="fw-bold text-agency-theme border-bottom pb-2">Fecha: {{ rep.fecha }}</h6>
+                    {{ rep.detalle_html | safe }}
                 </div>
+                {% endfor %}
             </div>
         </div>
         {% else %}
         <div class="alert alert-info text-center py-4 shadow-sm" style="border-radius: 15px;">
             <i class="fas fa-info-circle fs-4 mb-2"></i>
-            <h6>No hay reportes cargados para esta agencia el día de hoy.</h6>
+            <h6>No hay reportes cargados actualmente para esta agencia.</h6>
         </div>
         {% endif %}
 
