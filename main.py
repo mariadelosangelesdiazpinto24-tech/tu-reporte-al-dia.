@@ -403,7 +403,6 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
 
     return templates.TemplateResponse(request=request, name="login.html", context={"error": "Usuario o clave incorrectos"})
 
-# === RUTA AGENCIA ===
 @app.get("/agencia", response_class=HTMLResponse)
 def get_agencia(request: Request, nombre: str = ""):
     nombre_norm = normalizar(nombre)
@@ -496,7 +495,6 @@ def solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), monto: 
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
-# === RUTA ADMIN ===
 @app.get("/admin", response_class=HTMLResponse)
 def get_admin(
     request: Request, 
@@ -531,8 +529,6 @@ def get_admin(
         else:
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (f_desde, f_hasta))
         casheas_generales = [dict(row) for row in cursor.fetchall()]
-
-        total_taquillas_creadas = len(agencias)
 
         for ag in agencias:
             cursor.execute("SELECT monto FROM reportes WHERE agencia = %s AND fecha = %s", (ag['agencia'], hoy_str))
@@ -603,266 +599,28 @@ def get_admin(
                 elif t_type in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
                     totales_auxiliares["abonos_banca"] += m_val
 
-        ESTRUCTURA_BANQUEROS = {
-            "COMERCIALIZADORA SUPER APUESTAS": {
-                "sistemas": [
-                    {"sistema": "BETSOL", "pct_comision_completa": 0.15, "pct_participacion": 0.10, "tipo_participacion": "SALDO"}
-                ],
-                "cobranza": [],
-                "absorbe_cashea": False
-            },
-            "COMERCIALIZADORA LOTTOLUCKY": {
-                "sistemas": [
-                    {"sistema": "LOTTOLUCKY", "pct_comision_completa": 0.17, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
-                ],
-                "cobranza": [],
-                "absorbe_cashea": False
-            },
-            "COMERCIALIZADORA NYS": {
-                "sistemas": [
-                    {"sistema": "POZO", "pct_comision_completa": 0.11, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"},
-                    {"sistema": "LA IMAGINARIA", "pct_comision_completa": 0.17, "pct_participacion": 0.35, "tipo_participacion": "TOTAL"},
-                    {"sistema": "WINBIG POLLAS", "pct_comision_completa": 0.18, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
-                ],
-                "cobranza": [
-                    {"nombre": "CALAMAR A", "pct_comision_completa": 0.17, "pct_participacion": 0.25},
-                    {"nombre": "CALAMAR B", "pct_comision_completa": 0.17, "pct_participacion": 0.25}
-                ],
-                "absorbe_cashea": True
-            },
-            "COMERCIALIZADORA LIDER": {
-                "sistemas": [
-                    {"sistema": "MAXPLAY", "pct_comision_completa": 0.16, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                    {"sistema": "MATRIX", "pct_comision_completa": 0.16, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                    {"sistema": "SRQ", "pct_comision_completa": 0.16, "pct_participacion": 0.30, "tipo_participacion": "TOTAL"},
-                    {"sistema": "LOTIPOS", "pct_comision_completa": 0.17, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                    {"sistema": "GATO", "pct_comision_completa": 0.16, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                    {"sistema": "PREMIER", "pct_comision_completa": 0.16, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"},
-                    {"sistema": "POSNET", "pct_comision_completa": 0.15, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"},
-                    {"sistema": "PARLEY", "pct_comision_completa": 0.12, "pct_participacion": 0.20, "tipo_participacion": "TOTAL"}
-                ],
-                "cobranza": [
-                    {"nombre": "GUACA", "pct_comision_completa": 0.17, "pct_participacion": 0.30},
-                    {"nombre": "MEGA GUACA", "pct_comision_completa": 0.17, "pct_participacion": 0.30},
-                    {"nombre": "TRIPLE GUACA", "pct_comision_completa": 0.17, "pct_participacion": 0.30}
-                ],
-                "absorbe_cashea": False
-            },
-            "COMERCIALIZADORA LOTTIPLAY": {
-                "sistemas": [
-                    {"sistema": "LOTTIPLAY", "pct_comision_completa": 0.15, "pct_participacion": 0.00, "tipo_participacion": "NINGUNA"}
-                ],
-                "cobranza": [],
-                "absorbe_cashea": False
-            }
-        }
-
-        desglose_banqueros = {}
-        total_ganancia_diferencial_global = 0.0
-        total_ganancia_participacion_global = 0.0
-        total_acumulado_cuentas_bancarias = 0.0
-
-        for b_nombre, cfg in ESTRUCTURA_BANQUEROS.items():
-            desglose_banqueros[b_nombre] = {
-                "sistemas": [],
-                "cobranza": cfg["cobranza"],
-                "cashea_descontado": totales_auxiliares["cashea"] if cfg["absorbe_cashea"] else 0.0,
-                "total_a_pagar_banquero": 0.0,
-                "total_mi_ganancia_banca": 0.0
-            }
-
-            subtotal_banquero = 0.0
-
-            for item in cfg["sistemas"]:
-                s_name = item["sistema"]
-                v_sys = sistemas_consolidados.get(s_name, {}).get("venta", 0.0)
-                p_sys = sistemas_consolidados.get(s_name, {}).get("premio", 0.0)
-                c_taquillas_pagada = sistemas_consolidados.get(s_name, {}).get("comision", 0.0)
-                
-                c_banquero_total = v_sys * item["pct_comision_completa"]
-                t_banquero_sistema = v_sys - c_banquero_total - p_sys
-                subtotal_banquero += t_banquero_sistema
-
-                g_excedente_pct = c_banquero_total - c_taquillas_pagada
-                pct_excedente_real = (g_excedente_pct / v_sys * 100) if v_sys > 0 else (item["pct_comision_completa"] * 100 - 13.0)
-
-                g_participacion = 0.0
-                if item["tipo_participacion"] in ["SALDO", "TOTAL"]:
-                    g_participacion = t_banquero_sistema * item["pct_participacion"]
-
-                g_total_privada = g_excedente_pct + g_participacion
-
-                total_ganancia_diferencial_global += g_excedente_pct
-                total_ganancia_participacion_global += g_participacion
-
-                desglose_banqueros[b_nombre]["sistemas"].append({
-                    "sistema": s_name,
-                    "venta": v_sys,
-                    "comision_agencia": c_banquero_total,
-                    "premios": p_sys,
-                    "total_banquero": t_banquero_sistema,
-                    "pct_diferencial": pct_excedente_real,
-                    "pct_participacion": item["pct_participacion"] * 100,
-                    "ganancia_diferencial": g_excedente_pct,
-                    "ganancia_participacion": g_participacion,
-                    "mi_ganancia_total": g_total_privada
-                })
-                desglose_banqueros[b_nombre]["total_mi_ganancia_banca"] += g_total_privada
-
-            final_banquero = subtotal_banquero - desglose_banqueros[b_nombre]["cashea_descontado"]
-            desglose_banqueros[b_nombre]["total_a_pagar_banquero"] = final_banquero
-            total_acumulado_cuentas_bancarias += final_banquero
-
-        total_mi_ganancia_global = total_ganancia_diferencial_global + total_ganancia_participacion_global
         positivos = [r for r in reportes if r['monto'] > 0]
         negativos = [r for r in reportes if r['monto'] < 0]
 
         conn.close()
     except Exception as e:
         print("Error en admin:", e)
-        reportes, pagos, casheas_generales, agencias, comunicados, positivos, negativos, sistemas_consolidados = [], [], [], [], [], [], [], {}
-        totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
-        totales_auxiliares = {"cashea": 0.0, "adelantos": 0.0, "abonos_banca": 0.0}
-        desglose_banqueros = {}
-        total_ganancia_diferencial_global, total_ganancia_participacion_global, total_mi_ganancia_global, total_acumulado_cuentas_bancarias = 0.0, 0.0, 0.0, 0.0
-        total_taquillas_creadas = 0
-        f_desde, f_hasta, agencia_filtro = datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%Y-%m-%d'), ""
+        reportes, pagos, agencias, comunicados, positivos, negativos, sistemas_consolidados, totales_generales = [], [], [], [], [], [], {}, {}
 
     return templates.TemplateResponse(request=request, name="admin.html", context={
         "reportes": reportes, 
         "pagos": pagos, 
-        "casheas_generales": casheas_generales,
         "agencias": agencias, 
         "comunicados": comunicados,
         "positivos": positivos,
         "negativos": negativos,
         "sistemas_consolidados": sistemas_consolidados,
         "totales_generales": totales_generales,
-        "totales_auxiliares": totales_auxiliares,
-        "desglose_banqueros": desglose_banqueros,
-        "total_ganancia_diferencial_global": total_ganancia_diferencial_global,
-        "total_ganancia_participacion_global": total_ganancia_participacion_global,
-        "total_mi_ganancia_global": total_mi_ganancia_global,
-        "total_acumulado_cuentas_bancarias": total_acumulado_cuentas_bancarias,
-        "total_taquillas_creadas": total_taquillas_creadas,
-        "agencia_filtro": agencia_filtro,
+        "filtro_agencia": agencia_filtro,
         "desde_fecha": f_desde,
         "hasta_fecha": f_hasta,
-        "tab_activa": tab
+        "casheas_generales": casheas_generales
     })
-
-@app.post("/admin/procesar-solicitud-dinero")
-async def procesar_solicitud_dinero(
-    pago_id: int = Form(...),
-    tipo_procesamiento: str = Form("PAGO_COMPLETO"),
-    monto_abono: Optional[str] = Form(None),
-    comprobante: Optional[UploadFile] = File(None)
-):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM pagos WHERE id = %s", (pago_id,))
-    solicitud = cursor.fetchone()
-
-    if solicitud:
-        agencia_norm = normalizar(solicitud['agencia'])
-        fecha_sol = solicitud['fecha']
-        monto_original = solicitud['monto'] or 0.0
-
-        ruta_cap = ""
-        if comprobante and comprobante.filename:
-            ruta_cap = f"uploads/CAP_{agencia_norm}_{pago_id}_{comprobante.filename}"
-            with open(ruta_cap, "wb") as buffer:
-                buffer.write(await comprobante.read())
-        else:
-            ruta_cap = "Comprobante sin adjunto"
-
-        if tipo_procesamiento == "ABONO" and monto_abono:
-            try:
-                val_abono = float(monto_abono.replace(',', ''))
-            except:
-                val_abono = 0.0
-
-            if val_abono > 0 and val_abono < monto_original:
-                monto_restante = monto_original - val_abono
-                cursor.execute("UPDATE pagos SET monto = %s WHERE id = %s", (monto_restante, pago_id))
-                cursor.execute(
-                    "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'ABONO A SOLICITUD', %s, 'PAGO_BANCA', 'APROBADO')",
-                    (agencia_norm, fecha_sol, val_abono, ruta_cap)
-                )
-                conn.commit()
-                conn.close()
-                recalcular_y_actualizar_reporte(agencia_norm, fecha_sol)
-                return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
-
-        cursor.execute("UPDATE pagos SET estado = 'APROBADO', comprobante = %s WHERE id = %s", (ruta_cap, pago_id))
-        cursor.execute(
-            "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, 'PAGO TOTAL SOLICITUD BANCA', %s, 'PAGO_BANCA', 'APROBADO')",
-            (agencia_norm, fecha_sol, monto_original, ruta_cap)
-        )
-        conn.commit()
-        conn.close()
-        recalcular_y_actualizar_reporte(agencia_norm, fecha_sol)
-
-    else:
-        conn.close()
-
-    return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/eliminar-agencia")
-def eliminar_agencia(agencia_id: int = Form(...)):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM usuarios WHERE id = %s", (agencia_id,))
-    conn.commit()
-    conn.close()
-    return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/crear-agencia")
-def crear_agencia(agencia: str = Form(...), clave: str = Form(...), genero: str = Form("FEMENINO")):
-    agencia_norm = normalizar(agencia)
-    genero_val = genero.upper()
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT id FROM usuarios WHERE agencia = %s", (agencia_norm,))
-    existe = cursor.fetchone()
-    
-    if existe:
-        cursor.execute("UPDATE usuarios SET clave = %s, genero = %s WHERE agencia = %s", (clave, genero_val, agencia_norm))
-    else:
-        cursor.execute("INSERT INTO usuarios (agencia, clave, genero) VALUES (%s, %s, %s)", (agencia_norm, clave, genero_val))
-            
-    conn.commit()
-    conn.close()
-    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/crear-comunicado")
-def crear_comunicado(mensaje: str = Form(...)):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje,))
-    conn.commit()
-    conn.close()
-    return RedirectResponse(url="/admin?tab=comunicados", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/eliminar-comunicado")
-def eliminar_comunicado(comunicado_id: int = Form(...)):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM comunicados WHERE id = %s", (comunicado_id,))
-    cursor.execute("DELETE FROM lecturas_comunicados WHERE comunicado_id = %s", (comunicado_id,))
-    conn.commit()
-    conn.close()
-    return RedirectResponse(url="/admin?tab=comunicados", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/agencia/marcar-comunicado-leido")
-def marcar_comunicado_leido(agencia: str = Form(...), comunicado_id: int = Form(...)):
-    agencia_norm = normalizar(agencia)
-    conn = get_db()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("INSERT INTO lecturas_comunicados (comunicado_id, agencia, leido) VALUES (%s, %s, 1)", (comunicado_id, agencia_norm))
-        conn.commit()
     except Exception:
         pass
     conn.close()
