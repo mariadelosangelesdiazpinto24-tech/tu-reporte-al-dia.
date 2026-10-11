@@ -51,7 +51,7 @@ def get_db():
             user=url.username,
             password=url.password,
             host=url.hostname,
-            port=url.port,
+            port=url.port if url.port else 5432,
             sslmode='require',
             cursor_factory=psycopg2.extras.RealDictCursor
         )
