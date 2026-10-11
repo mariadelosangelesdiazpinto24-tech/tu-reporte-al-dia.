@@ -733,6 +733,7 @@ def get_admin(
         "total_ganancia_diferencial_global": 0.0,
         "total_ganancia_participacion_global": 0.0,
         "total_acumulado_cuentas_bancarias": 0.0,
+        "total_mi_ganancia_global": 0.0,
         "desglose_banqueros": {}
     })
 
