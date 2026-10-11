@@ -5,294 +5,225 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Administración - Los Ángeles del Dinero</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
     <style>
-        body { background: linear-gradient(135deg, #fce4ec 0%, #e3f2fd 100%); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; min-height: 100vh; }
-        .navbar-custom { background: linear-gradient(135deg, #0d47a1, #1976d2); color: white; padding: 15px 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); border-bottom: 4px solid #ffc107; }
-        .card-custom { border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); border: none; margin-bottom: 20px; background: #ffffff; border-top: 5px solid #0d47a1; }
-        .nav-tabs .nav-link { color: #0d47a1; font-weight: 600; background: white; margin-right: 8px; border-radius: 10px 10px 0 0; box-shadow: 0 -2px 8px rgba(0,0,0,0.04); }
-        .nav-tabs .nav-link.active { background: linear-gradient(135deg, #0d47a1, #1976d2) !important; color: white !important; }
-        .btn-accion { border-radius: 20px; font-weight: bold; }
+        .bg-admin-theme { background-color: #e91e63 !important; color: white !important; }
+        .btn-admin-theme { background-color: #e91e63 !important; color: white !important; border: none; }
+        .btn-admin-theme:hover { background-color: #c2185b !important; color: white !important; }
+        .border-admin-theme { border-color: #e91e63 !important; }
+        .text-admin-theme { color: #e91e63 !important; }
+        body { background-color: #f8f9fa; }
+        .nav-tabs .nav-link.active {
+            background-color: #e91e63 !important;
+            color: white !important;
+            border-color: #e91e63 !important;
+            font-weight: bold;
+        }
+        .nav-tabs .nav-link {
+            color: #e91e63;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
 
-    <div class="navbar-custom d-flex justify-content-between align-items-center">
-        <h3 class="m-0"><i class="fas fa-crown text-warning"></i> Administrador - Los Ángeles del Dinero 🍀🌺</h3>
-        <a href="/login" class="btn btn-light btn-sm fw-bold text-danger shadow-sm"><i class="fas fa-sign-out-alt"></i> Salir</a>
-    </div>
-
     <div class="container my-4">
-
-        <!-- Crear o Actualizar Taquilla -->
-        <div class="card card-custom p-4 mb-4" style="border-top-color: #ffc107;">
-            <h5 class="fw-bold mb-3" style="color: #0d47a1;"><i class="fas fa-store"></i> Crear o Actualizar Taquilla / Agencia 🍀</h5>
-            <form action="/admin/crear-agencia" method="POST" class="row g-3 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label small fw-bold text-muted">Nombre de la Agencia</label>
-                    <input type="text" class="form-control" name="agencia" placeholder="Ej: ALEXA" required>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label small fw-bold text-muted">Contraseña</label>
-                    <input type="text" class="form-control" name="clave" placeholder="Clave de acceso" required>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small fw-bold text-muted">Tema Visual</label>
-                    <select name="genero" class="form-select">
-                        <option value="FEMENINO">🌸 Femenino</option>
-                        <option value="MASCULINO">🔷 Masculino</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-warning w-100 fw-bold"><i class="fas fa-save"></i> Guardar</button>
-                </div>
-            </form>
+        <!-- HEADER -->
+        <div class="card bg-admin-theme shadow-sm border-0 mb-4" style="border-radius: 15px;">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <h3 class="fw-bold m-0"><i class="fas fa-crown"></i> Administrador - Los Ángeles del Dinero 🍀🌺</h3>
+                <a href="/login" class="btn btn-light btn-sm fw-bold text-dark"><i class="fas fa-sign-out-alt"></i> Salir</a>
+            </div>
         </div>
 
-        <!-- Pestañas de Navegación Admin -->
-        <ul class="nav nav-tabs mb-4 fw-bold border-0" id="adminTab" role="tablist">
-            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#transacciones"><i class="fas fa-list"></i> Transacciones y Solicitudes</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#balances"><i class="fas fa-balance-scale"></i> Balances Globales (+ / -)</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#detallado"><i class="fas fa-chart-pie"></i> Reporte Detallado por Usuario</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#consolidado-sistemas"><i class="fas fa-chart-bar"></i> Consolidado por Sistemas</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cashea-global"><i class="fas fa-shopping-cart"></i> Data Cashea General</button></li>
+        <!-- CREAR/ACTUALIZAR AGENCIAS -->
+        <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
+            <div class="card-body">
+                <h5 class="fw-bold text-admin-theme mb-3"><i class="fas fa-store"></i> Crear o Actualizar Taquilla / Agencia 🍀</h5>
+                <form action="/admin/crear-agencia" method="POST" class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold small">Nombre de la Agencia</label>
+                        <input type="text" name="agencia" class="form-control form-control-sm border-admin-theme" placeholder="Ej: ALEXA" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold small">Contraseña</label>
+                        <input type="password" name="clave" class="form-control form-control-sm border-admin-theme" placeholder="Clave de acceso" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold small">Tema Visual</label>
+                        <select name="genero" class="form-select form-select-sm border-admin-theme">
+                            <option value="FEMENINO">🌺 Femenino</option>
+                            <option value="MASCULINO">☘️ Masculino</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-warning btn-sm w-100 fw-bold shadow-sm"><i class="fas fa-save"></i> Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- PESTAÑAS DE NAVEGACIÓN -->
+        <ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active" id="transacciones-tab" data-bs-toggle="tab" data-bs-target="#transacciones" type="button"><i class="fas fa-list"></i> Transacciones y Solicitudes</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="cashea-tab" data-bs-toggle="tab" data-bs-target="#cashea" type="button"><i class="fas fa-shopping-cart"></i> Data Cashea General</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="consolidado-tab" data-bs-toggle="tab" data-bs-target="#consolidado" type="button"><i class="fas fa-chart-pie"></i> Consolidado por Sistemas</button>
+            </li>
         </ul>
 
-        <div class="tab-content" id="adminTabContent">
+        <div class="tab-content" id="adminTabsContent">
             
-            <!-- 1. TRANSACCIONES -->
-            <div class="tab-pane fade show active" id="transacciones">
-                <div class="card card-custom p-4">
-                    <h4 class="fw-bold mb-3" style="color: #0d47a1;"><i class="fas fa-exchange-alt text-warning"></i> Historial y Solicitudes Pendientes de Banca</h4>
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>Agencia</th>
-                                    <th>Fecha</th>
-                                    <th>Tipo / Ref</th>
-                                    <th>Monto</th>
-                                    <th>Comprobante / Detalle</th>
-                                    <th>Estado</th>
-                                    <th class="text-center">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for p in pagos %}
-                                <tr>
-                                    <td class="fw-bold">{{ p.agencia }}</td>
-                                    <td>{{ p.fecha }}</td>
-                                    <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
-                                    <td class="fw-bold">
-                                        {% if p.monto and p.monto > 0 %}
-                                            Bs. {{ p.monto | dinero }}
-                                        {% else %}
-                                            <span class="text-muted">SISTEMA</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {{ p.factura }}<br>
-                                        {% if p.comprobante and 'uploads/' in p.comprobante %}
-                                            <a href="/{{ p.comprobante }}" target="_blank" class="small text-decoration-none fw-bold text-primary"><i class="fas fa-image"></i> Ver Comprobante</a>
-                                        {% else %}
-                                            <span class="small text-muted">{{ p.comprobante }}</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if p.estado == 'APROBADO' %}
-                                            <span class="badge bg-success p-2">APROBADO</span>
-                                        {% elif p.estado in ['PENDIENTE BANCA', 'EN ESPERA'] %}
-                                            <span class="badge bg-warning text-dark p-2">PENDIENTE</span>
-                                        {% else %}
-                                            <span class="badge bg-danger p-2">{{ p.estado }}</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <div class="d-flex align-items-center justify-content-center gap-2">
-                                            {% if p.tipo == 'SOLICITUD_BANCA' and p.estado == 'PENDIENTE BANCA' %}
-                                            <form action="/admin/pagar-solicitud-banca" method="post" enctype="multipart/form-data" class="d-flex flex-column gap-1 p-2 border rounded bg-light">
-                                                <input type="hidden" name="pago_id" value="{{ p.id }}">
-                                                <input type="file" name="comprobante" class="form-control form-control-sm" required>
-                                                <div class="d-flex gap-1">
-                                                    <input type="text" name="monto_abono" class="form-control form-control-sm" placeholder="Monto Abono">
-                                                    <select name="accion_pago" class="form-select form-select-sm fw-bold text-success" required>
-                                                        <option value="ABONO">Abono</option>
-                                                        <option value="TOTAL">Pago Completo</option>
-                                                    </select>
-                                                </div>
-                                                <button type="submit" class="btn btn-sm btn-success fw-bold">Procesar Pago</button>
-                                            </form>
-                                            {% endif %}
-
-                                            <form action="/admin/eliminar-transaccion" method="post" onsubmit="return confirm('¿Estás segura de eliminar esta transacción? El saldo de la taquilla se reajustará automáticamente.');" style="display:inline;">
-                                                <input type="hidden" name="pago_id" value="{{ p.id }}">
-                                                <button type="submit" class="btn btn-outline-danger btn-sm fw-bold shadow-sm" title="Eliminar Transacción">
-                                                    <i class="fas fa-trash-alt"></i> Eliminar
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 2. BALANCES GLOBALES -->
-            <div class="tab-pane fade" id="balances">
-                <div class="row g-4">
-                    <div class="col-md-6">
-                        <div class="card card-custom p-4 border-top border-success border-4">
-                            <h5 class="fw-bold text-success mb-3"><i class="fas fa-check-circle"></i> Cuentas Por Cobrar / En Positivo (Deudas a la Banca)</h5>
-                            <ul class="list-group list-group-flush">
-                                {% for r in positivos %}
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <span><strong>{{ r.agencia }}</strong> ({{ r.fecha }})</span>
-                                    <span class="badge bg-success fs-6">Bs. {{ r.monto | dinero }}</span>
-                                </li>
-                                {% else %}
-                                <li class="list-group-item text-muted text-center">No hay cuentas pendientes por cobrar.</li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                    </div>
-
-                    <div class="col-md-6">
-                        <div class="card card-custom p-4 border-top border-danger border-4">
-                            <h5 class="fw-bold text-danger mb-3"><i class="fas fa-exclamation-circle"></i> Cuentas A Favor / En Negativo (Pagar Banca)</h5>
-                            <ul class="list-group list-group-flush">
-                                {% for r in negativos %}
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <span><strong>{{ r.agencia }}</strong> ({{ r.fecha }})</span>
-                                    <span class="badge bg-danger fs-6">Bs. {{ r.monto | dinero }}</span>
-                                </li>
-                                {% else %}
-                                <li class="list-group-item text-muted text-center">No hay saldos a favor por pagar.</li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 3. REPORTE DETALLADO POR USUARIO -->
-            <div class="tab-pane fade" id="detallado">
-                <div class="card card-custom p-4">
-                    <h4 class="fw-bold mb-3" style="color: #0d47a1;"><i class="fas fa-user-shield text-primary"></i> Reporte Detallado por Taquilla</h4>
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>Agencia</th>
-                                    <th>Fecha</th>
-                                    <th class="text-end">Ventas Totales</th>
-                                    <th class="text-end">Saldo / Cuenta Neta</th>
-                                    <th class="text-center">Acción</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for r in reportes %}
-                                <tr>
-                                    <td class="fw-bold">{{ r.agencia }}</td>
-                                    <td>{{ r.fecha }}</td>
-                                    <td class="text-end">Bs. {{ r.ventas | dinero }}</td>
-                                    <td class="text-end fw-bold {% if r.monto < 0 %}text-success{% else %}text-danger{% endif %}">
-                                        Bs. {{ r.monto | dinero }}
-                                    </td>
-                                    <td class="text-center">
-                                        <button class="btn btn-sm btn-primary fw-bold px-3 btn-accion" data-bs-toggle="modal" data-bs-target="#modalAdminDetalle{{ r.id }}">
-                                            <i class="fas fa-eye"></i> Ver Detalle Taquilla
-                                        </button>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 4. CONSOLIDADO POR SISTEMAS CON FILTROS -->
-            <div class="tab-pane fade" id="consolidado-sistemas">
-                <div class="card card-custom p-4">
-                    <h4 class="fw-bold mb-3" style="color: #0d47a1;"><i class="fas fa-chart-bar text-success"></i> Consolidado y Totalizador por Sistema</h4>
-                    
-                    <!-- Filtros de búsqueda -->
-                    <div class="row g-3 mb-4 p-3 rounded border bg-light align-items-end">
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold">Filtrar por Agencia</label>
-                            <select id="filtroAgencia" class="form-select form-select-sm" onchange="filtrarConsolidado()">
-                                <option value="TODAS">-- TODAS LAS AGENCIAS --</option>
-                                {% for ag in agencias %}
-                                <option value="{{ ag.agencia }}">{{ ag.agencia }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold">Desde Fecha</label>
-                            <input type="date" id="filtroDesde" class="form-control form-control-sm" onchange="filtrarConsolidado()">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold">Hasta Fecha</label>
-                            <input type="date" id="filtroHasta" class="form-control form-control-sm" onchange="filtrarConsolidado()">
-                        </div>
-                        <div class="col-md-3">
-                            <button class="btn btn-sm btn-outline-secondary w-100 fw-bold" onclick="limpiarFiltrosConsolidado()"><i class="fas fa-redo"></i> Limpiar Filtros</button>
-                        </div>
-                    </div>
-
-                    <!-- Tabla Resumen de Sistemas -->
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-striped align-middle text-center" id="tablaConsolidadoSistemas">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th class="text-start">Sistema de Lotería</th>
-                                    <th class="text-end">Venta Total (Bs.)</th>
-                                    <th class="text-end">Comisiones (Bs.)</th>
-                                    <th class="text-end">Premios (Bs.)</th>
-                                    <th class="text-end">Neto / Total (Bs.)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Los datos se cargan y filtran dinámicamente o se resumen de los reportes -->
-                                <tr>
-                                    <td colspan="5" class="text-muted text-center py-3">Selecciona los filtros para generar el consolidado general de ventas por sistema.</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 5. DATA CASHEA GENERAL -->
-            <div class="tab-pane fade" id="cashea-global">
-                <div class="card card-custom p-4">
-                    <h4 class="fw-bold mb-3" style="color: #00bcd4;"><i class="fas fa-shopping-cart text-info"></i> Consolidado General de Cashea (Todas las Taquillas)</h4>
-                    <div class="table-responsive">
-                        <table class="table table-striped align-middle">
-                            <thead style="background-color: #e0f7fa; color: #006064;">
-                                <tr>
-                                    <th>Agencia</th>
-                                    <th>Fecha</th>
-                                    <th>Detalle / Factura</th>
-                                    <th class="text-end">Monto Absorbido</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for p in pagos %}
-                                    {% if p.tipo == 'CASHEA' %}
+            <!-- 1. TRANSACCIONES Y SOLICITUDES (SIN CASHEA) -->
+            <div class="tab-pane fade show active" id="transacciones" role="tabpanel">
+                <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
+                    <div class="card-body">
+                        <h5 class="fw-bold text-admin-theme mb-3"><i class="fas fa-history"></i> Historial y Solicitudes Pendientes de Banca</h5>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle" style="font-size: 13px;">
+                                <thead class="table-dark">
                                     <tr>
-                                        <td class="fw-bold">{{ p.agencia }}</td>
-                                        <td>{{ p.fecha }}</td>
-                                        <td>{{ p.factura }}</td>
-                                        <td class="text-end fw-bold text-danger">Bs. {{ p.monto | dinero }}</td>
+                                        <th>Agencia</th>
+                                        <th>Fecha</th>
+                                        <th>Tipo / Ref</th>
+                                        <th>Monto</th>
+                                        <th>Comprobante / Detalle</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
                                     </tr>
+                                </thead>
+                                <tbody>
+                                    {% if pagos %}
+                                        {% for p in pagos %}
+                                        <tr>
+                                            <td class="fw-bold">{{ p.agencia }}</td>
+                                            <td>{{ p.fecha }}</td>
+                                            <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
+                                            <td class="fw-bold text-danger">Bs. {{ p.monto | dinero }}</td>
+                                            <td>{{ p.factura or p.comprobante }}</td>
+                                            <td><span class="badge bg-success">{{ p.estado }}</span></td>
+                                            <td>
+                                                <form action="/admin/eliminar-transaccion" method="POST" style="display:inline;">
+                                                    <input type="hidden" name="pago_id" value="{{ p.id }}">
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash"></i> Eliminar</button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="7" class="text-center text-muted py-3">No hay transacciones registradas.</td>
+                                        </tr>
                                     {% endif %}
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. DATA CASHEA GENERAL (EXCLUSIVO CASHEA) -->
+            <div class="tab-pane fade" id="cashea" role="tabpanel">
+                <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #00bcd4 !important;">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="fw-bold style="color: #00bcd4;"><i class="fas fa-shopping-cart"></i> Consolidado General de Cashea (Todas las Taquillas)</h5>
+                            <button onclick="copiarCasheaCompleto()" class="btn btn-sm btn-info text-white fw-bold"><i class="fas fa-copy"></i> Copiar Todo</button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle" id="tablaCashea" style="font-size: 13px;">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Agencia</th>
+                                        <th>Fecha</th>
+                                        <th>Detalle / Factura</th>
+                                        <th class="text-end">Monto Absorbido</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if casheas_generales %}
+                                        {% for c in casheas_generales %}
+                                        <tr>
+                                            <td class="fw-bold">{{ c.agencia }}</td>
+                                            <td>{{ c.fecha }}</td>
+                                            <td>{{ c.factura or c.comprobante }}</td>
+                                            <td class="text-end fw-bold text-danger">Bs. {{ c.monto | dinero }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted py-3">No hay registros de Cashea.</td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. CONSOLIDADO Y TOTALIZADOR POR SISTEMAS -->
+            <div class="tab-pane fade" id="consolidado" role="tabpanel">
+                <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
+                    <div class="card-body">
+                        <h5 class="fw-bold text-admin-theme mb-3"><i class="fas fa-chart-pie"></i> Consolidado y Totalizador por Sistema</h5>
+                        
+                        <form method="GET" action="/admin" class="row g-3 align-items-end mb-4">
+                            <div class="col-md-5">
+                                <label class="form-label fw-bold small">Filtrar por Agencia</label>
+                                <select name="agencia" class="form-select form-select-sm border-admin-theme">
+                                    <option value="">-- TODAS LAS AGENCIAS (CONSOLIDADO GENERAL) --</option>
+                                    {% for ag in agencias %}
+                                        <option value="{{ ag.agencia }}" {% if agencia_filtro == ag.agencia %}selected{% endif %}>{{ ag.agencia }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold small">Fecha del Reporte</label>
+                                <input type="date" name="fecha" class="form-control form-control-sm border-admin-theme" value="{{ fecha_filtro }}">
+                            </div>
+                            <div class="col-md-3">
+                                <button type="submit" class="btn btn-sm w-100 fw-bold btn-admin-theme shadow-sm py-2">
+                                    <i class="fas fa-search me-1"></i> Buscar
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 13px;">
+                                <thead>
+                                    <tr style="background-color: #fce4ec; color: #e91e63; font-weight: bold; text-align: center;">
+                                        <th style="padding: 10px; text-align: left;">Sistema de Lotería</th>
+                                        <th style="padding: 10px; text-align: right;">Venta Total (Bs.)</th>
+                                        <th style="padding: 10px; text-align: right;">Comisiones (Bs.)</th>
+                                        <th style="padding: 10px; text-align: right;">Premios (Bs.)</th>
+                                        <th style="padding: 10px; text-align: right;">Neto / Total (Bs.)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if sistemas_consolidados %}
+                                        {% for sistema, valores in sistemas_consolidados.items() %}
+                                        <tr>
+                                            <td class="fw-bold" style="padding: 8px;">{{ sistema }}</td>
+                                            <td style="padding: 8px; text-align: right;">{{ "{:,.2f}".format(valores.venta) }}</td>
+                                            <td style="padding: 8px; text-align: right;">{{ "{:,.2f}".format(valores.comision) }}</td>
+                                            <td style="padding: 8px; text-align: right;">{{ "{:,.2f}".format(valores.premio) }}</td>
+                                            <td class="fw-bold" style="padding: 8px; text-align: right; color: #e91e63;">{{ "{:,.2f}".format(valores.neto) }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted py-4">No hay ventas registradas para la fecha y agencia seleccionadas.</td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -301,38 +232,30 @@
 
     </div>
 
-    <!-- MODALES DE DETALLE REPORTE ADMIN (MUESTRAN LA TABLA COMPLETA DE SISTEMAS Y BLOQUES) -->
-    {% for r in reportes %}
-    <div class="modal fade" id="modalAdminDetalle{{ r.id }}" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content" style="border-radius: 16px;">
-                <div class="modal-header text-white" style="background: linear-gradient(135deg, #0d47a1, #1976d2);">
-                    <h5 class="modal-title fw-bold"><i class="fas fa-file-invoice"></i> Reporte Taquilla: {{ r.agencia }} - Fecha: {{ r.fecha }} 🍀🌺</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body bg-light">
-                    <!-- Aquí se renderiza todo el detalle guardado (incluyendo la tabla de sistemas completa) -->
-                    {{ r.detalle_html | safe }}
-                </div>
-                <div class="modal-footer bg-white">
-                    <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endfor %}
-
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        function filtrarConsolidado() {
-            // Lógica de filtrado por agencia y rango de fechas para el consolidado de sistemas
-            console.log("Filtrando consolidado...");
-        }
-        function limpiarFiltrosConsolidado() {
-            document.getElementById("filtroAgencia").value = "TODAS";
-            document.getElementById("filtroDesde").value = "";
-            document.getElementById("filtroHasta").value = "";
+        function copiarCasheaCompleto() {
+            var tabla = document.getElementById("tablaCashea");
+            var textoCopiar = "--- CASHEA GENERAL DE HOY ---\n\n";
+            var filas = tabla.getElementsByTagName("tr");
+            
+            for (var i = 1; i < filas.length; i++) {
+                var cols = filas[i].getElementsByTagName("td");
+                if (cols.length >= 4) {
+                    var agencia = cols[0].innerText.trim();
+                    var fecha = cols[1].innerText.trim();
+                    var detalle = cols[2].innerText.trim();
+                    var monto = cols[3].innerText.trim();
+                    textoCopiar += "📌 Agencia: " + agencia + "\n📅 Fecha: " + fecha + "\n📑 Detalle: " + detalle + "\n💵 Monto: " + monto + "\n-------------------------------\n";
+                }
+            }
+
+            navigator.clipboard.writeText(textoCopiar).then(function() {
+                alert("¡Reporte de Cashea copiado al portapapeles exitosamente!");
+            }, function(err) {
+                alert("Error al copiar: " + err);
+            });
         }
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
