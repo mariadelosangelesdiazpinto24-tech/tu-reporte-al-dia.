@@ -91,13 +91,12 @@
 
         <div class="tab-content" id="adminTabsContent">
 
-            <!-- 0. PESTAÑA DE TAQUILLAS ACTIVAS Y GESTIÓN DE ACCESOS -->
+            <!-- 0. TAQUILLAS ACTIVAS -->
             <div class="tab-pane fade {% if tab_activa == 'taquillas' %}show active{% endif %}" id="taquillas" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
                         <h5 class="fw-bold text-success mb-3"><i class="fas fa-users-cog"></i> Monitoreo y Control de Taquillas Creadas</h5>
 
-                        <!-- METRICAS DE CONEXIÓN -->
                         <div class="row g-3 mb-4">
                             <div class="col-md-4">
                                 <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-success border-4">
@@ -119,7 +118,6 @@
                             </div>
                         </div>
 
-                        <!-- TABLA DE TAQUILLAS -->
                         <div class="table-responsive">
                             <table class="table table-hover align-middle" style="font-size: 13px;">
                                 <thead class="table-dark">
@@ -174,11 +172,11 @@
                 </div>
             </div>
 
-            <!-- 1. TRANSACCIONES Y SOLICITUDES -->
+            <!-- 1. TRANSACCIONES Y PROCESAMIENTO DE SOLICITUDES CON CAP -->
             <div class="tab-pane fade {% if tab_activa == 'transacciones' %}show active{% endif %}" id="transacciones" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
                     <div class="card-body">
-                        <h5 class="fw-bold text-admin-theme mb-3"><i class="fas fa-history"></i> Historial y Solicitudes Pendientes de Banca</h5>
+                        <h5 class="fw-bold text-admin-theme mb-3"><i class="fas fa-history"></i> Historial y Procesamiento de Solicitudes de Dinero</h5>
                         <div class="table-responsive">
                             <table class="table table-hover align-middle" style="font-size: 13px;">
                                 <thead class="table-dark">
@@ -186,10 +184,10 @@
                                         <th>Agencia</th>
                                         <th>Fecha</th>
                                         <th>Tipo / Ref</th>
-                                        <th>Monto</th>
+                                        <th>Monto Solicitado</th>
                                         <th>Comprobante / Detalle</th>
                                         <th>Estado</th>
-                                        <th>Acciones</th>
+                                        <th class="text-center">Procesar / Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -201,12 +199,67 @@
                                             <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
                                             <td class="fw-bold text-danger">Bs. {{ p.monto | dinero }}</td>
                                             <td>{{ p.factura or p.comprobante }}</td>
-                                            <td><span class="badge bg-success">{{ p.estado }}</span></td>
                                             <td>
+                                                {% if p.estado == 'PENDIENTE BANCA' %}
+                                                    <span class="badge bg-warning text-dark p-2">PENDIENTE</span>
+                                                {% else %}
+                                                    <span class="badge bg-success p-2">{{ p.estado }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-center">
+                                                {% if p.estado == 'PENDIENTE BANCA' %}
+                                                <button class="btn btn-sm btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#modalPagar{{ p.id }}"><i class="fas fa-check-circle me-1"></i> Procesar Pago</button>
+
+                                                <!-- MODAL PROCESAR PAGO CON DESPLEGABLE ABONO / PAGO COMPLETO Y CARGA DE CAP -->
+                                                <div class="modal fade" id="modalPagar{{ p.id }}" tabindex="-1">
+                                                    <div class="modal-dialog">
+                                                        <div class="modal-content text-start">
+                                                            <div class="modal-header bg-primary text-white">
+                                                                <h6 class="modal-title fw-bold"><i class="fas fa-money-bill-wave me-1"></i> Procesar Solicitud: {{ p.agencia }}</h6>
+                                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                            </div>
+                                                            <form action="/admin/procesar-solicitud-dinero" method="POST" enctype="multipart/form-data">
+                                                                <div class="modal-body">
+                                                                    <input type="hidden" name="pago_id" value="{{ p.id }}">
+                                                                    
+                                                                    <div class="mb-3">
+                                                                        <label class="form-label fw-bold small">Monto Solicitado Total:</label>
+                                                                        <input type="text" class="form-control form-control-sm fw-bold text-danger" value="Bs. {{ p.monto | dinero }}" readonly>
+                                                                    </div>
+
+                                                                    <div class="mb-3">
+                                                                        <label class="form-label fw-bold small">Tipo de Procesamiento:</label>
+                                                                        <select name="tipo_procesamiento" id="tipoProc{{ p.id }}" class="form-select form-select-sm border-primary" onchange="toggleAbonoInput({{ p.id }})">
+                                                                            <option value="PAGO_COMPLETO">✅ Pago Completo (Descuento 100%)</option>
+                                                                            <option value="ABONO">💵 Abono Parcial (Descuento del monto abonado)</option>
+                                                                        </select>
+                                                                    </div>
+
+                                                                    <div class="mb-3 d-none" id="divAbono{{ p.id }}">
+                                                                        <label class="form-label fw-bold small text-primary">Monto Abonado a Pagar (Bs.):</label>
+                                                                        <input type="number" step="0.01" name="monto_abono" class="form-control form-control-sm border-primary" placeholder="Ej: 5000.00">
+                                                                    </div>
+
+                                                                    <div class="mb-3">
+                                                                        <label class="form-label fw-bold small">Cargar Comprobante / CAP (Opcional):</label>
+                                                                        <input type="file" name="comprobante" class="form-control form-control-sm border-primary" accept="image/*,.pdf">
+                                                                    </div>
+
+                                                                </div>
+                                                                <div class="modal-footer">
+                                                                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                                                    <button type="submit" class="btn btn-sm btn-success fw-bold"><i class="fas fa-save me-1"></i> Confirmar Pago</button>
+                                                                </div>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {% else %}
                                                 <form action="/admin/eliminar-transaccion" method="POST" style="display:inline;">
                                                     <input type="hidden" name="pago_id" value="{{ p.id }}">
                                                     <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash"></i> Eliminar</button>
                                                 </form>
+                                                {% endif %}
                                             </td>
                                         </tr>
                                         {% endfor %}
@@ -408,42 +461,6 @@
                             </table>
                         </div>
 
-                        <div class="card border-0 shadow-sm p-3 bg-light" style="border-radius: 12px; border-left: 5px solid #e91e63 !important;">
-                            <h6 class="fw-bold text-admin-theme mb-3"><i class="fas fa-file-invoice"></i> Resumen de Cuenta de la Selección (Cashea, Tripletas, Adelantos)</h6>
-                            <div class="row g-2 text-center" style="font-size: 13px;">
-                                <div class="col-md-2">
-                                    <div class="p-2 bg-white rounded border">
-                                        <span class="text-muted small d-block">CASHEA</span>
-                                        <span class="fw-bold text-info">Bs. {{ totales_auxiliares.cashea | dinero }}</span>
-                                    </div>
-                                </div>
-                                <div class="col-md-2">
-                                    <div class="p-2 bg-white rounded border">
-                                        <span class="text-muted small d-block">TRIPLETAS (+)</span>
-                                        <span class="fw-bold text-success">Bs. {{ totales_auxiliares.tripletas | dinero }}</span>
-                                    </div>
-                                </div>
-                                <div class="col-md-2">
-                                    <div class="p-2 bg-white rounded border">
-                                        <span class="text-muted small d-block">ADELANTOS (-)</span>
-                                        <span class="fw-bold text-warning">Bs. {{ totales_auxiliares.adelantos | dinero }}</span>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="p-2 bg-white rounded border">
-                                        <span class="text-muted small d-block">PAGOS / ABONOS BANCA (-)</span>
-                                        <span class="fw-bold text-secondary">Bs. {{ totales_auxiliares.abonos_banca | dinero }}</span>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="p-2 bg-admin-theme text-white rounded">
-                                        <span class="small d-block opacity-75">NETO DEFINITIVO A PAGAR</span>
-                                        <span class="fw-bold fs-6">Bs. {{ neto_final_agencia | dinero }}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
                     </div>
                 </div>
             </div>
@@ -507,24 +524,6 @@
                             </div>
                         </div>
 
-                        <div class="card border-0 shadow-sm bg-light p-4" style="border-radius: 12px;">
-                            <h6 class="fw-bold text-secondary mb-3"><i class="fas fa-file-invoice-dollar"></i> Resumen General de Salidas y Cuentas</h6>
-                            <ul class="list-group list-group-flush shadow-sm rounded">
-                                <li class="list-group-item d-flex justify-content-between align-items-center py-3">
-                                    <span class="fw-bold text-dark"><i class="fas fa-chart-line text-primary me-2"></i> Neto Total de Sistemas</span>
-                                    <span class="fw-bold text-dark">Bs. {{ totales_generales.neto | dinero }}</span>
-                                </li>
-                                <li class="list-group-item d-flex justify-content-between align-items-center py-3 bg-white">
-                                    <span class="fw-bold text-danger"><i class="fas fa-shopping-cart me-2"></i> Total Cashea (Salida / Descuento)</span>
-                                    <span class="fw-bold text-danger">- Bs. {{ totales_auxiliares.cashea | dinero }}</span>
-                                </li>
-                                <li class="list-group-item d-flex justify-content-between align-items-center py-3 bg-primary text-white rounded-bottom">
-                                    <span class="fw-bold fs-5"><i class="fas fa-wallet me-2"></i> TOTAL A TENER EN LA CUENTA (NETO - CASHEA)</span>
-                                    <span class="fw-bold fs-4">Bs. {{ neto_menos_cashea | dinero }}</span>
-                                </li>
-                            </ul>
-                        </div>
-
                     </div>
                 </div>
             </div>
@@ -534,7 +533,7 @@
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="fw-bold text-success m-0"><i class="fas fa-university"></i> Desglose por Banqueros y Diferencial Privado de Ganancias</h5>
+                            <h5 class="fw-bold text-success m-0"><i class="fas fa-university"></i> Desglose por Banqueros con Comisiones Completas</h5>
                             <span class="badge bg-success fs-6 p-2">Mi Ganancia Total: Bs. {{ total_mi_ganancia_global | dinero }}</span>
                         </div>
 
@@ -589,10 +588,12 @@
                                                         {% endfor %}
                                                         
                                                         {% if data.cobranza %}
+                                                        {% for cob in data.cobranza %}
                                                         <tr class="table-warning">
-                                                            <td class="fw-bold" colspan="4"><i class="fas fa-hand-holding-usd"></i> AREA DE COBRANZA ({{ data.cobranza | join(', ') }})</td>
+                                                            <td class="fw-bold" colspan="4"><i class="fas fa-hand-holding-usd"></i> COBRANZA: {{ cob.nombre }} ({{ "{:.0f}%".format(cob.pct_comision_completa*100) }} Comis / {{ "{:.0f}%".format(cob.pct_participacion*100) }} Part)</td>
                                                             <td class="text-end fw-bold text-dark">0.00</td>
                                                         </tr>
+                                                        {% endfor %}
                                                         {% endif %}
 
                                                         {% if data.cashea_descontado > 0 %}
@@ -660,6 +661,16 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        function toggleAbonoInput(id) {
+            var select = document.getElementById('tipoProc' + id);
+            var divAbono = document.getElementById('divAbono' + id);
+            if (select.value === 'ABONO') {
+                divAbono.classList.remove('d-none');
+            } else {
+                divAbono.classList.add('d-none');
+            }
+        }
+
         function copiarCasheaCompleto() {
             var tabla = document.getElementById("tablaCashea");
             var textoCopiar = "--- CASHEA GENERAL ---\n\n";
