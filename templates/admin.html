@@ -24,6 +24,14 @@
             color: #e91e63;
             font-weight: 500;
         }
+        .badge-taquilla-azul {
+            background-color: #0d6efd !important;
+            color: white !important;
+        }
+        .badge-banquero-verde {
+            background-color: #198754 !important;
+            color: white !important;
+        }
     </style>
 </head>
 <body>
@@ -67,35 +75,35 @@
         <!-- PESTAÑAS DE NAVEGACIÓN -->
         <ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'taquillas' %}active{% endif %}" id="taquillas-tab" data-bs-toggle="tab" data-bs-target="#taquillas" type="button"><i class="fas fa-users-cog"></i> Taquillas Creadas 📱</button>
+                <button class="nav-link {% if tab == 'taquillas' or tab_activa == 'taquillas' %}active{% endif %}" id="taquillas-tab" data-bs-toggle="tab" data-bs-target="#taquillas" type="button"><i class="fas fa-users-cog"></i> Taquillas Creadas 📱</button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'comunicados' %}active{% endif %}" id="comunicados-tab" data-bs-toggle="tab" data-bs-target="#comunicados" type="button"><i class="fas fa-bullhorn"></i> Enviar Notificaciones 📢</button>
+                <button class="nav-link {% if tab == 'comunicados' or tab_activa == 'comunicados' %}active{% endif %}" id="comunicados-tab" data-bs-toggle="tab" data-bs-target="#comunicados" type="button"><i class="fas fa-bullhorn"></i> Enviar Notificaciones 📢</button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'transacciones' %}active{% endif %}" id="transacciones-tab" data-bs-toggle="tab" data-bs-target="#transacciones" type="button"><i class="fas fa-list"></i> Transacciones y Solicitudes</button>
+                <button class="nav-link {% if tab == 'transacciones' or tab_activa == 'transacciones' or not tab %}active{% endif %}" id="transacciones-tab" data-bs-toggle="tab" data-bs-target="#transacciones" type="button"><i class="fas fa-list"></i> Transacciones y Solicitudes</button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'balances' %}active{% endif %}" id="balances-tab" data-bs-toggle="tab" data-bs-target="#balances" type="button"><i class="fas fa-balance-scale"></i> Balances Globales (+ / -)</button>
+                <button class="nav-link {% if tab == 'balances' or tab_activa == 'balances' %}active{% endif %}" id="balances-tab" data-bs-toggle="tab" data-bs-target="#balances" type="button"><i class="fas fa-balance-scale"></i> Balances Globales (+ / -)</button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'cashea' %}active{% endif %}" id="cashea-tab" data-bs-toggle="tab" data-bs-target="#cashea" type="button"><i class="fas fa-shopping-cart"></i> Data Cashea General</button>
+                <button class="nav-link {% if tab == 'cashea' or tab_activa == 'cashea' %}active{% endif %}" id="cashea-tab" data-bs-toggle="tab" data-bs-target="#cashea" type="button"><i class="fas fa-shopping-cart"></i> Data Cashea General</button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'consolidado' %}active{% endif %}" id="consolidado-tab" data-bs-toggle="tab" data-bs-target="#consolidado" type="button"><i class="fas fa-chart-pie"></i> Consolidado por Sistemas</button>
+                <button class="nav-link {% if tab == 'consolidado' or tab_activa == 'consolidado' %}active{% endif %}" id="consolidado-tab" data-bs-toggle="tab" data-bs-target="#consolidado" type="button"><i class="fas fa-chart-pie"></i> Consolidado por Sistemas</button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'totalizador' %}active{% endif %}" id="totalizador-tab" data-bs-toggle="tab" data-bs-target="#totalizador" type="button"><i class="fas fa-calculator"></i> Totalizador 📊</button>
+                <button class="nav-link {% if tab == 'totalizador' or tab_activa == 'totalizador' %}active{% endif %}" id="totalizador-tab" data-bs-toggle="tab" data-bs-target="#totalizador" type="button"><i class="fas fa-calculator"></i> Totalizador 📊</button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'desglose_banca' %}active{% endif %}" id="desglose_banca-tab" data-bs-toggle="tab" data-bs-target="#desglose_banca" type="button"><i class="fas fa-university"></i> Desglose Banca 🏦</button>
+                <button class="nav-link {% if tab == 'desglose_banca' or tab_activa == 'desglose_banca' %}active{% endif %}" id="desglose_banca-tab" data-bs-toggle="tab" data-bs-target="#desglose_banca" type="button"><i class="fas fa-university"></i> Desglose Banca 🏦</button>
             </li>
         </ul>
 
         <div class="tab-content" id="adminTabsContent">
 
             <!-- TAQUILLAS CREADAS -->
-            <div class="tab-pane fade {% if tab_activa == 'taquillas' %}show active{% endif %}" id="taquillas" role="tabpanel">
+            <div class="tab-pane fade {% if tab == 'taquillas' or tab_activa == 'taquillas' %}show active{% endif %}" id="taquillas" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -149,7 +157,7 @@
             </div>
 
             <!-- COMUNICADOS -->
-            <div class="tab-pane fade {% if tab_activa == 'comunicados' %}show active{% endif %}" id="comunicados" role="tabpanel">
+            <div class="tab-pane fade {% if tab == 'comunicados' or tab_activa == 'comunicados' %}show active{% endif %}" id="comunicados" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #ff9800 !important;">
                     <div class="card-body">
                         <h5 class="fw-bold text-warning mb-3" style="color: #e65100 !important;"><i class="fas fa-bullhorn"></i> Enviar Notificación o Comunicado a las Taquillas</h5>
@@ -190,14 +198,14 @@
             </div>
 
             <!-- TRANSACCIONES -->
-            <div class="tab-pane fade {% if tab_activa == 'transacciones' %}show active{% endif %}" id="transacciones" role="tabpanel">
+            <div class="tab-pane fade {% if tab == 'transacciones' or tab_activa == 'transacciones' or not tab %}show active{% endif %}" id="transacciones" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
                     <div class="card-body">
                         <h5 class="fw-bold text-admin-theme mb-3"><i class="fas fa-history"></i> Historial y Procesamiento de Solicitudes</h5>
                         <div class="table-responsive">
                             <table class="table table-hover align-middle" style="font-size: 13px;">
                                 <thead class="table-dark">
-                                    <tr><th>Agencia</th><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Comprobante</th><th>Estado</th><th class="text-center">Acciones</th></tr>
+                                    <tr><th>Agencia</th><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Comprobante</th><th>Estado</th><th class="text-center">Acciones / Procesar</th></tr>
                                 </thead>
                                 <tbody>
                                     {% if pagos %}
@@ -208,11 +216,32 @@
                                             <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
                                             <td class="fw-bold text-danger">Bs. {{ p.monto | default(0) | dinero }}</td>
                                             <td>{{ p.factura or p.comprobante }}</td>
-                                            <td><span class="badge bg-success p-2">{{ p.estado }}</span></td>
+                                            <td>
+                                                {% if p.estado == 'APROBADO' %}
+                                                    <span class="badge bg-success p-2">{{ p.estado }}</span>
+                                                {% elif 'PENDIENTE' in p.estado %}
+                                                    <span class="badge bg-warning text-dark p-2">{{ p.estado }}</span>
+                                                {% else %}
+                                                    <span class="badge bg-info text-dark p-2">{{ p.estado }}</span>
+                                                {% endif %}
+                                            </td>
                                             <td class="text-center">
+                                                {% if 'PENDIENTE' in p.estado or p.tipo == 'SOLICITUD_BANCA' %}
+                                                <form action="/admin/procesar-solicitud" method="POST" class="d-inline-flex gap-1 align-items-center">
+                                                    <input type="hidden" name="solicitud_id" value="{{ p.id }}">
+                                                    <input type="hidden" name="agencia" value="{{ p.agencia }}">
+                                                    <input type="hidden" name="fecha" value="{{ p.fecha }}">
+                                                    <select name="accion" class="form-select form-select-sm" style="width: 145px;" onchange="toggleMontoInput(this)">
+                                                        <option value="COMPLETO">Pago Completo</option>
+                                                        <option value="ABONO">Abono</option>
+                                                    </select>
+                                                    <input type="number" step="0.01" name="monto_abono" class="form-control form-control-sm d-none input-abono" style="width: 90px;" placeholder="Monto">
+                                                    <button type="submit" class="btn btn-success btn-sm" title="Procesar Solicitud"><i class="fas fa-check"></i></button>
+                                                </form>
+                                                {% endif %}
                                                 <form action="/admin/eliminar-transaccion" method="POST" style="display:inline;">
                                                     <input type="hidden" name="pago_id" value="{{ p.id }}">
-                                                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash"></i></button>
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar"><i class="fas fa-trash"></i></button>
                                                 </form>
                                             </td>
                                         </tr>
@@ -228,7 +257,7 @@
             </div>
 
             <!-- BALANCES -->
-            <div class="tab-pane fade {% if tab_activa == 'balances' %}show active{% endif %}" id="balances" role="tabpanel">
+            <div class="tab-pane fade {% if tab == 'balances' or tab_activa == 'balances' %}show active{% endif %}" id="balances" role="tabpanel">
                 <div class="row">
                     <div class="col-md-6 mb-4">
                         <div class="card shadow-sm border-0" style="border-top: 4px solid #dc3545;">
@@ -236,7 +265,9 @@
                                 <h5 class="fw-bold text-danger">Agencias que Deben</h5>
                                 <table class="table table-sm">
                                     {% for pos in positivos %}
-                                    <tr><td>{{ pos.agencia }}</td><td>{{ pos.fecha }}</td><td class="text-end text-danger">Bs. {{ pos.monto | default(0) | dinero }}</td></tr>
+                                    <tr><td>{{ pos.agencia }}</td><td>{{ pos.fecha }}</td><td class="text-end text-danger fw-bold">Bs. {{ pos.monto | default(0) | dinero }}</td></tr>
+                                    {% else %}
+                                    <tr><td colspan="3" class="text-muted text-center py-2">Sin taquillas deudoras actualmente.</td></tr>
                                     {% endfor %}
                                 </table>
                             </div>
@@ -248,7 +279,9 @@
                                 <h5 class="fw-bold text-success">Saldo a Favor</h5>
                                 <table class="table table-sm">
                                     {% for neg in negativos %}
-                                    <tr><td>{{ neg.agencia }}</td><td>{{ neg.fecha }}</td><td class="text-end text-success">Bs. {{ neg.monto | default(0) | dinero }}</td></tr>
+                                    <tr><td>{{ neg.agencia }}</td><td>{{ neg.fecha }}</td><td class="text-end text-success fw-bold">Bs. {{ neg.monto | default(0) | dinero }}</td></tr>
+                                    {% else %}
+                                    <tr><td colspan="3" class="text-muted text-center py-2">Sin saldos a favor pendientes.</td></tr>
                                     {% endfor %}
                                 </table>
                             </div>
@@ -258,7 +291,7 @@
             </div>
 
             <!-- CASHEA -->
-            <div class="tab-pane fade {% if tab_activa == 'cashea' %}show active{% endif %}" id="cashea" role="tabpanel">
+            <div class="tab-pane fade {% if tab == 'cashea' or tab_activa == 'cashea' %}show active{% endif %}" id="cashea" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #00bcd4;">
                     <div class="card-body">
                         <h5 class="fw-bold text-info">Consolidado Cashea</h5>
@@ -271,22 +304,65 @@
                 </div>
             </div>
 
-            <!-- CONSOLIDADO -->
-            <div class="tab-pane fade {% if tab_activa == 'consolidado' %}show active{% endif %}" id="consolidado" role="tabpanel">
+            <!-- CONSOLIDADO POR SISTEMAS -->
+            <div class="tab-pane fade {% if tab == 'consolidado' or tab_activa == 'consolidado' %}show active{% endif %}" id="consolidado" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #e91e63;">
                     <div class="card-body">
-                        <h5 class="fw-bold text-admin-theme">Consolidado por Sistemas</h5>
-                        <table class="table table-sm table-bordered">
-                            {% for sistema, valores in sistemas_consolidados.items() %}
-                            <tr><td>{{ sistema }}</td><td class="text-end">Bs. {{ valores.neto | default(0) | dinero }}</td></tr>
-                            {% endfor %}
-                        </table>
+                        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                            <h5 class="fw-bold text-admin-theme m-0">Consolidado por Sistemas</h5>
+                            <form method="GET" action="/admin" class="d-flex align-items-center gap-2">
+                                <input type="hidden" name="tab" value="consolidado">
+                                <label class="small fw-bold text-secondary text-nowrap">Filtrar Taquilla:</label>
+                                <select name="agencia" class="form-select form-select-sm" onchange="this.form.submit()">
+                                    <option value="">-- Todas las Taquillas --</option>
+                                    {% for ag in agencias %}
+                                    <option value="{{ ag.agencia }}" {% if agencia_filtro == ag.agencia %}selected{% endif %}>{{ ag.agencia }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered table-striped align-middle">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>SISTEMA</th>
+                                        <th class="text-end">VENTA</th>
+                                        <th class="text-end">COMISIÓN</th>
+                                        <th class="text-end">PREMIO</th>
+                                        <th class="text-end">TOTAL</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for sistema, valores in sistemas_consolidados.items() %}
+                                    <tr>
+                                        <td class="fw-bold">{{ sistema }}</td>
+                                        <td class="text-end">Bs. {{ valores.venta | default(0) | dinero }}</td>
+                                        <td class="text-end text-primary">Bs. {{ valores.comision | default(0) | dinero }}</td>
+                                        <td class="text-end text-danger">Bs. {{ valores.premio | default(0) | dinero }}</td>
+                                        <td class="text-end fw-bold {% if (valores.neto | default(0)) < 0 %}text-danger{% else %}text-success{% endif %}">
+                                            Bs. {{ valores.neto | default(0) | dinero }}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot class="table-secondary fw-bold">
+                                    <tr>
+                                        <td>TOTALES</td>
+                                        <td class="text-end">Bs. {{ totales_generales.venta | default(0) | dinero }}</td>
+                                        <td class="text-end text-primary">Bs. {{ totales_generales.comision | default(0) | dinero }}</td>
+                                        <td class="text-end text-danger">Bs. {{ totales_generales.premio | default(0) | dinero }}</td>
+                                        <td class="text-end">Bs. {{ totales_generales.neto | default(0) | dinero }}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- TOTALIZADOR -->
-            <div class="tab-pane fade {% if tab_activa == 'totalizador' %}show active{% endif %}" id="totalizador" role="tabpanel">
+            <div class="tab-pane fade {% if tab == 'totalizador' or tab_activa == 'totalizador' %}show active{% endif %}" id="totalizador" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #0d47a1;">
                     <div class="card-body">
                         <h5 class="fw-bold text-primary">Totalizador Financiero</h5>
@@ -294,8 +370,9 @@
                     </div>
                 </div>
             </div>
+
             <!-- DESGLOSE BANCA -->
-            <div class="tab-pane fade {% if tab_activa == 'desglose_banca' %}show active{% endif %}" id="desglose_banca" role="tabpanel">
+            <div class="tab-pane fade {% if tab == 'desglose_banca' or tab_activa == 'desglose_banca' %}show active{% endif %}" id="desglose_banca" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
                         <h5 class="fw-bold text-success mb-3"><i class="fas fa-university"></i> Desglose por Banqueros con Ganancia Privada</h5>
@@ -323,7 +400,7 @@
                             </div>
                             <div class="card-body p-3">
                                 <div class="row g-3">
-                                    <!-- TABLA IZQUIERDA -->
+                                    <!-- TABLA IZQUIERDA (BANQUERO) -->
                                     <div class="col-lg-7">
                                         <div class="border rounded p-2 bg-white shadow-sm">
                                             <div class="table-responsive">
@@ -332,7 +409,7 @@
                                                         <tr>
                                                             <th>SISTEMA</th>
                                                             <th class="text-end">VENTA</th>
-                                                            <th class="text-end">COMIS.</th>
+                                                            <th class="text-end">COMIS. BANCA</th>
                                                             <th class="text-end">PREMIOS</th>
                                                             <th class="text-end">TOTAL</th>
                                                         </tr>
@@ -341,9 +418,12 @@
                                                         {% if data.sistemas %}
                                                             {% for sys in data.sistemas %}
                                                             <tr data-sistema="{{ sys.sistema }}">
-                                                                <td class="fw-bold sys-nombre">{{ sys.sistema }}</td>
+                                                                <td class="fw-bold sys-nombre">
+                                                                    <span class="badge badge-banquero-verde me-1 badge-pct-banca">{{ sys.pct_banquero | default(15) }}%</span>
+                                                                    {{ sys.sistema }}
+                                                                </td>
                                                                 <td class="text-end sys-venta" data-val="{{ sys.venta }}">Bs. {{ sys.venta | default(0) | dinero }}</td>
-                                                                <td class="text-end sys-comis" data-val="{{ sys.comision_agencia }}">Bs. {{ sys.comision_agencia | default(0) | dinero }}</td>
+                                                                <td class="text-end sys-comis" data-val="{{ sys.comision_banquero | default(sys.comision_agencia) }}">Bs. {{ (sys.comision_banquero | default(sys.comision_agencia)) | default(0) | dinero }}</td>
                                                                 <td class="text-end sys-premios" data-val="{{ sys.premios }}">Bs. {{ sys.premios | default(0) | dinero }}</td>
                                                                 <td class="text-end fw-bold sys-total" data-val="{{ sys.total_banquero }}">Bs. {{ sys.total_banquero | default(0) | dinero }}</td>
                                                             </tr>
@@ -390,7 +470,7 @@
                                                     <thead class="table-dark">
                                                         <tr>
                                                             <th>SISTEMA</th>
-                                                            <th class="text-center">% EXCED / % PART</th>
+                                                            <th class="text-center">% TAQUILLA / EXCED / PART</th>
                                                             <th class="text-end">GANANCIA REAL</th>
                                                         </tr>
                                                     </thead>
@@ -400,10 +480,11 @@
                                                             <tr data-sistema="{{ sys.sistema }}">
                                                                 <td class="fw-bold">{{ sys.sistema }}</td>
                                                                 <td class="text-center">
-                                                                    <span class="badge bg-primary badge-pct">3% Dif</span>
-                                                                    <span class="badge bg-warning text-dark badge-part">0% Part</span>
+                                                                    <span class="badge badge-taquilla-azul badge-taquilla" title="% Comisión que le das a la taquilla">{{ sys.pct_taquilla | default(12) }}% Taq</span>
+                                                                    <span class="badge bg-primary badge-pct" title="% Diferencial / Excedente">{{ sys.pct_excedente | default(3) }}% Dif</span>
+                                                                    <span class="badge bg-warning text-dark badge-part" title="% Participación">{{ sys.pct_participacion | default(0) }}% Part</span>
                                                                 </td>
-                                                                <td class="text-end fw-bold text-success span-ganancia-real">+ Bs. 0.00</td>
+                                                                <td class="text-end fw-bold text-success span-ganancia-real">+ Bs. {{ sys.ganancia_total | default(0) | dinero }}</td>
                                                             </tr>
                                                             {% endfor %}
                                                         {% endif %}
@@ -431,6 +512,17 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        function toggleMontoInput(selectElem) {
+            const input = selectElem.parentElement.querySelector('.input-abono');
+            if (selectElem.value === 'ABONO') {
+                input.classList.remove('d-none');
+                input.required = true;
+            } else {
+                input.classList.add('d-none');
+                input.required = false;
+            }
+        }
+
         document.addEventListener("DOMContentLoaded", function() {
             document.querySelectorAll(".card-banquero").forEach(card => {
                 let nombreBanquero = card.getAttribute("data-nombre").toUpperCase();
@@ -455,33 +547,89 @@
 
                     totalDefinitivoBanquero += totalNeto;
 
-                    let pctDif = 3;
+                    // Configuración por sistema según hoja de finanzas
+                    let pctBanquero = 16;
+                    let pctTaquilla = 12;
                     let pctPart = 0;
 
                     if (nombreSys.includes("BETSOL")) {
-                        pctDif = 3;
+                        pctBanquero = 15;
+                        pctTaquilla = 12;
                         pctPart = 10;
-                    } else if (nombreSys.includes("POZO")) {
-                        pctDif = 1;
+                    } else if (nombreSys.includes("LOTTOLUCKY")) {
+                        pctBanquero = 17;
+                        pctTaquilla = 13;
                         pctPart = 0;
-                    } else if (nombreSys.includes("MATRIX")) {
-                        pctDif = 4;
-                    } else if (nombreSys.includes("GATO")) {
-                        pctDif = 4;
+                    } else if (nombreSys.includes("POZO")) {
+                        pctBanquero = 13;
+                        pctTaquilla = 11;
+                        pctPart = 0;
+                    } else if (nombreSys.includes("IMAGINARIA")) {
+                        pctBanquero = 17;
+                        pctTaquilla = 14;
+                        pctPart = 35;
+                    } else if (nombreSys.includes("WINBIG POLLAS")) {
+                        pctBanquero = 18;
+                        pctTaquilla = 14;
+                        pctPart = 0;
+                    } else if (nombreSys.includes("MAXPLAY") || nombreSys.includes("MATRIX") || nombreSys.includes("GATO")) {
+                        pctBanquero = 16;
+                        pctTaquilla = 12;
+                        pctPart = 20;
+                    } else if (nombreSys.includes("SRQ")) {
+                        pctBanquero = 16;
+                        pctTaquilla = 12;
+                        pctPart = 30;
+                    } else if (nombreSys.includes("LOTIPOS")) {
+                        pctBanquero = 17;
+                        pctTaquilla = 13;
+                        pctPart = 20;
                     } else if (nombreSys.includes("POSNET")) {
-                        pctDif = 3;
+                        pctBanquero = 15;
+                        pctTaquilla = 12;
+                        pctPart = 20;
+                    } else if (nombreSys.includes("PREMIER")) {
+                        pctBanquero = 16;
+                        pctTaquilla = 12;
+                        pctPart = 0;
                     } else if (nombreSys.includes("PARLEY")) {
-                        pctDif = 2;
+                        pctBanquero = 12;
+                        pctTaquilla = 10;
+                        pctPart = 0;
+                    } else if (nombreSys.includes("LOTTIPLAY")) {
+                        pctBanquero = 15;
+                        pctTaquilla = 12;
+                        pctPart = 0;
                     }
 
-                    let gananciaReal = venta * (pctDif / 100.0);
+                    let pctDif = pctBanquero - pctTaquilla;
+
+                    // Badge de la izquierda (% que le toca al banquero)
+                    let badgeBanca = filaSys.querySelector(".badge-pct-banca");
+                    if (badgeBanca) {
+                        badgeBanca.innerText = pctBanquero + "%";
+                    }
+
+                    // Tu ganancia: excedente de comisión + porcentaje de participación si hay saldo positivo
+                    let gananciaExcedente = venta * (pctDif / 100.0);
+                    let gananciaPart = (pctPart > 0 && totalNeto > 0) ? (totalNeto * (pctPart / 100.0)) : 0;
+                    let gananciaReal = gananciaExcedente + gananciaPart;
+
                     gananciaTotalBanca += gananciaReal;
 
                     let filaPrivada = card.querySelectorAll(".tabla-privada tbody tr[data-sistema]")[idx];
                     if (filaPrivada) {
-                        filaPrivada.querySelector(".badge-pct").innerText = pctDif + "% Dif";
-                        filaPrivada.querySelector(".badge-part").innerText = pctPart + "% Part";
-                        filaPrivada.querySelector(".span-ganancia-real").innerText = "+ Bs. " + gananciaReal.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                        let badgeTaq = filaPrivada.querySelector(".badge-taquilla");
+                        if (badgeTaq) badgeTaq.innerText = pctTaquilla + "% Taq";
+
+                        let badgeD = filaPrivada.querySelector(".badge-pct");
+                        if (badgeD) badgeD.innerText = pctDif + "% Dif";
+
+                        let badgeP = filaPrivada.querySelector(".badge-part");
+                        if (badgeP) badgeP.innerText = pctPart + "% Part";
+
+                        let spanG = filaPrivada.querySelector(".span-ganancia-real");
+                        if (spanG) spanG.innerText = "+ Bs. " + gananciaReal.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                     }
                 });
 
