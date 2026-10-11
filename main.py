@@ -4,6 +4,7 @@ import psycopg2
 import psycopg2.extras
 import unicodedata
 import re
+import shutil
 from typing import Optional
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, UploadFile, File, status
@@ -186,13 +187,16 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     for p in todos_pagos:
         monto_p = p['monto'] or 0.0
         tipo_p = str(p['tipo']).strip().upper() if p['tipo'] else 'PAGO_TAQUILLA'
+        comp = p['comprobante'] or ''
         
+        comp_display = f'<a href="/uploads/{comp}" target="_blank">Ver Comprobante</a>' if (comp and (comp.endswith('.png') or comp.endswith('.jpg') or comp.endswith('.jpeg') or comp.endswith('.pdf'))) else comp
+
         if tipo_p == 'ADELANTO':
             total_adelantos += monto_p
             adelantos_rows_html += f'''
             <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['comprobante']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{comp_display}</td>
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #e91e63; font-weight: bold;">- Bs. {monto_p:,.2f}</td>
             </tr>
             '''
@@ -443,6 +447,8 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
         "nombre_agencia": agencia_norm
     })
 
+# COMUNICADOS
+@app.post("/admin/crear-comunicado")
 @app.post("/admin/comunicado")
 def post_comunicado(mensaje: str = Form(...)):
     if mensaje and mensaje.strip():
@@ -453,38 +459,19 @@ def post_comunicado(mensaje: str = Form(...)):
         conn.close()
     return RedirectResponse(url="/admin?tab=comunicados", status_code=status.HTTP_303_SEE_OTHER)
 
-@app.post("/admin/procesar-solicitud")
-def post_procesar_solicitud(
-    solicitud_id: int = Form(...),
-    accion: str = Form(...),
-    monto_abono: Optional[float] = Form(0.0),
-    agencia: str = Form(...),
-    fecha: str = Form(...)
-):
+@app.post("/admin/eliminar-comunicado")
+def post_eliminar_comunicado(comunicado_id: int = Form(...)):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM pagos WHERE id = %s", (solicitud_id,))
-    solicitud = cursor.fetchone()
-
-    if solicitud:
-        monto_original = float(solicitud['monto'] or 0.0)
-        monto_pagar = monto_original if accion == "COMPLETO" else float(monto_abono or 0.0)
-        
-        cursor.execute("UPDATE pagos SET estado = 'PROCESADO' WHERE id = %s", (solicitud_id,))
-        
-        cursor.execute(
-            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) 
-               VALUES (%s, %s, %s, %s, %s, 'ADELANTO', 'APROBADO')""",
-            (normalizar(agencia), fecha, monto_pagar, f"Liquidación Solicitud #{solicitud_id}", f"Abono Pago Banca ({accion})")
-        )
-        conn.commit()
-
+    cursor.execute("DELETE FROM comunicados WHERE id = %s", (comunicado_id,))
+    conn.commit()
     conn.close()
-    recalcular_y_actualizar_reporte(agencia, fecha)
-    return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/admin?tab=comunicados", status_code=status.HTTP_303_SEE_OTHER)
 
+# AGENCIAS
+@app.post("/admin/crear-agencia")
 @app.post("/admin/crear-taquilla")
-def post_crear_taquilla(agencia: str = Form(...), clave: str = Form(...), genero: str = Form("FEMENINO")):
+def post_crear_agencia(agencia: str = Form(...), clave: str = Form(...), genero: str = Form("FEMENINO")):
     agencia_norm = normalizar(agencia)
     if agencia_norm and clave:
         conn = get_db()
@@ -497,6 +484,67 @@ def post_crear_taquilla(agencia: str = Form(...), clave: str = Form(...), genero
         conn.commit()
         conn.close()
     return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/eliminar-agencia")
+def post_eliminar_agencia(agencia_id: int = Form(...)):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM usuarios WHERE id = %s", (agencia_id,))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/eliminar-transaccion")
+def post_eliminar_transaccion(pago_id: int = Form(...)):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = %s", (pago_id,))
+    p_data = cursor.fetchone()
+    if p_data:
+        cursor.execute("DELETE FROM pagos WHERE id = %s", (pago_id,))
+        conn.commit()
+        recalcular_y_actualizar_reporte(p_data['agencia'], p_data['fecha'])
+    conn.close()
+    return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/procesar-solicitud")
+async def post_procesar_solicitud(
+    solicitud_id: int = Form(...),
+    accion: str = Form(...),
+    monto_abono: Optional[float] = Form(0.0),
+    agencia: str = Form(...),
+    fecha: str = Form(...),
+    comprobante_file: Optional[UploadFile] = File(None)
+):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM pagos WHERE id = %s", (solicitud_id,))
+    solicitud = cursor.fetchone()
+
+    if solicitud:
+        monto_original = float(solicitud['monto'] or 0.0)
+        monto_pagar = monto_original if accion == "COMPLETO" else float(monto_abono or 0.0)
+        
+        nombre_guardado = f"Liquidación Solicitud #{solicitud_id} ({accion})"
+        if comprobante_file and comprobante_file.filename:
+            ext = comprobante_file.filename.split('.')[-1]
+            nombre_archivo = f"abono_{solicitud_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
+            ruta_destino = os.path.join("uploads", nombre_archivo)
+            with open(ruta_destino, "wb") as buffer:
+                shutil.copyfileobj(comprobante_file.file, buffer)
+            nombre_guardado = nombre_archivo
+
+        cursor.execute("UPDATE pagos SET estado = 'PROCESADO' WHERE id = %s", (solicitud_id,))
+        cursor.execute(
+            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) 
+               VALUES (%s, %s, %s, %s, %s, 'ADELANTO', 'APROBADO')""",
+            (normalizar(agencia), fecha, monto_pagar, f"Liquidación Solicitud #{solicitud_id}", nombre_guardado)
+        )
+        conn.commit()
+
+    conn.close()
+    recalcular_y_actualizar_reporte(agencia, fecha)
+    return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/admin", response_class=HTMLResponse)
 def get_admin(
@@ -527,35 +575,34 @@ def get_admin(
         f_hasta = hasta_fecha if hasta_fecha else hoy_str
         agencia_filtro = agencia if agencia else ""
 
+        # CONTEO DE SOLICITUDES PENDIENTES PARA LA CAMPANITA
+        cursor.execute("SELECT COUNT(*) AS total_pendientes FROM pagos WHERE estado ILIKE '%PENDIENTE%' OR tipo = 'SOLICITUD_BANCA'")
+        pend_row = cursor.fetchone()
+        solicitudes_pendientes_count = pend_row['total_pendientes'] if pend_row else 0
+
         if agencia_filtro:
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND agencia = %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (normalizar(agencia_filtro), f_desde, f_hasta))
         else:
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (f_desde, f_hasta))
         casheas_generales = [dict(row) for row in cursor.fetchall()]
 
-        total_taquillas_creadas = len(agencias)
-        taquillas_activas_hoy = 0
+        # CALCULO PRECISO DE BALANCES GLOBALES (+ / -)
+        positivos = []
+        negativos = []
         for ag in agencias:
-            u_conn = ag.get('ultima_conexion') or ''
-            if u_conn and u_conn.startswith(hoy_str):
-                ag['estado_conexion'] = 'ACTIVA'
-                taquillas_activas_hoy += 1
-            elif u_conn:
-                ag['estado_conexion'] = 'RECIENTE'
-            else:
-                ag['estado_conexion'] = 'SIN_CONEXION'
-
-        agencias_deben = []
-        agencias_a_favor = []
-        for ag in agencias:
-            cursor.execute("SELECT monto FROM reportes WHERE agencia = %s ORDER BY fecha DESC LIMIT 1", (ag['agencia'],))
+            ag_nombre = ag['agencia']
+            # Buscar el último reporte de la agencia ignorando mayúsculas/minúsculas
+            cursor.execute("SELECT monto, fecha FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC LIMIT 1", (normalizar(ag_nombre),))
             u_rep = cursor.fetchone()
-            if u_rep:
-                monto_rep = float(u_rep['monto'] or 0.0)
-                if monto_rep > 0:
-                    agencias_deben.append({"agencia": ag['agencia'], "saldo": monto_rep})
-                elif monto_rep < 0:
-                    agencias_a_favor.append({"agencia": ag['agencia'], "saldo": abs(monto_rep)})
+            
+            saldo_val = float(u_rep['monto'] or 0.0) if u_rep else 0.0
+            f_rep = u_rep['fecha'] if u_rep else hoy_str
+            ag['saldo_pendiente'] = saldo_val
+            
+            if saldo_val > 0.009:
+                positivos.append({"agencia": ag_nombre, "fecha": f_rep, "monto": saldo_val})
+            elif saldo_val < -0.009:
+                negativos.append({"agencia": ag_nombre, "fecha": f_rep, "monto": abs(saldo_val)})
 
         sistemas_consolidados = {}
         totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
@@ -570,8 +617,8 @@ def get_admin(
 
         for ag in agencias_a_procesar:
             cursor.execute(
-                "SELECT * FROM reportes WHERE agencia = %s AND fecha >= %s AND fecha <= %s", 
-                (ag, f_desde, f_hasta)
+                "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s", 
+                (normalizar(ag), f_desde, f_hasta)
             )
             reps_db = cursor.fetchall()
             for rep_db in reps_db:
@@ -607,8 +654,8 @@ def get_admin(
                                 totales_generales["neto"] += t
 
             cursor.execute(
-                "SELECT tipo, monto FROM pagos WHERE agencia = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'",
-                (ag, f_desde, f_hasta)
+                "SELECT tipo, monto FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'",
+                (normalizar(ag), f_desde, f_hasta)
             )
             pagos_aux = cursor.fetchall()
             for pa in pagos_aux:
@@ -626,14 +673,12 @@ def get_admin(
                 "sistemas": [
                     {"sistema": "BETSOL", "pct_banquero": 0.15, "pct_taquilla": 0.12, "pct_participacion": 0.10}
                 ],
-                "cobranza": [],
                 "absorbe_cashea": False
             },
             "COMERCIALIZADORA LOTTOLUCKY": {
                 "sistemas": [
                     {"sistema": "LOTTOLUCKY", "pct_banquero": 0.17, "pct_taquilla": 0.13, "pct_participacion": 0.00}
                 ],
-                "cobranza": [],
                 "absorbe_cashea": False
             },
             "COMERCIALIZADORA NYS": {
@@ -641,9 +686,6 @@ def get_admin(
                     {"sistema": "POZO", "pct_banquero": 0.13, "pct_taquilla": 0.11, "pct_participacion": 0.00},
                     {"sistema": "LA IMAGINARIA", "pct_banquero": 0.17, "pct_taquilla": 0.14, "pct_participacion": 0.35},
                     {"sistema": "WINBIG POLLAS", "pct_banquero": 0.18, "pct_taquilla": 0.14, "pct_participacion": 0.00}
-                ],
-                "cobranza": [
-                    {"nombre": "CALAMAR", "pct_banquero": 0.17, "pct_taquilla": 0.13, "pct_participacion": 0.25}
                 ],
                 "absorbe_cashea": True
             },
@@ -658,30 +700,31 @@ def get_admin(
                     {"sistema": "POSNET", "pct_banquero": 0.15, "pct_taquilla": 0.12, "pct_participacion": 0.20},
                     {"sistema": "PARLEY", "pct_banquero": 0.12, "pct_taquilla": 0.10, "pct_participacion": 0.00}
                 ],
-                "cobranza": [
-                    {"nombre": "GUACA", "pct_banquero": 0.17, "pct_taquilla": 0.13, "pct_participacion": 0.30}
-                ],
                 "absorbe_cashea": False
             },
             "COMERCIALIZADORA LOTTIPLAY": {
                 "sistemas": [
                     {"sistema": "LOTTIPLAY", "pct_banquero": 0.15, "pct_taquilla": 0.12, "pct_participacion": 0.00}
                 ],
-                "cobranza": [],
                 "absorbe_cashea": False
             }
         }
 
         desglose_banqueros = {}
+        total_ganancia_excedente = 0.0
+        total_ganancia_participacion = 0.0
+        suma_cuadros_banqueros = 0.0
+
         for b_nombre, cfg in ESTRUCTURA_BANQUEROS.items():
             desglose_banqueros[b_nombre] = {
                 "sistemas": [],
-                "cobranza": cfg["cobranza"],
                 "cashea_descontado": totales_auxiliares["cashea"] if cfg["absorbe_cashea"] else 0.0,
                 "total_a_pagar_banquero": 0.0,
                 "total_mi_ganancia_banca": 0.0,
                 "total": 0.0
             }
+
+            subtotal_banquero = 0.0
 
             for item in cfg["sistemas"]:
                 s_name = item["sistema"]
@@ -701,6 +744,9 @@ def get_admin(
                 g_participacion = (t_banquero_sistema * pct_part) if (pct_part > 0 and t_banquero_sistema > 0) else 0.0
                 g_total = g_excedente + g_participacion
 
+                total_ganancia_excedente += g_excedente
+                total_ganancia_participacion += g_participacion
+
                 desglose_banqueros[b_nombre]["sistemas"].append({
                     "sistema": s_name,
                     "venta": v_sys,
@@ -715,9 +761,18 @@ def get_admin(
                     "ganancia_total": g_total
                 })
 
-                desglose_banqueros[b_nombre]["total_a_pagar_banquero"] += t_banquero_sistema
+                subtotal_banquero += t_banquero_sistema
                 desglose_banqueros[b_nombre]["total_mi_ganancia_banca"] += g_total
-                desglose_banqueros[b_nombre]["total"] += t_banquero_sistema
+
+            # Si la comercializadora absorbe cashea (NYS), se le descuenta de lo que se le entrega
+            if cfg["absorbe_cashea"]:
+                subtotal_banquero -= totales_auxiliares["cashea"]
+
+            desglose_banqueros[b_nombre]["total_a_pagar_banquero"] = subtotal_banquero
+            desglose_banqueros[b_nombre]["total"] = subtotal_banquero
+            suma_cuadros_banqueros += subtotal_banquero
+
+        total_ganancia_global = total_ganancia_excedente + total_ganancia_participacion
 
         conn.close()
 
@@ -727,17 +782,21 @@ def get_admin(
             "agencias": agencias,
             "comunicados": comunicados,
             "casheas_generales": casheas_generales,
-            "total_taquillas_creadas": total_taquillas_creadas,
-            "taquillas_activas_hoy": taquillas_activas_hoy,
-            "agencias_deben": agencias_deben,
-            "agencias_a_favor": agencias_a_favor,
+            "positivos": positivos,
+            "negativos": negativos,
             "sistemas_consolidados": sistemas_consolidados,
             "totales_generales": totales_generales,
             "totales_auxiliares": totales_auxiliares,
             "desglose_banqueros": desglose_banqueros,
+            "total_ganancia_excedente": total_ganancia_excedente,
+            "total_ganancia_participacion": total_ganancia_participacion,
+            "total_mi_ganancia_global": total_ganancia_global,
+            "suma_cuadros_banqueros": suma_cuadros_banqueros,
+            "solicitudes_pendientes_count": solicitudes_pendientes_count,
             "desde_fecha": f_desde,
             "hasta_fecha": f_hasta,
             "agencia_filtro": agencia_filtro,
+            "tab_activa": tab,
             "tab": tab
         })
 
