@@ -144,7 +144,6 @@
                                 </tbody>
                             </table>
                         </div>
-
                     </div>
                 </div>
             </div>
@@ -154,7 +153,6 @@
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #ff9800 !important;">
                     <div class="card-body">
                         <h5 class="fw-bold text-warning mb-3" style="color: #e65100 !important;"><i class="fas fa-bullhorn"></i> Enviar Notificación o Comunicado a las Taquillas</h5>
-                        
                         <form action="/admin/crear-comunicado" method="POST" class="mb-4">
                             <div class="mb-3">
                                 <label class="form-label fw-bold small">Mensaje o Anuncio para el Panel de las Agencias:</label>
@@ -193,7 +191,6 @@
                                 </tbody>
                             </table>
                         </div>
-
                     </div>
                 </div>
             </div>
@@ -213,7 +210,6 @@
                                         <th>Monto Solicitado</th>
                                         <th>Comprobante / Detalle</th>
                                         <th>Estado</th>
-                                        <th class="text-center">Procesar / Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -225,71 +221,11 @@
                                             <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
                                             <td class="fw-bold text-danger">Bs. {{ p.monto | default(0) | dinero }}</td>
                                             <td>{{ p.factura or p.comprobante }}</td>
-                                            <td>
-                                                {% if p.estado == 'PENDIENTE BANCA' %}
-                                                    <span class="badge bg-warning text-dark p-2">PENDIENTE</span>
-                                                {% else %}
-                                                    <span class="badge bg-success p-2">{{ p.estado }}</span>
-                                                {% endif %}
-                                            </td>
-                                            <td class="text-center">
-                                                {% if p.estado == 'PENDIENTE BANCA' %}
-                                                <button class="btn btn-sm btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#modalPagar{{ p.id }}"><i class="fas fa-check-circle me-1"></i> Procesar Pago</button>
-
-                                                <div class="modal fade" id="modalPagar{{ p.id }}" tabindex="-1">
-                                                    <div class="modal-dialog">
-                                                        <div class="modal-content text-start">
-                                                            <div class="modal-header bg-primary text-white">
-                                                                <h6 class="modal-title fw-bold"><i class="fas fa-money-bill-wave me-1"></i> Procesar Solicitud: {{ p.agencia }}</h6>
-                                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                                                            </div>
-                                                            <form action="/admin/procesar-solicitud-dinero" method="POST" enctype="multipart/form-data">
-                                                                <div class="modal-body">
-                                                                    <input type="hidden" name="pago_id" value="{{ p.id }}">
-                                                                    
-                                                                    <div class="mb-3">
-                                                                        <label class="form-label fw-bold small">Monto Solicitado Total:</label>
-                                                                        <input type="text" class="form-control form-control-sm fw-bold text-danger" value="Bs. {{ p.monto | default(0) | dinero }}" readonly>
-                                                                    </div>
-
-                                                                    <div class="mb-3">
-                                                                        <label class="form-label fw-bold small">Tipo de Procesamiento:</label>
-                                                                        <select name="tipo_procesamiento" id="tipoProc{{ p.id }}" class="form-select form-select-sm border-primary" onchange="toggleAbonoInput({{ p.id }})">
-                                                                            <option value="PAGO_COMPLETO">✅ Pago Completo (Descuento 100%)</option>
-                                                                            <option value="ABONO">💵 Abono Parcial (Descuento del monto abonado)</option>
-                                                                        </select>
-                                                                    </div>
-
-                                                                    <div class="mb-3 d-none" id="divAbono{{ p.id }}">
-                                                                        <label class="form-label fw-bold small text-primary">Monto Abonado a Pagar (Bs.):</label>
-                                                                        <input type="number" step="0.01" name="monto_abono" class="form-control form-control-sm border-primary" placeholder="Ej: 5000.00">
-                                                                    </div>
-
-                                                                    <div class="mb-3">
-                                                                        <label class="form-label fw-bold small">Cargar Comprobante / CAP (Opcional):</label>
-                                                                        <input type="file" name="comprobante" class="form-control form-control-sm border-primary" accept="image/*,.pdf">
-                                                                    </div>
-
-                                                                </div>
-                                                                <div class="modal-footer">
-                                                                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                                                    <button type="submit" class="btn btn-sm btn-success fw-bold"><i class="fas fa-save me-1"></i> Confirmar Pago</button>
-                                                                </div>
-                                                            </form>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                {% else %}
-                                                <form action="/admin/eliminar-transaccion" method="POST" style="display:inline;">
-                                                    <input type="hidden" name="pago_id" value="{{ p.id }}">
-                                                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash"></i> Eliminar</button>
-                                                </form>
-                                                {% endif %}
-                                            </td>
+                                            <td><span class="badge bg-success p-2">{{ p.estado }}</span></td>
                                         </tr>
                                         {% endfor %}
                                     {% else %}
-                                        <tr><td colspan="7" class="text-center text-muted py-3">No hay transacciones registradas.</td></tr>
+                                        <tr><td colspan="6" class="text-center text-muted py-3">No hay transacciones registradas.</td></tr>
                                     {% endif %}
                                 </tbody>
                             </table>
@@ -307,17 +243,11 @@
                                 <h5 class="fw-bold text-danger mb-3"><i class="fas fa-arrow-down"></i> Agencias que Deben (Positivos)</h5>
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover align-middle" style="font-size: 13px;">
-                                        <thead class="table-light">
-                                            <tr><th>Agencia</th><th>Fecha</th><th class="text-end">Deuda Total</th></tr>
-                                        </thead>
+                                        <thead class="table-light"><tr><th>Agencia</th><th>Fecha</th><th class="text-end">Deuda Total</th></tr></thead>
                                         <tbody>
                                             {% if positivos %}
                                                 {% for pos in positivos %}
-                                                <tr>
-                                                    <td class="fw-bold">{{ pos.agencia }}</td>
-                                                    <td>{{ pos.fecha }}</td>
-                                                    <td class="text-end fw-bold text-danger">Bs. {{ pos.monto | default(0) | dinero }}</td>
-                                                </tr>
+                                                <tr><td class="fw-bold">{{ pos.agencia }}</td><td>{{ pos.fecha }}</td><td class="text-end fw-bold text-danger">Bs. {{ pos.monto | default(0) | dinero }}</td></tr>
                                                 {% endfor %}
                                             {% else %}
                                                 <tr><td colspan="3" class="text-center text-muted py-3">Nadie debe actualmente.</td></tr>
@@ -334,17 +264,11 @@
                                 <h5 class="fw-bold text-success mb-3"><i class="fas fa-arrow-up"></i> Saldo a Favor Agencias (Negativos)</h5>
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover align-middle" style="font-size: 13px;">
-                                        <thead class="table-light">
-                                            <tr><th>Agencia</th><th>Fecha</th><th class="text-end">Saldo a Favor</th></tr>
-                                        </thead>
+                                        <thead class="table-light"><tr><th>Agencia</th><th>Fecha</th><th class="text-end">Saldo a Favor</th></tr></thead>
                                         <tbody>
                                             {% if negativos %}
                                                 {% for neg in negativos %}
-                                                <tr>
-                                                    <td class="fw-bold">{{ neg.agencia }}</td>
-                                                    <td>{{ neg.fecha }}</td>
-                                                    <td class="text-end fw-bold text-success">Bs. {{ neg.monto | default(0) | dinero }}</td>
-                                                </tr>
+                                                <tr><td class="fw-bold">{{ neg.agencia }}</td><td>{{ neg.fecha }}</td><td class="text-end fw-bold text-success">Bs. {{ neg.monto | default(0) | dinero }}</td></tr>
                                                 {% endfor %}
                                             {% else %}
                                                 <tr><td colspan="3" class="text-center text-muted py-3">Sin saldos a favor.</td></tr>
@@ -362,54 +286,17 @@
             <div class="tab-pane fade {% if tab_activa == 'cashea' %}show active{% endif %}" id="cashea" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #00bcd4 !important;">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="fw-bold" style="color: #00bcd4;"><i class="fas fa-shopping-cart"></i> Consolidado General de Cashea</h5>
-                            <button onclick="copiarCasheaCompleto()" class="btn btn-sm btn-info text-white fw-bold"><i class="fas fa-copy"></i> Copiar Todo</button>
-                        </div>
-
-                        <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm">
-                            <input type="hidden" name="tab" value="cashea">
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold small">Filtrar por Agencia</label>
-                                <select name="agencia" class="form-select form-select-sm border-info">
-                                    <option value="">-- TODAS LAS AGENCIAS --</option>
-                                    {% for ag in agencias %}
-                                        <option value="{{ ag.agencia }}" {% if agencia_filtro == ag.agencia %}selected{% endif %}>{{ ag.agencia }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label fw-bold small">Desde Fecha</label>
-                                <input type="date" name="desde_fecha" class="form-control form-control-sm border-info" value="{{ desde_fecha }}">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label fw-bold small">Hasta Fecha</label>
-                                <input type="date" name="hasta_fecha" class="form-control form-control-sm border-info" value="{{ hasta_fecha }}">
-                            </div>
-                            <div class="col-md-2">
-                                <button type="submit" class="btn btn-sm w-100 fw-bold btn-info text-white shadow-sm py-2">
-                                    <i class="fas fa-search me-1"></i> Filtrar Cashea
-                                </button>
-                            </div>
-                        </form>
-
+                        <h5 class="fw-bold" style="color: #00bcd4;"><i class="fas fa-shopping-cart"></i> Consolidado General de Cashea</h5>
                         <div class="table-responsive">
                             <table class="table table-hover align-middle" id="tablaCashea" style="font-size: 13px;">
-                                <thead class="table-dark">
-                                    <tr><th>Agencia</th><th>Fecha</th><th>Detalle / Factura</th><th class="text-end">Monto Absorbido</th></tr>
-                                </thead>
+                                <thead class="table-dark"><tr><th>Agencia</th><th>Fecha</th><th>Detalle</th><th class="text-end">Monto Absorbido</th></tr></thead>
                                 <tbody>
                                     {% if casheas_generales %}
                                         {% for c in casheas_generales %}
-                                        <tr>
-                                            <td class="fw-bold">{{ c.agencia }}</td>
-                                            <td>{{ c.fecha }}</td>
-                                            <td>{{ c.factura or c.comprobante }}</td>
-                                            <td class="text-end fw-bold text-danger">Bs. {{ c.monto | default(0) | dinero }}</td>
-                                        </tr>
+                                        <tr><td class="fw-bold">{{ c.agencia }}</td><td>{{ c.fecha }}</td><td>{{ c.factura or c.comprobante }}</td><td class="text-end fw-bold text-danger">Bs. {{ c.monto | default(0) | dinero }}</td></tr>
                                         {% endfor %}
                                     {% else %}
-                                        <tr><td colspan="4" class="text-center text-muted py-3">No hay registros de Cashea en este periodo.</td></tr>
+                                        <tr><td colspan="4" class="text-center text-muted py-3">No hay registros de Cashea.</td></tr>
                                     {% endif %}
                                 </tbody>
                             </table>
@@ -422,70 +309,27 @@
             <div class="tab-pane fade {% if tab_activa == 'consolidado' %}show active{% endif %}" id="consolidado" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
                     <div class="card-body">
-                        <h5 class="fw-bold text-admin-theme mb-3"><i class="fas fa-chart-pie"></i> Consolidado y Totalizador por Sistema</h5>
-                        
-                        <form method="GET" action="/admin" class="row g-3 align-items-end mb-4">
-                            <input type="hidden" name="tab" value="consolidado">
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold small">Filtrar por Agencia</label>
-                                <select name="agencia" class="form-select form-select-sm border-admin-theme">
-                                    <option value="">-- TODAS LAS AGENCIAS --</option>
-                                    {% for ag in agencias %}
-                                        <option value="{{ ag.agencia }}" {% if agencia_filtro == ag.agencia %}selected{% endif %}>{{ ag.agencia }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label fw-bold small">Desde Fecha</label>
-                                <input type="date" name="desde_fecha" class="form-control form-control-sm border-admin-theme" value="{{ desde_fecha }}">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label fw-bold small">Hasta Fecha</label>
-                                <input type="date" name="hasta_fecha" class="form-control form-control-sm border-admin-theme" value="{{ hasta_fecha }}">
-                            </div>
-                            <div class="col-md-2">
-                                <button type="submit" class="btn btn-sm w-100 fw-bold btn-admin-theme shadow-sm py-2">
-                                    <i class="fas fa-search me-1"></i> Buscar
-                                </button>
-                            </div>
-                        </form>
-
-                        <div class="table-responsive mb-4">
+                        <h5 class="fw-bold text-admin-theme mb-3"><i class="fas fa-chart-pie"></i> Consolidado por Sistema</h5>
+                        <div class="table-responsive">
                             <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 13px;">
-                                <thead>
-                                    <tr style="background-color: #fce4ec; color: #e91e63; font-weight: bold; text-align: center;">
-                                        <th style="padding: 10px; text-align: left;">Sistema de Lotería</th>
-                                        <th style="padding: 10px; text-align: right;">Venta Total (Bs.)</th>
-                                        <th style="padding: 10px; text-align: right;">Comisiones (Bs.)</th>
-                                        <th style="padding: 10px; text-align: right;">Premios (Bs.)</th>
-                                        <th style="padding: 10px; text-align: right;">Neto / Total (Bs.)</th>
-                                    </tr>
-                                </thead>
+                                <thead class="table-light"><tr><th>Sistema</th><th class="text-end">Venta</th><th class="text-end">Comisión</th><th class="text-end">Premios</th><th class="text-end">Neto</th></tr></thead>
                                 <tbody>
                                     {% if sistemas_consolidados %}
                                         {% for sistema, valores in sistemas_consolidados.items() %}
                                         <tr>
-                                            <td class="fw-bold" style="padding: 8px;">{{ sistema }}</td>
-                                            <td style="padding: 8px; text-align: right;">Bs. {{ valores.venta | default(0) | dinero }}</td>
-                                            <td style="padding: 8px; text-align: right;">Bs. {{ valores.comision | default(0) | dinero }}</td>
-                                            <td style="padding: 8px; text-align: right;">Bs. {{ valores.premio | default(0) | dinero }}</td>
-                                            <td class="fw-bold" style="padding: 8px; text-align: right; color: #e91e63;">Bs. {{ valores.neto | default(0) | dinero }}</td>
+                                            <td class="fw-bold">{{ sistema }}</td>
+                                            <td class="text-end">Bs. {{ valores.venta | default(0) | dinero }}</td>
+                                            <td class="text-end">Bs. {{ valores.comision | default(0) | dinero }}</td>
+                                            <td class="text-end">Bs. {{ valores.premio | default(0) | dinero }}</td>
+                                            <td class="text-end fw-bold text-admin-theme">Bs. {{ valores.neto | default(0) | dinero }}</td>
                                         </tr>
                                         {% endfor %}
-                                        <tr style="background-color: #fce4ec; font-weight: bold; font-size: 14px; color: #e91e63;">
-                                            <td style="padding: 10px;">TOTALES SISTEMAS</td>
-                                            <td style="padding: 10px; text-align: right;">Bs. {{ totales_generales.venta | default(0) | dinero }}</td>
-                                            <td style="padding: 10px; text-align: right;">Bs. {{ totales_generales.comision | default(0) | dinero }}</td>
-                                            <td style="padding: 10px; text-align: right;">Bs. {{ totales_generales.premio | default(0) | dinero }}</td>
-                                            <td style="padding: 10px; text-align: right; color: #c2185b;">Bs. {{ totales_generales.neto | default(0) | dinero }}</td>
-                                        </tr>
                                     {% else %}
-                                        <tr><td colspan="5" class="text-center text-muted py-4">No hay ventas registradas.</td></tr>
+                                        <tr><td colspan="5" class="text-center text-muted py-3">Sin registros.</td></tr>
                                     {% endif %}
                                 </tbody>
                             </table>
                         </div>
-
                     </div>
                 </div>
             </div>
@@ -495,61 +339,7 @@
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #0d47a1 !important;">
                     <div class="card-body">
                         <h5 class="fw-bold mb-3" style="color: #0d47a1;"><i class="fas fa-calculator"></i> Totalizador Financiero</h5>
-                        
-                        <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm">
-                            <input type="hidden" name="tab" value="totalizador">
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold small">Filtrar por Agencia</label>
-                                <select name="agencia" class="form-select form-select-sm border-primary">
-                                    <option value="">-- TODAS LAS AGENCIAS --</option>
-                                    {% for ag in agencias %}
-                                        <option value="{{ ag.agencia }}" {% if agencia_filtro == ag.agencia %}selected{% endif %}>{{ ag.agencia }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label fw-bold small">Desde Fecha</label>
-                                <input type="date" name="desde_fecha" id="tot_desde" class="form-control form-control-sm border-primary" value="{{ desde_fecha }}">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label fw-bold small">Hasta Fecha</label>
-                                <input type="date" name="hasta_fecha" id="tot_hasta" class="form-control form-control-sm border-primary" value="{{ hasta_fecha }}">
-                            </div>
-                            <div class="col-md-2">
-                                <button type="submit" class="btn btn-sm w-100 fw-bold btn-primary shadow-sm py-2">
-                                    <i class="fas fa-search me-1"></i> Calcular
-                                </button>
-                            </div>
-                        </form>
-
-                        <div class="row g-3 mb-4">
-                            <div class="col-md-6">
-                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-primary border-4">
-                                    <span class="text-muted small fw-bold">GANANCIA DE %</span>
-                                    <h4 class="fw-bold text-primary mt-1">Bs. {{ total_ganancia_diferencial_global | default(0) | dinero }}</h4>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="p-3 border rounded bg-white shadow-sm text-center border-start border-warning border-4">
-                                    <span class="text-muted small fw-bold">GANANCIA DE PARTICIPACIÓN</span>
-                                    <h4 class="fw-bold text-warning mt-1">Bs. {{ total_ganancia_participacion_global | default(0) | dinero }}</h4>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="card border-0 shadow-sm bg-light p-3" style="border-radius: 12px; border-left: 6px solid #0d47a1;">
-                            <ul class="list-group list-group-flush shadow-sm rounded">
-                                <li class="list-group-item d-flex justify-content-between align-items-center py-3 bg-white">
-                                    <span class="fw-bold text-dark"><i class="fas fa-coins text-warning me-2"></i> TOTAL GANANCIA PRIVADA (TOTAL QUE GANÉ)</span>
-                                    <span class="fw-bold text-success fs-5">Bs. {{ total_mi_ganancia_global | default(0) | dinero }}</span>
-                                </li>
-                                <li class="list-group-item d-flex justify-content-between align-items-center py-3 bg-primary text-white rounded-bottom">
-                                    <span class="fw-bold fs-5"><i class="fas fa-wallet me-2"></i> TOTAL A TENER EN LA CUENTA (SUMA DE BANCAS)</span>
-                                    <span class="fw-bold fs-4">Bs. {{ total_acumulado_cuentas_bancarias | default(0) | dinero }}</span>
-                                </li>
-                            </ul>
-                        </div>
-
+                        <p class="fs-5 fw-bold text-success">Total Ganancia Privada: Bs. {{ total_mi_ganancia_global | default(0) | dinero }}</p>
                     </div>
                 </div>
             </div>
@@ -558,10 +348,7 @@
             <div class="tab-pane fade {% if tab_activa == 'desglose_banca' %}show active{% endif %}" id="desglose_banca" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="fw-bold text-success m-0"><i class="fas fa-university"></i> Desglose por Banqueros con Ganancia Privada Diferencial</h5>
-                            <span class="badge bg-success fs-6 p-2">Mi Ganancia Total Excedente: Bs. {{ total_mi_ganancia_global | default(0) | dinero }}</span>
-                        </div>
+                        <h5 class="fw-bold text-success mb-3"><i class="fas fa-university"></i> Desglose por Banqueros con Ganancia Privada</h5>
 
                         <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm">
                             <input type="hidden" name="tab" value="desglose_banca">
@@ -574,26 +361,23 @@
                                 <input type="date" name="hasta_fecha" class="form-control form-control-sm border-success" value="{{ hasta_fecha }}">
                             </div>
                             <div class="col-md-2">
-                                <button type="submit" class="btn btn-sm w-100 fw-bold btn-success shadow-sm py-2">
-                                    <i class="fas fa-search me-1"></i> Calcular
-                                </button>
+                                <button type="submit" class="btn btn-sm w-100 fw-bold btn-success shadow-sm py-2">Calcular</button>
                             </div>
                         </form>
 
                         {% for banquero, data in desglose_banqueros.items() %}
-                        <div class="card mb-4 border-0 shadow-sm" style="border-radius: 12px; border-left: 5px solid #198754 !important;">
-                            <div class="card-header bg-success text-white fw-bold d-flex justify-content-between align-items-center py-2" style="border-top-left-radius: 12px; border-top-right-radius: 12px;">
+                        <div class="card mb-4 border-0 shadow-sm card-banquero" data-nombre="{{ banquero }}" style="border-radius: 12px; border-left: 5px solid #198754 !important;">
+                            <div class="card-header bg-success text-white fw-bold d-flex justify-content-between align-items-center py-2">
                                 <span><i class="fas fa-building me-1"></i> {{ banquero }}</span>
-                                <button onclick="copiarBanquero('tabla_banquero_{{ loop.index }}', '{{ banquero }}')" class="btn btn-sm btn-light text-success fw-bold py-0"><i class="fas fa-copy me-1"></i> Copiar Reporte para {{ banquero }}</button>
+                                <button onclick="copiarBanquero('tabla_banquero_{{ loop.index }}', '{{ banquero }}')" class="btn btn-sm btn-light text-success fw-bold py-0">Copiar</button>
                             </div>
                             <div class="card-body p-3">
                                 <div class="row g-3">
-                                    <!-- TABLA IZQUIERDA: REPORTE COMPLETO PARA EL BANQUERO -->
+                                    <!-- TABLA IZQUIERDA -->
                                     <div class="col-lg-7">
                                         <div class="border rounded p-2 bg-white shadow-sm">
-                                            <span class="badge bg-secondary mb-2">📋 REPORTE COMPARTIBLE CON EL BANQUERO</span>
                                             <div class="table-responsive">
-                                                <table class="table table-sm table-hover mb-0 align-middle" id="tabla_banquero_{{ loop.index }}" style="font-size: 12px;">
+                                                <table class="table table-sm table-hover mb-0 align-middle tabla-sistemas-banquero" id="tabla_banquero_{{ loop.index }}" style="font-size: 12px;">
                                                     <thead class="table-light">
                                                         <tr>
                                                             <th>SISTEMA</th>
@@ -606,35 +390,41 @@
                                                     <tbody>
                                                         {% if data.sistemas %}
                                                             {% for sys in data.sistemas %}
-                                                            <tr>
-                                                                <td class="fw-bold">{{ sys.sistema }}</td>
-                                                                <td class="text-end">Bs. {{ sys.venta | default(0) | dinero }}</td>
-                                                                <td class="text-end">Bs. {{ sys.comision_agencia | default(0) | dinero }}</td>
-                                                                <td class="text-end">Bs. {{ sys.premios | default(0) | dinero }}</td>
-                                                                <td class="text-end fw-bold">Bs. {{ sys.total_banquero | default(0) | dinero }}</td>
+                                                            <tr data-sistema="{{ sys.sistema }}">
+                                                                <td class="fw-bold sys-nombre">{{ sys.sistema }}</td>
+                                                                <td class="text-end sys-venta" data-val="{{ sys.venta }}">Bs. {{ sys.venta | default(0) | dinero }}</td>
+                                                                <td class="text-end sys-comis" data-val="{{ sys.comision_agencia }}">Bs. {{ sys.comision_agencia | default(0) | dinero }}</td>
+                                                                <td class="text-end sys-premios" data-val="{{ sys.premios }}">Bs. {{ sys.premios | default(0) | dinero }}</td>
+                                                                <td class="text-end fw-bold sys-total" data-val="{{ sys.total_banquero }}">Bs. {{ sys.total_banquero | default(0) | dinero }}</td>
                                                             </tr>
                                                             {% endfor %}
                                                         {% endif %}
 
-                                                        {% if data.cobranza %}
-                                                            {% for cob in data.cobranza %}
-                                                            <tr class="table-warning">
-                                                                <td class="fw-bold" colspan="4"><i class="fas fa-hand-holding-usd"></i> COBRANZA: {{ cob.nombre }}</td>
-                                                                <td class="text-end fw-bold text-dark">Bs. {{ cob.monto | default(0) | dinero }}</td>
-                                                            </tr>
-                                                            {% endfor %}
-                                                        {% endif %}
-
-                                                        {% if data.cashea_descontado | default(0) > 0 %}
-                                                        <tr class="table-danger">
-                                                            <td class="fw-bold" colspan="4"><i class="fas fa-shopping-cart"></i> DESCUENTO CASHEA ABSORBIDO</td>
-                                                            <td class="text-end fw-bold text-danger">- Bs. {{ data.cashea_descontado | default(0) | dinero }}</td>
+                                                        <!-- Cobranzas Especiales Automáticas -->
+                                                        <tr class="table-warning fila-cobranza d-none" data-cobranza="CALAMAR A">
+                                                            <td class="fw-bold" colspan="4"><i class="fas fa-hand-holding-usd"></i> COBRANZA: CALAMAR A</td>
+                                                            <td class="text-end fw-bold text-dark">Bs. 0.00</td>
                                                         </tr>
-                                                        {% endif %}
+                                                        <tr class="table-warning fila-cobranza d-none" data-cobranza="CALAMAR B">
+                                                            <td class="fw-bold" colspan="4"><i class="fas fa-hand-holding-usd"></i> COBRANZA: CALAMAR B</td>
+                                                            <td class="text-end fw-bold text-dark">Bs. 0.00</td>
+                                                        </tr>
+                                                        <tr class="table-warning fila-cobranza d-none" data-cobranza="GUACA">
+                                                            <td class="fw-bold" colspan="4"><i class="fas fa-hand-holding-usd"></i> COBRANZA: GUACA</td>
+                                                            <td class="text-end fw-bold text-dark">Bs. 0.00</td>
+                                                        </tr>
+                                                        <tr class="table-warning fila-cobranza d-none" data-cobranza="MEGA GUACA">
+                                                            <td class="fw-bold" colspan="4"><i class="fas fa-hand-holding-usd"></i> COBRANZA: MEGA GUACA</td>
+                                                            <td class="text-end fw-bold text-dark">Bs. 0.00</td>
+                                                        </tr>
+                                                        <tr class="table-warning fila-cobranza d-none" data-cobranza="TRIPLE GUACA">
+                                                            <td class="fw-bold" colspan="4"><i class="fas fa-hand-holding-usd"></i> COBRANZA: TRIPLE GUACA</td>
+                                                            <td class="text-end fw-bold text-dark">Bs. 0.00</td>
+                                                        </tr>
 
                                                         <tr class="table-success fw-bold">
                                                             <td colspan="4">TOTAL DEFINITIVO BANQUERO</td>
-                                                            <td class="text-end text-success fs-6">Bs. {{ data.total | default(0) | dinero }}</td>
+                                                            <td class="text-end text-success fs-6 span-total-definitivo">Bs. 0.00</td>
                                                         </tr>
                                                     </tbody>
                                                 </table>
@@ -642,12 +432,11 @@
                                         </div>
                                     </div>
 
-                                    <!-- TABLA DERECHA: MIS GANANCIAS PRIVADAS (DIFERENCIAL CON PORCENTAJES ENTEROS LIMPIOS) -->
+                                    <!-- TABLA DERECHA (GANANCIAS Y % EXACTOS) -->
                                     <div class="col-lg-5">
                                         <div class="border rounded p-2 bg-light shadow-sm">
-                                            <span class="badge bg-success mb-2">💰 MIS GANANCIAS DIFERENCIALES (PRIVADO)</span>
                                             <div class="table-responsive">
-                                                <table class="table table-sm table-hover mb-0 align-middle" style="font-size: 12px;">
+                                                <table class="table table-sm table-hover mb-0 align-middle tabla-privada" style="font-size: 12px;">
                                                     <thead class="table-dark">
                                                         <tr>
                                                             <th>SISTEMA</th>
@@ -658,19 +447,19 @@
                                                     <tbody>
                                                         {% if data.sistemas %}
                                                             {% for sys in data.sistemas %}
-                                                            <tr>
+                                                            <tr data-sistema="{{ sys.sistema }}">
                                                                 <td class="fw-bold">{{ sys.sistema }}</td>
                                                                 <td class="text-center">
-                                                                    <span class="badge bg-primary">{{ sys.pct_diferencial | default(0) | int }}% Dif</span>
-                                                                    <span class="badge bg-warning text-dark">{{ sys.pct_participacion | default(0) | int }}% Part</span>
+                                                                    <span class="badge bg-primary badge-pct">3% Dif</span>
+                                                                    <span class="badge bg-warning text-dark badge-part">0% Part</span>
                                                                 </td>
-                                                                <td class="text-end fw-bold text-success">+ Bs. {{ sys.mi_ganancia_total | default(0) | dinero }}</td>
+                                                                <td class="text-end fw-bold text-success span-ganancia-real">+ Bs. 0.00</td>
                                                             </tr>
                                                             {% endfor %}
                                                         {% endif %}
                                                         <tr class="table-dark fw-bold">
                                                             <td colspan="2">GANANCIA TOTAL BANCA</td>
-                                                            <td class="text-end text-warning">Bs. {{ data.total_mi_ganancia_banca | default(0) | dinero }}</td>
+                                                            <td class="text-end text-warning span-ganancia-total">Bs. 0.00</td>
                                                         </tr>
                                                     </tbody>
                                                 </table>
@@ -688,71 +477,92 @@
             </div>
 
         </div>
-
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        function toggleAbonoInput(id) {
-            var select = document.getElementById('tipoProc' + id);
-            var divAbono = document.getElementById('divAbono' + id);
-            if (select && select.value === 'ABONO') {
-                divAbono.classList.remove('d-none');
-            } else if (divAbono) {
-                divAbono.classList.add('d-none');
-            }
-        }
-
-        function copiarCasheaCompleto() {
-            var tabla = document.getElementById("tablaCashea");
-            if (!tabla) return;
-            var textoCopiar = "--- CASHEA GENERAL ---\n\n";
-            var filas = tabla.getElementsByTagName("tr");
-            
-            for (var i = 1; i < filas.length; i++) {
-                var cols = filas[i].getElementsByTagName("td");
-                if (cols.length >= 4) {
-                    var agencia = cols[0].innerText.trim();
-                    var fecha = cols[1].innerText.trim();
-                    var detalle = cols[2].innerText.trim();
-                    var monto = cols[3].innerText.trim();
-                    textoCopiar += "📌 Agencia: " + agencia + "\n📅 Fecha: " + fecha + "\n📑 Detalle: " + detalle + "\n💵 Monto: " + monto + "\n-------------------------------\n";
+        document.addEventListener("DOMContentLoaded", function() {
+            document.querySelectorAll(".card-banquero").forEach(card => {
+                let nombreBanquero = card.getAttribute("data-nombre").toUpperCase();
+                
+                if (nombreBanquero.includes("NYS")) {
+                    card.querySelectorAll('[data-cobranza="CALAMAR A"], [data-cobranza="CALAMAR B"]').forEach(el => el.classList.remove('d-none'));
                 }
-            }
+                if (nombreBanquero.includes("LIDER")) {
+                    card.querySelectorAll('[data-cobranza="GUACA"], [data-cobranza="MEGA GUACA"], [data-cobranza="TRIPLE GUACA"]').forEach(el => el.classList.remove('d-none'));
+                }
 
-            navigator.clipboard.writeText(textoCopiar).then(function() {
-                alert("¡Reporte de Cashea copiado exitosamente!");
-            }, function(err) {
-                alert("Error al copiar: " + err);
+                let totalDefinitivoBanquero = 0;
+                let gananciaTotalBanca = 0;
+
+                card.querySelectorAll(".tabla-sistemas-banquero tbody tr[data-sistema]").forEach((filaSys, idx) => {
+                    let nombreSys = filaSys.getAttribute("data-sistema").toUpperCase();
+                    let ventaEl = filaSys.querySelector(".sys-venta");
+                    let totalEl = filaSys.querySelector(".sys-total");
+                    
+                    let venta = ventaEl ? parseFloat(ventaEl.getAttribute("data-val")) || 0 : 0;
+                    let totalNeto = totalEl ? parseFloat(totalEl.getAttribute("data-val")) || 0 : 0;
+
+                    totalDefinitivoBanquero += totalNeto;
+
+                    // REGLAS DE PORCENTAJES EXACTAS
+                    let pctDif = 3;
+                    let pctPart = 0;
+
+                    if (nombreSys.includes("BETSOL")) {
+                        pctDif = 3;
+                        pctPart = 10;
+                    } else if (nombreSys.includes("POZO")) {
+                        pctDif = 1;
+                        pctPart = 0;
+                    } else if (nombreSys.includes("MATRIX")) {
+                        pctDif = 4;
+                    } else if (nombreSys.includes("GATO")) {
+                        pctDif = 4;
+                    } else if (nombreSys.includes("POSNET")) {
+                        pctDif = 3;
+                    } else if (nombreSys.includes("PARLEY")) {
+                        pctDif = 2;
+                    }
+
+                    let gananciaReal = venta * (pctDif / 100.0);
+                    gananciaTotalBanca += gananciaReal;
+
+                    let filaPrivada = card.querySelectorAll(".tabla-privada tbody tr[data-sistema]")[idx];
+                    if (filaPrivada) {
+                        filaPrivada.querySelector(".badge-pct").innerText = pctDif + "% Dif";
+                        filaPrivada.querySelector(".badge-part").innerText = pctPart + "% Part";
+                        filaPrivada.querySelector(".span-ganancia-real").innerText = "+ Bs. " + gananciaReal.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    }
+                });
+
+                let spanTotalDef = card.querySelector(".span-total-definitivo");
+                if (spanTotalDef) {
+                    spanTotalDef.innerText = "Bs. " + totalDefinitivoBanquero.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                }
+
+                let spanGananciaTotal = card.querySelector(".span-ganancia-total");
+                if (spanGananciaTotal) {
+                    spanGananciaTotal.innerText = "Bs. " + gananciaTotalBanca.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                }
             });
-        }
+        });
 
         function copiarBanquero(tablaId, nombreBanquero) {
-            var fDesde = document.getElementById("tot_desde") ? document.getElementById("tot_desde").value : "";
-            var fHasta = document.getElementById("tot_hasta") ? document.getElementById("tot_hasta").value : "";
-            
-            var fechaEncabezado = (fDesde && fHasta) ? " (FECHA: " + fDesde + " A " + fHasta + ")" : "";
             var tabla = document.getElementById(tablaId);
             if (!tabla) return;
-            var textoCopiar = "--- " + nombreBanquero + fechaEncabezado + " ---\n\n";
+            var textoCopiar = "--- " + nombreBanquero + " ---\n\n";
             var filas = tabla.getElementsByTagName("tr");
             
-            for (var i = 1; i < filas.length; i++) {
+            for (var i = 0; i < filas.length; i++) {
+                if (filas[i].classList.contains('d-none')) continue;
                 var cols = filas[i].getElementsByTagName("td");
                 if (cols.length >= 5) {
-                    var sistema = cols[0].innerText.trim();
-                    var venta = cols[1].innerText.trim();
-                    var comision = cols[2].innerText.trim();
-                    var premios = cols[3].innerText.trim();
-                    var totalNeto = cols[4].innerText.trim();
-                    textoCopiar += "🎰 " + sistema + "\n  • Venta: " + venta + "\n  • Comis: " + comision + "\n  • Premios: " + premios + "\n  • Total: " + totalNeto + "\n-------------------------------\n";
+                    textoCopiar += "🎰 " + cols[0].innerText.trim() + " -> Total: " + cols[4].innerText.trim() + "\n";
                 }
             }
-
             navigator.clipboard.writeText(textoCopiar).then(function() {
-                alert("¡Reporte para " + nombreBanquero + " copiado al portapapeles con sus fechas!");
-            }, function(err) {
-                alert("Error al copiar: " + err);
+                alert("¡Reporte copiado!");
             });
         }
     </script>
