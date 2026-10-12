@@ -69,7 +69,7 @@
 <body>
 
     <div class="container my-4">
-        <!-- HEADER CON CAMPANITA DE NOTIFICACIONES -->
+        <!-- HEADER CON CAMPANITA -->
         <div class="card bg-admin-theme shadow-sm border-0 mb-4" style="border-radius: 15px;">
             <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h3 class="fw-bold m-0"><i class="fas fa-crown"></i> Administrador - Los Ángeles del Dinero 🍀🌺</h3>
@@ -115,7 +115,7 @@
             </div>
         </div>
 
-        <!-- PESTAÑAS DE NAVEGACIÓN -->
+        <!-- PESTAÑAS -->
         <ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
             <li class="nav-item">
                 <button class="nav-link {% if tab == 'taquillas' or tab_activa == 'taquillas' %}active{% endif %}" id="taquillas-tab" data-bs-toggle="tab" data-bs-target="#taquillas" type="button"><i class="fas fa-users-cog"></i> Taquillas Creadas 📱</button>
@@ -240,7 +240,7 @@
                 </div>
             </div>
 
-            <!-- 3. TRANSACCIONES Y VALIDACIÓN DIRECTA -->
+            <!-- 3. TRANSACCIONES Y SOLICITUDES -->
             <div class="tab-pane fade {% if tab == 'transacciones' or tab_activa == 'transacciones' or not tab %}show active{% endif %}" id="transacciones" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
                     <div class="card-body">
@@ -257,12 +257,12 @@
                                             <td class="fw-bold">{{ p.agencia }}</td>
                                             <td>{{ p.fecha }}</td>
                                             <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
-                                            <td class="fw-bold {% if p.tipo == 'ADELANTO' %}text-danger{% elif p.tipo == 'PAGO_TAQUILLA' %}text-success{% else %}text-dark{% endif %}">
+                                            <td class="fw-bold {% if p.tipo in ['ADELANTO', 'LIQUIDACION', 'SOLICITUD_BANCA'] %}text-danger{% elif p.tipo == 'PAGO_TAQUILLA' %}text-success{% else %}text-dark{% endif %}">
                                                 Bs. {{ p.monto | default(0) | dinero }}
                                             </td>
                                             <td>
                                                 {% if p.comprobante and (p.comprobante.endswith('.png') or p.comprobante.endswith('.jpg') or p.comprobante.endswith('.jpeg') or p.comprobante.endswith('.pdf')) %}
-                                                    <a href="/uploads/{{ p.comprobante }}" target="_blank" class="btn btn-sm btn-outline-primary py-0"><i class="fas fa-image me-1"></i>Ver Capture</a>
+                                                    <a href="/uploads/{ p.comprobante }}" target="_blank" class="btn btn-sm btn-outline-primary py-0"><i class="fas fa-image me-1"></i>Ver Capture</a>
                                                 {% else %}
                                                     {{ p.factura or p.comprobante }}
                                                 {% endif %}
@@ -270,6 +270,8 @@
                                             <td>
                                                 {% if p.estado == 'APROBADO' %}
                                                     <span class="badge bg-success p-2">APROBADO</span>
+                                                {% elif p.estado == 'PROCESADO' %}
+                                                    <span class="badge bg-info text-dark p-2">PROCESADO</span>
                                                 {% elif p.estado == 'RECHAZADO' %}
                                                     <span class="badge bg-danger p-2">RECHAZADO</span>
                                                 {% else %}
@@ -278,8 +280,25 @@
                                             </td>
                                             <td class="text-center">
                                                 <div class="d-inline-flex gap-1 align-items-center">
-                                                    <!-- BOTONES DE VALIDACIÓN DIRECTA SIN CARGAR CAPTURE -->
-                                                    {% if 'PENDIENTE' in p.estado %}
+                                                    <!-- CASO 1: LA TAQUILLA SOLICITA DINERO (RESPONDER CON ABONO O PAGO COMPLETO Y COMPROBANTE) -->
+                                                    {% if p.tipo == 'SOLICITUD_BANCA' and p.estado == 'PENDIENTE' %}
+                                                    <form action="/admin/procesar-solicitud-dinero" method="POST" enctype="multipart/form-data" class="d-inline-flex gap-1 align-items-center">
+                                                        <input type="hidden" name="solicitud_id" value="{{ p.id }}">
+                                                        <input type="hidden" name="agencia" value="{{ p.agencia }}">
+                                                        <input type="hidden" name="fecha" value="{{ p.fecha }}">
+                                                        
+                                                        <select name="accion" class="form-select form-select-sm" style="width: 140px;" onchange="toggleMontoAdmin(this)">
+                                                            <option value="COMPLETO">Pago Completo</option>
+                                                            <option value="ABONO">Abono</option>
+                                                        </select>
+                                                        <input type="number" step="0.01" name="monto_abono" class="form-control form-control-sm d-none input-abono" style="width: 85px;" placeholder="Monto">
+                                                        <input type="file" name="comprobante_file" class="form-control form-control-sm" style="width: 140px;" title="Capture de la transferencia" accept="image/*,.pdf" required>
+                                                        <button type="submit" class="btn btn-success btn-sm" title="Procesar y Descontar"><i class="fas fa-check"></i></button>
+                                                    </form>
+                                                    {% endif %}
+
+                                                    <!-- CASO 2: LA TAQUILLA REPORTÓ UN PAGO (SOLO VALIDAR O RECHAZAR) -->
+                                                    {% if p.tipo == 'PAGO_TAQUILLA' and p.estado == 'PENDIENTE' %}
                                                     <form action="/admin/validar-pago" method="POST" style="display:inline;">
                                                         <input type="hidden" name="solicitud_id" value="{{ p.id }}">
                                                         <input type="hidden" name="accion" value="APROBAR">
@@ -292,7 +311,7 @@
                                                     </form>
                                                     {% endif %}
                                                     
-                                                    <!-- PAPELERA PARA ELIMINAR CUALQUIER TRANSACCIÓN O MODIFICACIÓN -->
+                                                    <!-- PAPELERA PARA ELIMINAR CUALQUIER TRANSACCIÓN -->
                                                     <form action="/eliminar-transaccion" method="POST" style="display:inline;" onsubmit="return confirm('¿Seguro deseas eliminar esta transacción?');">
                                                         <input type="hidden" name="pago_id" value="{{ p.id }}">
                                                         <input type="hidden" name="redirect_to" value="/admin?tab=transacciones">
@@ -315,7 +334,6 @@
             <!-- 4. BALANCES -->
             <div class="tab-pane fade {% if tab == 'balances' or tab_activa == 'balances' %}show active{% endif %}" id="balances" role="tabpanel">
                 <div class="row">
-                    <!-- AGENCIAS QUE DEBEN (VERDE) -->
                     <div class="col-md-6 mb-4">
                         <div class="card shadow-sm border-0" style="border-top: 4px solid #198754; border-radius: 12px;">
                             <div class="card-body">
@@ -348,7 +366,6 @@
                         </div>
                     </div>
 
-                    <!-- SALDO A FAVOR / A PAGARLES (ROJO) -->
                     <div class="col-md-6 mb-4">
                         <div class="card shadow-sm border-0" style="border-top: 4px solid #dc3545; border-radius: 12px;">
                             <div class="card-body">
@@ -499,7 +516,7 @@
                 </div>
             </div>
 
-            <!-- 8. DESGLOSE BANCA (CON COLUMNAS DE PARTICIPACIÓN DETALLADAS) -->
+            <!-- 8. DESGLOSE BANCA -->
             <div class="tab-pane fade {% if tab == 'desglose_banca' or tab_activa == 'desglose_banca' %}show active{% endif %}" id="desglose_banca" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
@@ -528,7 +545,6 @@
                             </div>
                             <div class="card-body p-3">
                                 <div class="row g-3">
-                                    <!-- TABLA IZQUIERDA: LIQUIDACIÓN DEL BANQUERO RESTANDO LA PARTICIPACIÓN -->
                                     <div class="col-lg-7">
                                         <div class="border rounded p-2 bg-white shadow-sm">
                                             <div class="table-responsive">
@@ -606,7 +622,6 @@
                                         </div>
                                     </div>
 
-                                    <!-- TABLA DERECHA: GANANCIA REAL -->
                                     <div class="col-lg-5">
                                         <div class="border rounded p-2 bg-light shadow-sm">
                                             <div class="table-responsive">
@@ -662,6 +677,17 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        function toggleMontoAdmin(selectElem) {
+            const input = selectElem.parentElement.querySelector('.input-abono');
+            if (selectElem.value === 'ABONO') {
+                input.classList.remove('d-none');
+                input.required = true;
+            } else {
+                input.classList.add('d-none');
+                input.required = false;
+            }
+        }
+
         function copiarBanquero(tablaId, nombreBanquero) {
             var tabla = document.getElementById(tablaId);
             if (!tabla) return;
