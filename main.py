@@ -265,7 +265,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
-    # FÓRMULA UNIVERSAL EXACTA
+    # FÓRMULA UNIVERSAL
     monto_final = total_neto_sistemas - total_pagos_taquilla + total_adelantos - total_cashea + total_ajustes_pendientes
 
     bloque_pagos_banca = f'''
@@ -451,7 +451,6 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
     cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
     pagos_agencia = [dict(row) for row in cursor.fetchall()]
     
-    # Comunicados que NO hayan sido marcados como leídos por esta taquilla
     try:
         cursor.execute(
             """SELECT c.* FROM comunicados c
@@ -466,7 +465,6 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
     
-    # SUMA ACUMULADA REAL DE TODO LO PENDIENTE POR PAGAR O A FAVOR
     cursor.execute("SELECT SUM(monto) AS total_acumulado FROM reportes WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
     row_sum = cursor.fetchone()
     saldo_acumulado = float(row_sum['total_acumulado'] or 0.0) if row_sum else 0.0
@@ -483,7 +481,22 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
         "saldo_actual": saldo_acumulado
     })
 
-# MARCAR COMUNICADO COMO LEÍDO (DESAPARECE INMEDIATAMENTE)
+# CAMBIAR CONTRASEÑA POR PARTE DE LA AGENCIA
+@app.post("/agencia/cambiar-clave")
+def post_cambiar_clave(agencia: str = Form(...), nueva_clave: str = Form(...), confirm_clave: str = Form(...)):
+    agencia_norm = normalizar(agencia)
+    if not nueva_clave or nueva_clave != confirm_clave:
+        return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=usuario&error=claves_no_coinciden", status_code=status.HTTP_303_SEE_OTHER)
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE usuarios SET clave = %s WHERE UPPER(TRIM(agencia)) = %s", (nueva_clave.strip(), agencia_norm))
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=usuario&success=clave_actualizada", status_code=status.HTTP_303_SEE_OTHER)
+
+# MARCAR COMUNICADO COMO LEÍDO
 @app.post("/marcar-comunicado-leido")
 def post_marcar_leido(comunicado_id: int = Form(...), agencia: str = Form(...)):
     agencia_norm = normalizar(agencia)
@@ -670,7 +683,7 @@ def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[st
         return RedirectResponse(url=redirect_to, status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# PROCESAR SOLICITUD DE DINERO O ABONO DESDE EL ADMIN (CON CARGA DE COMPROBANTE)
+# PROCESAR SOLICITUD DE DINERO O ABONO DESDE EL ADMIN
 @app.post("/admin/procesar-solicitud-dinero")
 async def post_procesar_solicitud_dinero(
     solicitud_id: int = Form(...),
@@ -698,17 +711,14 @@ async def post_procesar_solicitud_dinero(
                 shutil.copyfileobj(comprobante_file.file, buffer)
             nombre_guardado = nombre_archivo
 
-        # 1. Marcar solicitud como procesada
         cursor.execute("UPDATE pagos SET estado = 'PROCESADO' WHERE id = %s", (solicitud_id,))
         
-        # 2. Registrar el egreso/adelanto aplicado que descuenta automáticamente
         cursor.execute(
             """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) 
                VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
             (normalizar(agencia), fecha, monto_pagar, f"Liquidación {accion}", nombre_guardado)
         )
 
-        # 3. Notificación automática a la taquilla
         cursor.execute(
             "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
             (f"Se te ha transferido Bs. {monto_pagar:,.2f} ({accion}) para saldar tu cuenta.", normalizar(agencia))
@@ -856,27 +866,73 @@ def get_admin(
         pend_row = cursor.fetchone()
         solicitudes_pendientes_count = pend_row['total_pendientes'] if pend_row else 0
 
+        # DATA CASHEA CON FILTROS
         if agencia_filtro:
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND UPPER(TRIM(agencia)) ILIKE %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (f"%{normalizar(agencia_filtro)}%", f_desde, f_hasta))
         else:
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (f_desde, f_hasta))
         casheas_generales = [dict(row) for row in cursor.fetchall()]
 
+        # BALANCES GLOBALES (+ / -) CON DESGLOSE DETALLADO
         positivos = []
         negativos = []
         for ag in agencias:
             ag_nombre = ag['agencia']
-            cursor.execute("SELECT monto, fecha FROM reportes WHERE UPPER(TRIM(agencia)) ILIKE %s ORDER BY id DESC LIMIT 1", (f"%{normalizar(ag_nombre)}%",))
-            u_rep = cursor.fetchone()
             
-            saldo_val = float(u_rep['monto'] or 0.0) if u_rep else 0.0
-            f_rep = u_rep['fecha'] if u_rep else f_hasta
+            # Consultar reportes en el rango para sumar ventas y comisiones
+            cursor.execute(
+                """SELECT SUM(ventas) as total_ventas, SUM(premios) as total_premios, SUM(monto) as saldo_neto, MAX(fecha) as ultima_fecha
+                   FROM reportes WHERE UPPER(TRIM(agencia)) ILIKE %s AND fecha >= %s AND fecha <= %s""",
+                (f"%{normalizar(ag_nombre)}%", f_desde, f_hasta)
+            )
+            fila_rep = cursor.fetchone()
+            
+            # Pagos y abonos en el rango
+            cursor.execute(
+                """SELECT tipo, SUM(monto) as total_monto FROM pagos 
+                   WHERE UPPER(TRIM(agencia)) ILIKE %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'
+                   GROUP BY tipo""",
+                (f"%{normalizar(ag_nombre)}%", f_desde, f_hasta)
+            )
+            filas_pagos = cursor.fetchall()
+            
+            sum_abonos = 0.0
+            sum_cashea = 0.0
+            sum_adelantos = 0.0
+            for fp in filas_pagos:
+                tipo_fp = str(fp['tipo']).upper()
+                m_fp = float(fp['total_monto'] or 0.0)
+                if tipo_fp in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
+                    sum_abonos += m_fp
+                elif tipo_fp == 'CASHEA':
+                    sum_cashea += m_fp
+                elif tipo_fp in ['ADELANTO', 'LIQUIDACION']:
+                    sum_adelantos += m_fp
+
+            v_tot = float(fila_rep['total_ventas'] or 0.0) if fila_rep else 0.0
+            p_tot = float(fila_rep['total_premios'] or 0.0) if fila_rep else 0.0
+            saldo_val = float(fila_rep['saldo_neto'] or 0.0) if (fila_rep and fila_rep['saldo_neto'] is not None) else 0.0
+            f_rep = fila_rep['ultima_fecha'] if (fila_rep and fila_rep['ultima_fecha']) else f_hasta
+
             ag['saldo_pendiente'] = saldo_val
             
+            datos_desglose = {
+                "agencia": ag_nombre,
+                "fecha": f_rep,
+                "monto": saldo_val,
+                "ventas": v_tot,
+                "premios": p_tot,
+                "abonos": sum_abonos,
+                "cashea": sum_cashea,
+                "adelantos": sum_adelantos
+            }
+
             if saldo_val > 0.009:
-                positivos.append({"agencia": ag_nombre, "fecha": f_rep, "monto": saldo_val})
+                positivos.append(datos_desglose)
             elif saldo_val < -0.009:
-                negativos.append({"agencia": ag_nombre, "fecha": f_rep, "monto": abs(saldo_val)})
+                datos_desglose_neg = dict(datos_desglose)
+                datos_desglose_neg["monto"] = abs(saldo_val)
+                negativos.append(datos_desglose_neg)
 
         sistemas_consolidados = {}
         totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
