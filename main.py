@@ -5,6 +5,7 @@ import psycopg2.extras
 import unicodedata
 import re
 import shutil
+from zoneinfo import ZoneInfo
 from typing import Optional
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, UploadFile, File, status
@@ -13,6 +14,15 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
+
+# Configuración de zona horaria oficial de Venezuela (America/Caracas, UTC-4)
+TZ_VENEZUELA = ZoneInfo("America/Caracas")
+
+def obtener_fecha_venezuela() -> str:
+    return datetime.now(TZ_VENEZUELA).strftime('%Y-%m-%d')
+
+def obtener_fechahora_venezuela() -> str:
+    return datetime.now(TZ_VENEZUELA).strftime('%Y-%m-%d %H:%M:%S')
 
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("templates", exist_ok=True)
@@ -145,7 +155,7 @@ def actualizar_ultima_conexion(agencia: str):
     agencia_norm = normalizar(agencia)
     if agencia_norm and agencia_norm != "ADMIN":
         try:
-            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            now_str = obtener_fechahora_venezuela()
             conn = get_db()
             cursor = conn.cursor()
             cursor.execute("UPDATE usuarios SET ultima_conexion = %s WHERE agencia = %s", (now_str, agencia_norm))
@@ -338,7 +348,7 @@ async def guardar_reporte_colab(request: Request):
     cashea_monto = float(data.get("cashea_monto", 0.0))
     cashea_detalle = data.get("cashea_detalle", "")
 
-    hoy_str = datetime.now().strftime('%Y-%m-%d')
+    hoy_str = obtener_fecha_venezuela()
     conn = get_db()
     cursor = conn.cursor()
 
@@ -528,7 +538,7 @@ async def post_procesar_solicitud(
         nombre_guardado = f"Liquidación Solicitud #{solicitud_id} ({accion})"
         if comprobante_file and comprobante_file.filename:
             ext = comprobante_file.filename.split('.')[-1]
-            nombre_archivo = f"abono_{solicitud_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
+            nombre_archivo = f"abono_{solicitud_id}_{datetime.now(TZ_VENEZUELA).strftime('%Y%m%d_%H%M%S')}.{ext}"
             ruta_destino = os.path.join("uploads", nombre_archivo)
             with open(ruta_destino, "wb") as buffer:
                 shutil.copyfileobj(comprobante_file.file, buffer)
@@ -570,11 +580,14 @@ def get_admin(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
 
-        # DETECTAR FECHA MÁS RECIENTE REGISTRADA EN LA BD
+        # FECHA POR DEFECTO: Hora oficial de Venezuela
+        hoy_vzla = obtener_fecha_venezuela()
+        
         cursor.execute("SELECT fecha FROM reportes ORDER BY id DESC LIMIT 1")
         ultima_fila = cursor.fetchone()
-        fecha_bd_reciente = ultima_fila['fecha'] if (ultima_fila and ultima_fila['fecha']) else datetime.now().strftime('%Y-%m-%d')
+        fecha_bd_reciente = ultima_fila['fecha'] if (ultima_fila and ultima_fila['fecha']) else hoy_vzla
 
+        # Si el usuario mandó fechas por filtro las usa; sino, usa la fecha con reportes reales
         f_desde = desde_fecha if desde_fecha else fecha_bd_reciente
         f_hasta = hasta_fecha if hasta_fecha else fecha_bd_reciente
         agencia_filtro = agencia if agencia else ""
@@ -617,7 +630,7 @@ def get_admin(
             "abonos_banca": 0.0
         }
 
-        # CONSULTAR REPORTES FILTRADOS POR FECHA (O TODOS SI COINCIDEN)
+        # RECOLECCIÓN DE REPORTES FILTRADOS
         if agencia_filtro:
             cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s", (normalizar(agencia_filtro), f_desde, f_hasta))
         else:
@@ -695,3 +708,118 @@ def get_admin(
                 "absorbe_cashea": True
             },
             "COMERCIALIZADORA LIDER": {
+                "sistemas": [
+                    {"sistema": "MAXPLAY", "pct_banquero": 0.16, "pct_taquilla": 0.12, "pct_participacion": 0.20},
+                    {"sistema": "MATRIX", "pct_banquero": 0.16, "pct_taquilla": 0.12, "pct_participacion": 0.20},
+                    {"sistema": "SRQ", "pct_banquero": 0.16, "pct_taquilla": 0.12, "pct_participacion": 0.30},
+                    {"sistema": "LOTIPOS", "pct_banquero": 0.17, "pct_taquilla": 0.13, "pct_participacion": 0.20},
+                    {"sistema": "GATO", "pct_banquero": 0.16, "pct_taquilla": 0.12, "pct_participacion": 0.20},
+                    {"sistema": "PREMIER", "pct_banquero": 0.16, "pct_taquilla": 0.12, "pct_participacion": 0.00},
+                    {"sistema": "POSNET", "pct_banquero": 0.15, "pct_taquilla": 0.12, "pct_participacion": 0.20},
+                    {"sistema": "PARLEY", "pct_banquero": 0.12, "pct_taquilla": 0.10, "pct_participacion": 0.00}
+                ],
+                "absorbe_cashea": False
+            },
+            "COMERCIALIZADORA LOTTIPLAY": {
+                "sistemas": [
+                    {"sistema": "LOTTIPLAY", "pct_banquero": 0.15, "pct_taquilla": 0.12, "pct_participacion": 0.00}
+                ],
+                "absorbe_cashea": False
+            }
+        }
+
+        desglose_banqueros = {}
+        total_ganancia_excedente = 0.0
+        total_ganancia_participacion = 0.0
+        suma_cuadros_banqueros = 0.0
+
+        for b_nombre, cfg in ESTRUCTURA_BANQUEROS.items():
+            desglose_banqueros[b_nombre] = {
+                "sistemas": [],
+                "cashea_descontado": totales_auxiliares["cashea"] if cfg["absorbe_cashea"] else 0.0,
+                "total_a_pagar_banquero": 0.0,
+                "total_mi_ganancia_banca": 0.0,
+                "total": 0.0
+            }
+
+            subtotal_banquero = 0.0
+
+            for item in cfg["sistemas"]:
+                s_name = item["sistema"]
+                v_sys = sistemas_consolidados.get(s_name, {}).get("venta", 0.0)
+                p_sys = sistemas_consolidados.get(s_name, {}).get("premio", 0.0)
+                
+                pct_b = item["pct_banquero"]
+                pct_t = item["pct_taquilla"]
+                pct_part = item["pct_participacion"]
+
+                c_banquero = v_sys * pct_b
+                t_banquero_sistema = v_sys - c_banquero - p_sys
+
+                c_taquilla = v_sys * pct_t
+                pct_excedente = (pct_b - pct_t) * 100.0
+                g_excedente = v_sys * (pct_b - pct_t)
+                
+                # PARTICIPACIÓN DIRECTA: Se calcula sobre el total del banquero (positivo o negativo)
+                g_participacion = (t_banquero_sistema * pct_part) if pct_part > 0 else 0.0
+                g_total = g_excedente + g_participacion
+
+                total_ganancia_excedente += g_excedente
+                total_ganancia_participacion += g_participacion
+
+                desglose_banqueros[b_nombre]["sistemas"].append({
+                    "sistema": s_name,
+                    "venta": v_sys,
+                    "comision_taquilla": c_taquilla,
+                    "comision_banquero": c_banquero,
+                    "premios": p_sys,
+                    "total_banquero": t_banquero_sistema,
+                    "pct_banquero": int(pct_b * 100),
+                    "pct_taquilla": int(pct_t * 100),
+                    "pct_excedente": int(round(pct_excedente)),
+                    "pct_participacion": int(pct_part * 100),
+                    "ganancia_total": g_total
+                })
+
+                subtotal_banquero += t_banquero_sistema
+                desglose_banqueros[b_nombre]["total_mi_ganancia_banca"] += g_total
+
+            # Si NYS absorbe cashea, se resta de lo que se le entrega
+            if cfg["absorbe_cashea"]:
+                subtotal_banquero -= totales_auxiliares["cashea"]
+
+            desglose_banqueros[b_nombre]["total_a_pagar_banquero"] = subtotal_banquero
+            desglose_banqueros[b_nombre]["total"] = subtotal_banquero
+            suma_cuadros_banqueros += subtotal_banquero
+
+        total_ganancia_global = total_ganancia_excedente + total_ganancia_participacion
+
+        conn.close()
+
+        return templates.TemplateResponse(request=request, name="admin.html", context={
+            "reportes": reportes,
+            "pagos": pagos,
+            "agencias": agencias,
+            "comunicados": comunicados,
+            "casheas_generales": casheas_generales,
+            "positivos": positivos,
+            "negativos": negativos,
+            "sistemas_consolidados": sistemas_consolidados,
+            "totales_generales": totales_generales,
+            "totales_auxiliares": totales_auxiliares,
+            "desglose_banqueros": desglose_banqueros,
+            "total_ganancia_excedente": total_ganancia_excedente,
+            "total_ganancia_participacion": total_ganancia_participacion,
+            "total_mi_ganancia_global": total_ganancia_global,
+            "suma_cuadros_banqueros": suma_cuadros_banqueros,
+            "solicitudes_pendientes_count": solicitudes_pendientes_count,
+            "desde_fecha": f_desde,
+            "hasta_fecha": f_hasta,
+            "agencia_filtro": agencia_filtro,
+            "tab_activa": tab,
+            "tab": tab
+        })
+
+    except Exception as e:
+        print("Error en admin:", e)
+        return HTMLResponse(content=f"Error interno en admin: {e}", status_code=500)
