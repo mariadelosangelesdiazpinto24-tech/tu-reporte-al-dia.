@@ -147,7 +147,6 @@ def init_db():
         )
     ''')
 
-    # Migración de compatibilidad para evitar el error de columna inexistente
     try:
         cursor.execute("ALTER TABLE comunicados ADD COLUMN IF NOT EXISTS agencia_destino TEXT DEFAULT 'TODAS'")
     except Exception:
@@ -208,7 +207,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         
         comp_display = f'<a href="/uploads/{comp}" target="_blank">Ver Comprobante</a>' if (comp and (comp.endswith('.png') or comp.endswith('.jpg') or comp.endswith('.jpeg') or comp.endswith('.pdf'))) else comp
 
-        if tipo_p == 'ADELANTO':
+        if tipo_p in ['ADELANTO', 'LIQUIDACION']:
             total_adelantos += monto_p
             adelantos_rows_html += f'''
             <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
@@ -266,11 +265,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
-    # FÓRMULA CONTABLE UNIVERSAL EXACTA:
-    # - total_pagos_taquilla: Lo que la taquilla te paga (reduce lo que te debe o aumenta su saldo a favor)
-    # + total_adelantos: Lo que tú le das a ella (liquida su saldo a favor o aumenta su deuda)
-    # - total_cashea: Monto absorbido que se descuenta
-    # + total_ajustes_pendientes: Diferenciales acumulados
+    # FÓRMULA UNIVERSAL EXACTA
     monto_final = total_neto_sistemas - total_pagos_taquilla + total_adelantos - total_cashea + total_ajustes_pendientes
 
     bloque_pagos_banca = f'''
@@ -317,7 +312,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     bloque_adelantos = f'''
     <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #e91e63;">
-        <h5 style="color: #e91e63; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-hand-holding-usd"></i> ADELANTOS (Plata entregada por Admin)</h5>
+        <h5 style="color: #e91e63; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-hand-holding-usd"></i> ADELANTOS / LIQUIDACIÓN (Plata entregada por Admin)</h5>
         <table class="table table-sm align-middle mb-0" style="width: 100%;">
             <tr style="background-color: #fce4ec; color: #880e4f; font-size: 13px;">
                 <th style="padding: 10px;">FECHA</th>
@@ -456,14 +451,25 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
     cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
     pagos_agencia = [dict(row) for row in cursor.fetchall()]
     
+    # Comunicados que NO hayan sido marcados como leídos por esta taquilla
     try:
-        cursor.execute("SELECT * FROM comunicados WHERE agencia_destino = 'TODAS' OR UPPER(TRIM(agencia_destino)) = %s ORDER BY id DESC", (agencia_norm,))
+        cursor.execute(
+            """SELECT c.* FROM comunicados c
+               LEFT JOIN lecturas_comunicados l ON c.id = l.comunicado_id AND UPPER(TRIM(l.agencia)) = %s
+               WHERE (c.agencia_destino = 'TODAS' OR UPPER(TRIM(c.agencia_destino)) = %s)
+                 AND l.id IS NULL
+               ORDER BY c.id DESC""",
+            (agencia_norm, agencia_norm)
+        )
         comunicados = [dict(row) for row in cursor.fetchall()]
     except Exception:
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
     
-    saldo_actual = reportes_agencia[0]['monto'] if reportes_agencia else 0.0
+    # SUMA ACUMULADA REAL DE TODO LO PENDIENTE POR PAGAR O A FAVOR
+    cursor.execute("SELECT SUM(monto) AS total_acumulado FROM reportes WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
+    row_sum = cursor.fetchone()
+    saldo_acumulado = float(row_sum['total_acumulado'] or 0.0) if row_sum else 0.0
 
     conn.close()
     
@@ -474,10 +480,41 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
         "pagos": pagos_agencia,
         "comunicados": comunicados,
         "sistemas": SISTEMAS_OFICIALES,
-        "saldo_actual": saldo_actual
+        "saldo_actual": saldo_acumulado
     })
 
-# REPORTAR PAGO / ABONO DE LA TAQUILLA (NOTIFICA AL ADMIN EN ESTADO PENDIENTE)
+# MARCAR COMUNICADO COMO LEÍDO (DESAPARECE INMEDIATAMENTE)
+@app.post("/marcar-comunicado-leido")
+def post_marcar_leido(comunicado_id: int = Form(...), agencia: str = Form(...)):
+    agencia_norm = normalizar(agencia)
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        """INSERT INTO lecturas_comunicados (comunicado_id, agencia, leido)
+           VALUES (%s, %s, 1) ON CONFLICT (comunicado_id, agencia) DO NOTHING""",
+        (comunicado_id, agencia_norm)
+    )
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
+
+# SOLICITAR PAGO A LA BANCA DIRECTAMENTE DESDE EL DETALLE DEL REPORTE
+@app.post("/solicitar-banca-directo")
+def post_solicitar_banca_directo(agencia: str = Form(...), fecha: str = Form(...), monto: float = Form(...)):
+    agencia_norm = normalizar(agencia)
+    monto_abs = abs(monto)
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+           VALUES (%s, %s, %s, %s, %s, 'SOLICITUD_BANCA', 'PENDIENTE')""",
+        (agencia_norm, fecha, monto_abs, f"Solicitud Saldo del {fecha}", f"Solicitud de dinero: Bs. {monto_abs:,.2f}")
+    )
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+
+# REPORTAR PAGO / ABONO DE LA TAQUILLA
 @app.post("/reportar")
 async def post_reportar(
     agencia: str = Form(...),
@@ -505,7 +542,7 @@ async def post_reportar(
 
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# SOLICITAR ADELANTO (APROBADO AUTOMATICAMENTE)
+# SOLICITAR ADELANTO
 @app.post("/solicitar-adelanto")
 def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), monto: float = Form(...), observacion: str = Form(...)):
     agencia_norm = normalizar(agencia)
@@ -522,7 +559,7 @@ def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), mo
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# MODIFICAR REPORTE POR SISTEMA (SE REGISTRA COMO TIPO MODIFICACION)
+# MODIFICAR REPORTE POR SISTEMA
 @app.post("/actualizar-reporte-sistema")
 def post_actualizar_reporte_sistema(
     agencia: str = Form(...),
@@ -591,7 +628,6 @@ def post_actualizar_reporte_sistema(
         cursor.execute("UPDATE reportes SET detalle_html = %s, ventas = %s, premios = %s WHERE id = %s", (html_modificado, sum_v, sum_p, rep['id']))
         conn.commit()
 
-        # Registrar transacción visible de MODIFICACION
         cursor.execute(
             """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
                VALUES (%s, %s, %s, %s, %s, 'MODIFICACION', 'APROBADO')""",
@@ -616,7 +652,7 @@ def post_actualizar_reporte_sistema(
     recalcular_y_actualizar_reporte(agencia_norm, obtener_fecha_venezuela())
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# ELIMINAR TRANSACCIÓN DESDE CUALQUIER PANEL
+# ELIMINAR TRANSACCIÓN
 @app.post("/eliminar-transaccion")
 @app.post("/admin/eliminar-transaccion")
 def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[str] = Form(None)):
@@ -634,7 +670,56 @@ def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[st
         return RedirectResponse(url=redirect_to, status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# VALIDAR O RECHAZAR SOLICITUD / PAGO (SIN SUBIR CAPTURE)
+# PROCESAR SOLICITUD DE DINERO O ABONO DESDE EL ADMIN (CON CARGA DE COMPROBANTE)
+@app.post("/admin/procesar-solicitud-dinero")
+async def post_procesar_solicitud_dinero(
+    solicitud_id: int = Form(...),
+    accion: str = Form(...),
+    monto_abono: Optional[float] = Form(0.0),
+    agencia: str = Form(...),
+    fecha: str = Form(...),
+    comprobante_file: Optional[UploadFile] = File(None)
+):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM pagos WHERE id = %s", (solicitud_id,))
+    solicitud = cursor.fetchone()
+
+    if solicitud:
+        monto_original = float(solicitud['monto'] or 0.0)
+        monto_pagar = monto_original if accion == "COMPLETO" else float(monto_abono or 0.0)
+        
+        nombre_guardado = f"Liquidación Saldo #{solicitud_id}"
+        if comprobante_file and comprobante_file.filename:
+            ext = comprobante_file.filename.split('.')[-1]
+            nombre_archivo = f"liquidacion_{solicitud_id}_{datetime.now(TZ_VENEZUELA).strftime('%Y%m%d_%H%M%S')}.{ext}"
+            ruta_destino = os.path.join("uploads", nombre_archivo)
+            with open(ruta_destino, "wb") as buffer:
+                shutil.copyfileobj(comprobante_file.file, buffer)
+            nombre_guardado = nombre_archivo
+
+        # 1. Marcar solicitud como procesada
+        cursor.execute("UPDATE pagos SET estado = 'PROCESADO' WHERE id = %s", (solicitud_id,))
+        
+        # 2. Registrar el egreso/adelanto aplicado que descuenta automáticamente
+        cursor.execute(
+            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) 
+               VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
+            (normalizar(agencia), fecha, monto_pagar, f"Liquidación {accion}", nombre_guardado)
+        )
+
+        # 3. Notificación automática a la taquilla
+        cursor.execute(
+            "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
+            (f"Se te ha transferido Bs. {monto_pagar:,.2f} ({accion}) para saldar tu cuenta.", normalizar(agencia))
+        )
+        conn.commit()
+
+    conn.close()
+    recalcular_y_actualizar_reporte(agencia, fecha)
+    return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+
+# VALIDAR O RECHAZAR PAGO CARGADO POR TAQUILLA
 @app.post("/admin/validar-pago")
 def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
     conn = get_db()
@@ -757,7 +842,6 @@ def get_admin(
         ultima_fila = cursor.fetchone()
         fecha_bd_reciente = ultima_fila['fecha'] if (ultima_fila and ultima_fila['fecha']) else hoy_vzla
 
-        # Si se filtra por agencia específica, obtener su fecha más reciente si no se pasa filtro explícito
         if agencia and not desde_fecha and not hasta_fecha:
             cursor.execute("SELECT fecha FROM reportes WHERE UPPER(TRIM(agencia)) ILIKE %s ORDER BY id DESC LIMIT 1", (f"%{normalizar(agencia)}%",))
             fila_ag = cursor.fetchone()
@@ -852,7 +936,7 @@ def get_admin(
             t_type = str(pa['tipo']).strip().upper() if pa['tipo'] else ''
             if t_type == 'CASHEA':
                 totales_auxiliares["cashea"] += m_val
-            elif t_type == 'ADELANTO':
+            elif t_type in ['ADELANTO', 'LIQUIDACION']:
                 totales_auxiliares["adelantos"] += m_val
             elif t_type in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
                 totales_auxiliares["abonos_banca"] += m_val
@@ -931,12 +1015,8 @@ def get_admin(
                 pct_excedente = (pct_b - pct_t) * 100.0
                 g_excedente = v_sys * (pct_b - pct_t)
                 
-                # CÁLCULO DE PARTICIPACIÓN: Total del sistema * % Participación
                 monto_participacion = t_banquero_sistema * pct_part if pct_part > 0 else 0.0
-                
-                # TOTAL DEFINITIVO BANQUERO = Total Sistema - Mi Participación
                 total_despues_participacion = t_banquero_sistema - monto_participacion
-
                 g_total = g_excedente + monto_participacion
 
                 total_ganancia_excedente += g_excedente
