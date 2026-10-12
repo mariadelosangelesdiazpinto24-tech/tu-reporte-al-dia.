@@ -36,6 +36,7 @@ SISTEMAS_OFICIALES = [
     "PREMIER", "SRQ POLLA", "WINBIG VENTAS", "WINBIG BINGO", 
     "WINBIG POLLAS", "VENTA ACTIVA", "PARLEY", "CALAMAR", "GUACA"
 ]
+
 def normalizar(texto: str) -> str:
     if not texto:
         return ""
@@ -147,6 +148,7 @@ def init_db():
         )
     ''')
 
+    # TABLA PARA PORCENTAJES EDITABLES DE BANQUEROS
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS configuracion_banqueros (
             id SERIAL PRIMARY KEY,
@@ -157,6 +159,20 @@ def init_db():
             pct_participacion DOUBLE PRECISION,
             absorbe_cashea BOOLEAN DEFAULT FALSE,
             UNIQUE(banquero, sistema)
+        )
+    ''')
+
+    # TABLA PARA EDICIÓN MANUAL DE MONTOS (VENTA, COMISIÓN, PREMIOS)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ajustes_banqueros_manuales (
+            id SERIAL PRIMARY KEY,
+            banquero TEXT,
+            sistema TEXT,
+            fecha TEXT,
+            venta DOUBLE PRECISION,
+            comision DOUBLE PRECISION,
+            premios DOUBLE PRECISION,
+            UNIQUE(banquero, sistema, fecha)
         )
     ''')
 
@@ -299,8 +315,6 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
         elif t_type in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
             totales_auxiliares["abonos_banca"] += m_val
 
-    conn.close()
-
     ESTRUCTURA_BANQUEROS = obtener_estructura_banqueros_bd()
     desglose_banqueros = {}
     total_ganancia_excedente = 0.0
@@ -327,7 +341,21 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             pct_t = item["pct_taquilla"]
             pct_part = item["pct_participacion"]
 
-            c_banquero = v_sys * pct_b
+            # COMPROBAR AJUSTE MANUAL EN ESTE SISTEMA PARA EL RANGO
+            cursor.execute(
+                """SELECT venta, comision, premios FROM ajustes_banqueros_manuales 
+                   WHERE banquero = %s AND sistema = %s AND fecha >= %s AND fecha <= %s""",
+                (b_nombre, s_name, f_desde, f_hasta)
+            )
+            ajuste_manual = cursor.fetchone()
+
+            if ajuste_manual:
+                v_sys = float(ajuste_manual['venta'])
+                p_sys = float(ajuste_manual['premios'])
+                c_banquero = float(ajuste_manual['comision'])
+            else:
+                c_banquero = v_sys * pct_b
+
             t_banquero_sistema = v_sys - c_banquero - p_sys
 
             c_taquilla = v_sys * pct_t
@@ -355,7 +383,8 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
                 "pct_taquilla": int(round(pct_t * 100)),
                 "pct_excedente": int(round(pct_excedente)),
                 "pct_participacion": int(round(pct_part * 100)),
-                "ganancia_total": g_total
+                "ganancia_total": g_total,
+                "ajustado_manual": bool(ajuste_manual)
             })
 
             subtotal_banquero += total_despues_participacion
@@ -368,6 +397,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
         desglose_banqueros[b_nombre]["total"] = subtotal_banquero
         suma_cuadros_banqueros += subtotal_banquero
 
+    conn.close()
     total_ganancia_global = total_ganancia_excedente + total_ganancia_participacion
 
     return (
@@ -377,7 +407,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
         desglose_banqueros,
         total_ganancia_excedente,
         total_ganancia_participacion,
-        total_ganancia_global,
+        total_mi_ganancia_global,
         suma_cuadros_banqueros
     )
 
@@ -1066,7 +1096,7 @@ def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# EDITAR EN VIVO LAS REGLAS DE LOS BANQUEROS
+# EDITAR EN VIVO LOS PORCENTAJES DE LOS BANQUEROS
 @app.post("/admin/actualizar-regla-banquero")
 def post_actualizar_regla_banquero(
     regla_id: int = Form(...),
@@ -1087,7 +1117,54 @@ def post_actualizar_regla_banquero(
     conn.commit()
     conn.close()
 
-    url_retorno = f"/admin?tab=banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
+    url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
+    return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
+
+# EDITAR EN VIVO VENTA, COMISIÓN O PREMIOS DE CUALQUIER SISTEMA EN EL BANQUERO
+@app.post("/admin/guardar-ajuste-banquero-sistema")
+def post_guardar_ajuste_banquero_sistema(
+    banquero: str = Form(...),
+    sistema: str = Form(...),
+    fecha: str = Form(...),
+    venta: float = Form(...),
+    comision: float = Form(...),
+    premios: float = Form(...),
+    desde_fecha: Optional[str] = Form(None),
+    hasta_fecha: Optional[str] = Form(None)
+):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        """INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+           VALUES (%s, %s, %s, %s, %s, %s)
+           ON CONFLICT (banquero, sistema, fecha) 
+           DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
+        (banquero, sistema, fecha, venta, comision, premios)
+    )
+    conn.commit()
+    conn.close()
+
+    url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
+    return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
+
+# RESTABLECER LOS VALORES MANUALES AL CÁLCULO ORIGINAL
+@app.post("/admin/restablecer-ajuste-banquero-sistema")
+def post_restablecer_ajuste_banquero_sistema(
+    banquero: str = Form(...),
+    sistema: str = Form(...),
+    desde_fecha: Optional[str] = Form(None),
+    hasta_fecha: Optional[str] = Form(None)
+):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM ajustes_banqueros_manuales WHERE banquero = %s AND sistema = %s",
+        (banquero, sistema)
+    )
+    conn.commit()
+    conn.close()
+
+    url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/crear-comunicado")
