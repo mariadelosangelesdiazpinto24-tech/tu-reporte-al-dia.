@@ -278,7 +278,7 @@
                                             </td>
                                             <td class="text-center">
                                                 <div class="d-inline-flex gap-1 align-items-center">
-                                                    <!-- BOTONES DE VALIDACIÓN RÁPIDA SIN CARGAR CAPTURE -->
+                                                    <!-- BOTONES DE VALIDACIÓN DIRECTA SIN CARGAR CAPTURE -->
                                                     {% if 'PENDIENTE' in p.estado %}
                                                     <form action="/admin/validar-pago" method="POST" style="display:inline;">
                                                         <input type="hidden" name="solicitud_id" value="{{ p.id }}">
@@ -499,7 +499,7 @@
                 </div>
             </div>
 
-            <!-- 8. DESGLOSE BANCA -->
+            <!-- 8. DESGLOSE BANCA (CON COLUMNAS DE PARTICIPACIÓN DETALLADAS) -->
             <div class="tab-pane fade {% if tab == 'desglose_banca' or tab_activa == 'desglose_banca' %}show active{% endif %}" id="desglose_banca" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
@@ -528,17 +528,20 @@
                             </div>
                             <div class="card-body p-3">
                                 <div class="row g-3">
+                                    <!-- TABLA IZQUIERDA: LIQUIDACIÓN DEL BANQUERO RESTANDO LA PARTICIPACIÓN -->
                                     <div class="col-lg-7">
                                         <div class="border rounded p-2 bg-white shadow-sm">
                                             <div class="table-responsive">
-                                                <table class="table table-sm table-hover mb-0 align-middle tabla-sistemas-banquero" id="tabla_banquero_{{ loop.index }}" style="font-size: 12px;">
+                                                <table class="table table-sm table-hover mb-0 align-middle tabla-sistemas-banquero" id="tabla_banquero_{{ loop.index }}" style="font-size: 11px;">
                                                     <thead class="table-light">
                                                         <tr>
                                                             <th>SISTEMA</th>
                                                             <th class="text-end">VENTA</th>
                                                             <th class="text-end">COMIS. BANCA</th>
                                                             <th class="text-end">PREMIOS</th>
-                                                            <th class="text-end">TOTAL</th>
+                                                            <th class="text-end">TOT. SISTEMA</th>
+                                                            <th class="text-end text-warning">PARTICIP.</th>
+                                                            <th class="text-end">TOTAL LIQ.</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -552,6 +555,14 @@
                                                                 <td class="text-end sys-venta" data-val="{{ sys.venta }}">Bs. {{ sys.venta | default(0) | dinero }}</td>
                                                                 <td class="text-end sys-comis" data-val="{{ sys.comision_banquero }}">Bs. {{ sys.comision_banquero | default(0) | dinero }}</td>
                                                                 <td class="text-end sys-premios" data-val="{{ sys.premios }}">Bs. {{ sys.premios | default(0) | dinero }}</td>
+                                                                <td class="text-end fw-semibold">Bs. {{ sys.total_sistema | default(0) | dinero }}</td>
+                                                                <td class="text-end text-warning fw-bold">
+                                                                    {% if sys.pct_participacion > 0 %}
+                                                                    - Bs. {{ sys.monto_participacion | default(0) | dinero }}
+                                                                    {% else %}
+                                                                    -
+                                                                    {% endif %}
+                                                                </td>
                                                                 <td class="text-end fw-bold sys-total" data-val="{{ sys.total_banquero }}">Bs. {{ sys.total_banquero | default(0) | dinero }}</td>
                                                             </tr>
                                                             {% endfor %}
@@ -559,34 +570,34 @@
 
                                                         {% if data.cashea_descontado > 0 %}
                                                         <tr class="table-info fila-cashea">
-                                                            <td class="fw-bold" colspan="4"><i class="fas fa-shopping-cart"></i> CASHEA ABSORBIDO</td>
+                                                            <td class="fw-bold" colspan="6"><i class="fas fa-shopping-cart"></i> CASHEA ABSORBIDO</td>
                                                             <td class="text-end fw-bold text-danger">- Bs. {{ data.cashea_descontado | dinero }}</td>
                                                         </tr>
                                                         {% endif %}
 
                                                         <tr class="table-warning fila-cobranza d-none" data-cobranza="CALAMAR A">
-                                                            <td class="fw-bold" colspan="4"><i class="fas fa-hand-holding-usd"></i> COBRANZA: CALAMAR A</td>
+                                                            <td class="fw-bold" colspan="6"><i class="fas fa-hand-holding-usd"></i> COBRANZA: CALAMAR A</td>
                                                             <td class="text-end fw-bold text-dark">Bs. 0.00</td>
                                                         </tr>
                                                         <tr class="table-warning fila-cobranza d-none" data-cobranza="CALAMAR B">
-                                                            <td class="fw-bold" colspan="4"><i class="fas fa-hand-holding-usd"></i> COBRANZA: CALAMAR B</td>
+                                                            <td class="fw-bold" colspan="6"><i class="fas fa-hand-holding-usd"></i> COBRANZA: CALAMAR B</td>
                                                             <td class="text-end fw-bold text-dark">Bs. 0.00</td>
                                                         </tr>
                                                         <tr class="table-warning fila-cobranza d-none" data-cobranza="GUACA">
-                                                            <td class="fw-bold" colspan="4"><i class="fas fa-hand-holding-usd"></i> COBRANZA: GUACA</td>
+                                                            <td class="fw-bold" colspan="6"><i class="fas fa-hand-holding-usd"></i> COBRANZA: GUACA</td>
                                                             <td class="text-end fw-bold text-dark">Bs. 0.00</td>
                                                         </tr>
                                                         <tr class="table-warning fila-cobranza d-none" data-cobranza="MEGA GUACA">
-                                                            <td class="fw-bold" colspan="4"><i class="fas fa-hand-holding-usd"></i> COBRANZA: MEGA GUACA</td>
+                                                            <td class="fw-bold" colspan="6"><i class="fas fa-hand-holding-usd"></i> COBRANZA: MEGA GUACA</td>
                                                             <td class="text-end fw-bold text-dark">Bs. 0.00</td>
                                                         </tr>
                                                         <tr class="table-warning fila-cobranza d-none" data-cobranza="TRIPLE GUACA">
-                                                            <td class="fw-bold" colspan="4"><i class="fas fa-hand-holding-usd"></i> COBRANZA: TRIPLE GUACA</td>
+                                                            <td class="fw-bold" colspan="6"><i class="fas fa-hand-holding-usd"></i> COBRANZA: TRIPLE GUACA</td>
                                                             <td class="text-end fw-bold text-dark">Bs. 0.00</td>
                                                         </tr>
 
                                                         <tr class="table-success fw-bold">
-                                                            <td colspan="4">TOTAL DEFINITIVO BANQUERO</td>
+                                                            <td colspan="6">TOTAL DEFINITIVO BANQUERO</td>
                                                             <td class="text-end text-success fs-6 span-total-definitivo">Bs. {{ data.total_a_pagar_banquero | default(0) | dinero }}</td>
                                                         </tr>
                                                     </tbody>
@@ -595,14 +606,15 @@
                                         </div>
                                     </div>
 
+                                    <!-- TABLA DERECHA: GANANCIA REAL -->
                                     <div class="col-lg-5">
                                         <div class="border rounded p-2 bg-light shadow-sm">
                                             <div class="table-responsive">
-                                                <table class="table table-sm table-hover mb-0 align-middle tabla-privada" style="font-size: 12px;">
+                                                <table class="table table-sm table-hover mb-0 align-middle tabla-privada" style="font-size: 11px;">
                                                     <thead class="table-dark">
                                                         <tr>
                                                             <th>SISTEMA</th>
-                                                            <th class="text-center">% TAQUILLA / EXCED / PART</th>
+                                                            <th class="text-center">% TAQ / DIF / PART</th>
                                                             <th class="text-end">GANANCIA REAL</th>
                                                         </tr>
                                                     </thead>
@@ -612,8 +624,8 @@
                                                             <tr data-sistema="{{ sys.sistema }}">
                                                                 <td class="fw-bold">{{ sys.sistema }}</td>
                                                                 <td class="text-center">
-                                                                    <span class="badge badge-taquilla-azul badge-taquilla" title="% Comisión que le das a la taquilla">{{ sys.pct_taquilla }}% Taq</span>
-                                                                    <span class="badge bg-primary badge-pct" title="% Diferencial / Excedente">{{ sys.pct_excedente }}% Dif</span>
+                                                                    <span class="badge badge-taquilla-azul badge-taquilla" title="% Comisión de la taquilla">{{ sys.pct_taquilla }}% Taq</span>
+                                                                    <span class="badge bg-primary badge-pct" title="% Excedente">{{ sys.pct_excedente }}% Dif</span>
                                                                     <span class="badge bg-warning text-dark badge-part" title="% Participación">{{ sys.pct_participacion }}% Part</span>
                                                                 </td>
                                                                 <td class="text-end fw-bold {% if (sys.ganancia_total | default(0)) < 0 %}text-danger{% else %}text-success{% endif %} span-ganancia-real">
@@ -667,19 +679,22 @@
                 if (filas[i].classList.contains('d-none')) continue;
                 
                 var cols = filas[i].getElementsByTagName("td");
-                if (cols.length >= 5) {
+                if (cols.length >= 7) {
                     var sis = cols[0].innerText.replace(/[\n\r]+/g, ' ').trim();
                     var venta = cols[1].innerText.trim();
                     var comision = cols[2].innerText.trim();
                     var premios = cols[3].innerText.trim();
-                    var total = cols[4].innerText.trim();
+                    var totSis = cols[4].innerText.trim();
+                    var particip = cols[5].innerText.trim();
+                    var totalLiq = cols[6].innerText.trim();
                     
                     textoCopiar += "🎰 " + sis + "\n";
-                    textoCopiar += "   • Venta: " + venta + " | Comis: " + comision + " | Premios: " + premios + " | Total: " + total + "\n\n";
+                    textoCopiar += "   • Venta: " + venta + " | Comis: " + comision + " | Premios: " + premios + "\n";
+                    textoCopiar += "   • Tot. Sistema: " + totSis + " | Partic: " + particip + " | Total Liq: " + totalLiq + "\n\n";
                 } else if (filas[i].classList.contains('table-success') || filas[i].innerText.includes("TOTAL DEFINITIVO")) {
                     totalDefinitivo = cols[cols.length - 1].innerText.trim();
                 } else if (filas[i].classList.contains('fila-cashea')) {
-                    textoCopiar += "🛒 CASHEA ABSORBIDO: " + cols[1].innerText.trim() + "\n\n";
+                    textoCopiar += "🛒 CASHEA ABSORBIDO: " + cols[cols.length - 1].innerText.trim() + "\n\n";
                 }
             }
 
