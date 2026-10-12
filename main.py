@@ -570,23 +570,28 @@ def get_admin(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
 
-        hoy_str = datetime.now().strftime('%Y-%m-%d')
-        f_desde = desde_fecha if desde_fecha else hoy_str
-        f_hasta = hasta_fecha if hasta_fecha else hoy_str
+        # DETECTAR FECHA MÁS RECIENTE REGISTRADA EN LA BD
+        cursor.execute("SELECT fecha FROM reportes ORDER BY id DESC LIMIT 1")
+        ultima_fila = cursor.fetchone()
+        fecha_bd_reciente = ultima_fila['fecha'] if (ultima_fila and ultima_fila['fecha']) else datetime.now().strftime('%Y-%m-%d')
+
+        f_desde = desde_fecha if desde_fecha else fecha_bd_reciente
+        f_hasta = hasta_fecha if hasta_fecha else fecha_bd_reciente
         agencia_filtro = agencia if agencia else ""
 
-        # CONTEO DE SOLICITUDES PENDIENTES PARA LA CAMPANITA
+        # CONTEO DE SOLICITUDES PENDIENTES
         cursor.execute("SELECT COUNT(*) AS total_pendientes FROM pagos WHERE estado ILIKE '%PENDIENTE%' OR tipo = 'SOLICITUD_BANCA'")
         pend_row = cursor.fetchone()
         solicitudes_pendientes_count = pend_row['total_pendientes'] if pend_row else 0
 
+        # CASHEA GENERAL
         if agencia_filtro:
-            cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND agencia = %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (normalizar(agencia_filtro), f_desde, f_hasta))
+            cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (normalizar(agencia_filtro), f_desde, f_hasta))
         else:
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (f_desde, f_hasta))
         casheas_generales = [dict(row) for row in cursor.fetchall()]
 
-        # CALCULO DE BALANCES GLOBALES
+        # BALANCES GLOBALES (+ / -)
         positivos = []
         negativos = []
         for ag in agencias:
@@ -595,7 +600,7 @@ def get_admin(
             u_rep = cursor.fetchone()
             
             saldo_val = float(u_rep['monto'] or 0.0) if u_rep else 0.0
-            f_rep = u_rep['fecha'] if u_rep else hoy_str
+            f_rep = u_rep['fecha'] if u_rep else f_hasta
             ag['saldo_pendiente'] = saldo_val
             
             if saldo_val > 0.009:
@@ -612,60 +617,61 @@ def get_admin(
             "abonos_banca": 0.0
         }
 
-        agencias_a_procesar = [normalizar(agencia_filtro)] if agencia_filtro else [a['agencia'] for a in agencias]
+        # CONSULTAR REPORTES FILTRADOS POR FECHA (O TODOS SI COINCIDEN)
+        if agencia_filtro:
+            cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s", (normalizar(agencia_filtro), f_desde, f_hasta))
+        else:
+            cursor.execute("SELECT * FROM reportes WHERE fecha >= %s AND fecha <= %s", (f_desde, f_hasta))
+        reps_db = cursor.fetchall()
 
-        for ag in agencias_a_procesar:
-            cursor.execute(
-                "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s", 
-                (normalizar(ag), f_desde, f_hasta)
-            )
-            reps_db = cursor.fetchall()
-            for rep_db in reps_db:
-                if rep_db and rep_db['detalle_html']:
-                    tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', rep_db['detalle_html'], re.DOTALL)
-                    if tabla_match:
-                        filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_match.group(1), re.DOTALL)
-                        for f in filas:
-                            cols = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', f, re.DOTALL)
-                            if len(cols) >= 5:
-                                sys_nombre = re.sub(r'<[^>]+>', '', cols[0]).strip()
-                                if not sys_nombre or "SISTEMA" in sys_nombre.upper() or "TOTALES" in sys_nombre.upper():
-                                    continue
-                                try:
-                                    v = float(re.sub(r'[^\d.-]', '', cols[1]))
-                                    c = float(re.sub(r'[^\d.-]', '', cols[2]))
-                                    p = float(re.sub(r'[^\d.-]', '', cols[3]))
-                                    t = float(re.sub(r'[^\d.-]', '', cols[4]))
-                                except:
-                                    v, c, p, t = 0.0, 0.0, 0.0, 0.0
+        for rep_db in reps_db:
+            if rep_db and rep_db['detalle_html']:
+                tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', rep_db['detalle_html'], re.DOTALL)
+                if tabla_match:
+                    filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_match.group(1), re.DOTALL)
+                    for f in filas:
+                        cols = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', f, re.DOTALL)
+                        if len(cols) >= 5:
+                            sys_nombre = re.sub(r'<[^>]+>', '', cols[0]).strip()
+                            if not sys_nombre or "SISTEMA" in sys_nombre.upper() or "TOTALES" in sys_nombre.upper():
+                                continue
+                            try:
+                                v = float(re.sub(r'[^\d.-]', '', cols[1]))
+                                c = float(re.sub(r'[^\d.-]', '', cols[2]))
+                                p = float(re.sub(r'[^\d.-]', '', cols[3]))
+                                t = float(re.sub(r'[^\d.-]', '', cols[4]))
+                            except:
+                                v, c, p, t = 0.0, 0.0, 0.0, 0.0
 
-                                if sys_nombre not in sistemas_consolidados:
-                                    sistemas_consolidados[sys_nombre] = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
-                                
-                                sistemas_consolidados[sys_nombre]["venta"] += v
-                                sistemas_consolidados[sys_nombre]["comision"] += c
-                                sistemas_consolidados[sys_nombre]["premio"] += p
-                                sistemas_consolidados[sys_nombre]["neto"] += t
+                            if sys_nombre not in sistemas_consolidados:
+                                sistemas_consolidados[sys_nombre] = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
+                            
+                            sistemas_consolidados[sys_nombre]["venta"] += v
+                            sistemas_consolidados[sys_nombre]["comision"] += c
+                            sistemas_consolidados[sys_nombre]["premio"] += p
+                            sistemas_consolidados[sys_nombre]["neto"] += t
 
-                                totales_generales["venta"] += v
-                                totales_generales["comision"] += c
-                                totales_generales["premio"] += p
-                                totales_generales["neto"] += t
+                            totales_generales["venta"] += v
+                            totales_generales["comision"] += c
+                            totales_generales["premio"] += p
+                            totales_generales["neto"] += t
 
-            cursor.execute(
-                "SELECT tipo, monto FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'",
-                (normalizar(ag), f_desde, f_hasta)
-            )
-            pagos_aux = cursor.fetchall()
-            for pa in pagos_aux:
-                m_val = pa['monto'] or 0.0
-                t_type = str(pa['tipo']).strip().upper() if pa['tipo'] else ''
-                if t_type == 'CASHEA':
-                    totales_auxiliares["cashea"] += m_val
-                elif t_type == 'ADELANTO':
-                    totales_auxiliares["adelantos"] += m_val
-                elif t_type in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
-                    totales_auxiliares["abonos_banca"] += m_val
+        # CONSULTAR PAGOS AUXILIARES
+        if agencia_filtro:
+            cursor.execute("SELECT tipo, monto FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'", (normalizar(agencia_filtro), f_desde, f_hasta))
+        else:
+            cursor.execute("SELECT tipo, monto FROM pagos WHERE fecha >= %s AND fecha <= %s AND estado = 'APROBADO'", (f_desde, f_hasta))
+        pagos_aux = cursor.fetchall()
+
+        for pa in pagos_aux:
+            m_val = pa['monto'] or 0.0
+            t_type = str(pa['tipo']).strip().upper() if pa['tipo'] else ''
+            if t_type == 'CASHEA':
+                totales_auxiliares["cashea"] += m_val
+            elif t_type == 'ADELANTO':
+                totales_auxiliares["adelantos"] += m_val
+            elif t_type in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
+                totales_auxiliares["abonos_banca"] += m_val
 
         ESTRUCTURA_BANQUEROS = {
             "COMERCIALIZADORA SUPER APUESTAS": {
@@ -689,118 +695,3 @@ def get_admin(
                 "absorbe_cashea": True
             },
             "COMERCIALIZADORA LIDER": {
-                "sistemas": [
-                    {"sistema": "MAXPLAY", "pct_banquero": 0.16, "pct_taquilla": 0.12, "pct_participacion": 0.20},
-                    {"sistema": "MATRIX", "pct_banquero": 0.16, "pct_taquilla": 0.12, "pct_participacion": 0.20},
-                    {"sistema": "SRQ", "pct_banquero": 0.16, "pct_taquilla": 0.12, "pct_participacion": 0.30},
-                    {"sistema": "LOTIPOS", "pct_banquero": 0.17, "pct_taquilla": 0.13, "pct_participacion": 0.20},
-                    {"sistema": "GATO", "pct_banquero": 0.16, "pct_taquilla": 0.12, "pct_participacion": 0.20},
-                    {"sistema": "PREMIER", "pct_banquero": 0.16, "pct_taquilla": 0.12, "pct_participacion": 0.00},
-                    {"sistema": "POSNET", "pct_banquero": 0.15, "pct_taquilla": 0.12, "pct_participacion": 0.20},
-                    {"sistema": "PARLEY", "pct_banquero": 0.12, "pct_taquilla": 0.10, "pct_participacion": 0.00}
-                ],
-                "absorbe_cashea": False
-            },
-            "COMERCIALIZADORA LOTTIPLAY": {
-                "sistemas": [
-                    {"sistema": "LOTTIPLAY", "pct_banquero": 0.15, "pct_taquilla": 0.12, "pct_participacion": 0.00}
-                ],
-                "absorbe_cashea": False
-            }
-        }
-
-        desglose_banqueros = {}
-        total_ganancia_excedente = 0.0
-        total_ganancia_participacion = 0.0
-        suma_cuadros_banqueros = 0.0
-
-        for b_nombre, cfg in ESTRUCTURA_BANQUEROS.items():
-            desglose_banqueros[b_nombre] = {
-                "sistemas": [],
-                "cashea_descontado": totales_auxiliares["cashea"] if cfg["absorbe_cashea"] else 0.0,
-                "total_a_pagar_banquero": 0.0,
-                "total_mi_ganancia_banca": 0.0,
-                "total": 0.0
-            }
-
-            subtotal_banquero = 0.0
-
-            for item in cfg["sistemas"]:
-                s_name = item["sistema"]
-                v_sys = sistemas_consolidados.get(s_name, {}).get("venta", 0.0)
-                p_sys = sistemas_consolidados.get(s_name, {}).get("premio", 0.0)
-                
-                pct_b = item["pct_banquero"]
-                pct_t = item["pct_taquilla"]
-                pct_part = item["pct_participacion"]
-
-                c_banquero = v_sys * pct_b
-                t_banquero_sistema = v_sys - c_banquero - p_sys
-
-                c_taquilla = v_sys * pct_t
-                pct_excedente = (pct_b - pct_t) * 100.0
-                g_excedente = v_sys * (pct_b - pct_t)
-                
-                # PARTICIPACIÓN DIRECTA: Si el total es positivo suma, si es negativo resta
-                g_participacion = (t_banquero_sistema * pct_part) if pct_part > 0 else 0.0
-                g_total = g_excedente + g_participacion
-
-                total_ganancia_excedente += g_excedente
-                total_ganancia_participacion += g_participacion
-
-                desglose_banqueros[b_nombre]["sistemas"].append({
-                    "sistema": s_name,
-                    "venta": v_sys,
-                    "comision_taquilla": c_taquilla,
-                    "comision_banquero": c_banquero,
-                    "premios": p_sys,
-                    "total_banquero": t_banquero_sistema,
-                    "pct_banquero": int(pct_b * 100),
-                    "pct_taquilla": int(pct_t * 100),
-                    "pct_excedente": int(round(pct_excedente)),
-                    "pct_participacion": int(pct_part * 100),
-                    "ganancia_total": g_total
-                })
-
-                subtotal_banquero += t_banquero_sistema
-                desglose_banqueros[b_nombre]["total_mi_ganancia_banca"] += g_total
-
-            # Si NYS absorbe cashea, se descuenta de lo que se le entrega
-            if cfg["absorbe_cashea"]:
-                subtotal_banquero -= totales_auxiliares["cashea"]
-
-            desglose_banqueros[b_nombre]["total_a_pagar_banquero"] = subtotal_banquero
-            desglose_banqueros[b_nombre]["total"] = subtotal_banquero
-            suma_cuadros_banqueros += subtotal_banquero
-
-        total_ganancia_global = total_ganancia_excedente + total_ganancia_participacion
-
-        conn.close()
-
-        return templates.TemplateResponse(request=request, name="admin.html", context={
-            "reportes": reportes,
-            "pagos": pagos,
-            "agencias": agencias,
-            "comunicados": comunicados,
-            "casheas_generales": casheas_generales,
-            "positivos": positivos,
-            "negativos": negativos,
-            "sistemas_consolidados": sistemas_consolidados,
-            "totales_generales": totales_generales,
-            "totales_auxiliares": totales_auxiliares,
-            "desglose_banqueros": desglose_banqueros,
-            "total_ganancia_excedente": total_ganancia_excedente,
-            "total_ganancia_participacion": total_ganancia_participacion,
-            "total_mi_ganancia_global": total_ganancia_global,
-            "suma_cuadros_banqueros": suma_cuadros_banqueros,
-            "solicitudes_pendientes_count": solicitudes_pendientes_count,
-            "desde_fecha": f_desde,
-            "hasta_fecha": f_hasta,
-            "agencia_filtro": agencia_filtro,
-            "tab_activa": tab,
-            "tab": tab
-        })
-
-    except Exception as e:
-        print("Error en admin:", e)
-        return HTMLResponse(content=f"Error interno en admin: {e}", status_code=500)
