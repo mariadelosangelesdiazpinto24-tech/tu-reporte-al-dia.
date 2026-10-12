@@ -15,7 +15,7 @@ from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
 
-# Zona horaria de Venezuela (UTC-4)
+# Zona horaria ti Venezuela (America/Caracas, UTC-4)
 TZ_VENEZUELA = ZoneInfo("America/Caracas")
 
 def obtener_fecha_venezuela() -> str:
@@ -158,7 +158,7 @@ def actualizar_ultima_conexion(agencia: str):
             now_str = obtener_fechahora_venezuela()
             conn = get_db()
             cursor = conn.cursor()
-            cursor.execute("UPDATE usuarios SET ultima_conexion = %s WHERE agencia = %s", (now_str, agencia_norm))
+            cursor.execute("UPDATE usuarios SET ultima_conexion = %s WHERE UPPER(TRIM(agencia)) = %s", (now_str, agencia_norm))
             conn.commit()
             conn.close()
         except Exception as e:
@@ -195,7 +195,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     ajustes_rows_html = ""
 
     for p in todos_pagos:
-        monto_p = p['monto'] or 0.0
+        monto_p = float(p['monto'] or 0.0)
         tipo_p = str(p['tipo']).strip().upper() if p['tipo'] else 'PAGO_TAQUILLA'
         comp = p['comprobante'] or ''
         
@@ -207,7 +207,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{comp_display}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #e91e63; font-weight: bold;">- Bs. {monto_p:,.2f}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #e91e63; font-weight: bold;">Bs. {monto_p:,.2f}</td>
             </tr>
             '''
         elif tipo_p == 'CASHEA':
@@ -230,7 +230,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             '''
 
     for aj in ajustes_anteriores:
-        monto_aj = aj['monto'] or 0.0
+        monto_aj = float(aj['monto'] or 0.0)
         total_ajustes_pendientes += monto_aj
         color_aj = "#2e7d32" if monto_aj < 0 else "#e91e63"
         ajustes_rows_html += f'''
@@ -257,9 +257,15 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
                     pass
 
     if total_neto_sistemas == 0.0:
-        total_neto_sistemas = rep['ventas'] if rep['ventas'] > 0 else rep['monto']
+        total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
-    monto_final = total_neto_sistemas - total_pagos_taquilla - total_adelantos - total_cashea + total_ajustes_pendientes
+    # LOHIKA TI CUENTA:
+    # No positibo ti sistema (utang ti taquilla): kissayan ti bayad ti taquilla, kissayan ti cashea, kissayan ti adelanto.
+    # No negatibo ti sistema (pabor ti taquilla / utang ti Admin): ti kuarta nga inted ti Admin (adelanto) ket manayonan nga umas-asideg iti zero (+ total_adelantos).
+    if total_neto_sistemas < 0:
+        monto_final = total_neto_sistemas + total_adelantos + total_pagos_taquilla - total_cashea + total_ajustes_pendientes
+    else:
+        monto_final = total_neto_sistemas - total_pagos_taquilla - total_adelantos - total_cashea + total_ajustes_pendientes
 
     bloque_pagos_banca = f'''
     <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #2e7d32;">
@@ -310,7 +316,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             <tr style="background-color: #fce4ec; color: #880e4f; font-size: 13px;">
                 <th style="padding: 10px;">FECHA</th>
                 <th style="padding: 10px;">MOTIVO</th>
-                <th style="padding: 10px; text-align: right;">MONTO DESCONTADO</th>
+                <th style="padding: 10px; text-align: right;">MONTO APLICADO</th>
             </tr>
             {adelantos_rows_html if adelantos_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Adelanto: 0.00 Bs.</td></tr>'}
         </table>
@@ -461,7 +467,7 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
         "saldo_actual": saldo_actual
     })
 
-# REPORTAR PAGO / ABONO DESDE AGENCIA (NOTIFICA AL ADMIN)
+# REPORTAR PAGO / ABONO TI TAQUILLA (NOTIFICA KAN ADMIN = PENDIENTE)
 @app.post("/reportar")
 async def post_reportar(
     agencia: str = Form(...),
@@ -489,7 +495,7 @@ async def post_reportar(
 
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
-# SOLICITAR ADELANTO DESDE AGENCIA
+# SOLICITAR ADELANTO MANIPUD TAQUILLA (KUARTA NGA ITEK TEK = APROBADO A DIRECTO)
 @app.post("/solicitar-adelanto")
 def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), monto: float = Form(...), observacion: str = Form(...)):
     agencia_norm = normalizar(agencia)
@@ -497,14 +503,16 @@ def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), mo
     cursor = conn.cursor()
     cursor.execute(
         """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-           VALUES (%s, %s, %s, %s, %s, 'ADELANTO', 'PENDIENTE')""",
-        (agencia_norm, fecha, monto, observacion, f"Solicitud Adelanto: {observacion}")
+           VALUES (%s, %s, %s, %s, %s, 'ADELANTO', 'APROBADO')""",
+        (agencia_norm, fecha, monto, observacion, f"Adelanto Entregado: {observacion}")
     )
     conn.commit()
     conn.close()
+    
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
-# MODIFICAR REPORTE POR SISTEMA CON RECALCULO AUTOMATICO
+# MODIFICAR REPORTE POR SISTEMA (VENTA KEN PREMIO)
 @app.post("/actualizar-reporte-sistema")
 def post_actualizar_reporte_sistema(
     agencia: str = Form(...),
@@ -523,7 +531,6 @@ def post_actualizar_reporte_sistema(
     if rep and rep['detalle_html']:
         html = rep['detalle_html']
         
-        # Obtener comisión estándar de la taquilla para ese sistema (default 12%)
         pct_com = 0.12
         sys_u = sistema.upper()
         if "IMAGINARIA" in sys_u or "WINBIG" in sys_u:
@@ -538,7 +545,6 @@ def post_actualizar_reporte_sistema(
         comision_nueva = venta * pct_com
         total_nuevo = venta - comision_nueva - premio
 
-        # Reemplazar la fila del sistema en el HTML
         patron_fila = rf'<tr[^>]*>\s*<td[^>]*>\s*{re.escape(sistema)}\s*<\/td>.*?<\/tr>'
         nueva_fila = f'''<tr>
             <td>{sistema}</td>
@@ -549,7 +555,7 @@ def post_actualizar_reporte_sistema(
         </tr>'''
         html_modificado = re.sub(patron_fila, nueva_fila, html, flags=re.DOTALL | re.IGNORECASE)
 
-        # Recalcular fila TOTALES del HTML
+        # Recomputaren amin a linia ti sistema para iti TOTALES
         filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', html_modificado, re.DOTALL)
         sum_v, sum_c, sum_p, sum_t = 0.0, 0.0, 0.0, 0.0
         for f in filas:
@@ -573,13 +579,13 @@ def post_actualizar_reporte_sistema(
         </tr>'''
         html_modificado = re.sub(patron_totales, nueva_fila_totales, html_modificado, flags=re.DOTALL | re.IGNORECASE)
 
-        cursor.execute("UPDATE reportes SET detalle_html = %s, ventas = %s, premios = %s WHERE id = %s", (html_modificado, sum_v, sum_p, rep['id']))
+        cursor.execute("UPDATE reportes SET detalle_html = %s, ventas = %s, premios = %s, monto = %s WHERE id = %s", (html_modificado, sum_v, sum_p, sum_t, rep['id']))
         conn.commit()
 
-        # Si el reporte es de un día anterior, registrar el ajuste diferencial
+        # No report ti napalabas nga aldaw:
         hoy_str = obtener_fecha_venezuela()
         if fecha < hoy_str:
-            diferencial = sum_t - (rep['monto'] or 0.0)
+            diferencial = sum_t - float(rep['monto'] or 0.0)
             if diferencial != 0.0:
                 cursor.execute(
                     """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
@@ -654,6 +660,7 @@ def post_eliminar_transaccion(pago_id: int = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
+# PROCESAR SOLICITUD TI ADMIN
 @app.post("/admin/procesar-solicitud")
 async def post_procesar_solicitud(
     solicitud_id: int = Form(...),
@@ -681,7 +688,6 @@ async def post_procesar_solicitud(
                 shutil.copyfileobj(comprobante_file.file, buffer)
             nombre_guardado = nombre_archivo
 
-        # Si era un pago cargado por la taquilla, al procesarlo queda aprobado
         cursor.execute("UPDATE pagos SET estado = 'APROBADO', monto = %s WHERE id = %s", (monto_pagar, solicitud_id))
         conn.commit()
 
@@ -722,8 +728,8 @@ def get_admin(
         f_hasta = hasta_fecha if hasta_fecha else fecha_bd_reciente
         agencia_filtro = agencia if agencia else ""
 
-        # CONTEO DE SOLICITUDES PENDIENTES
-        cursor.execute("SELECT COUNT(*) AS total_pendientes FROM pagos WHERE estado ILIKE '%PENDIENTE%' OR tipo = 'SOLICITUD_BANCA'")
+        # BILANG TI PENDIENTE PARA TI CAMPANITA (Bayad laeng ti taquilla a di pay naaprubaran)
+        cursor.execute("SELECT COUNT(*) AS total_pendientes FROM pagos WHERE estado ILIKE '%PENDIENTE%' AND tipo != 'ADELANTO'")
         pend_row = cursor.fetchone()
         solicitudes_pendientes_count = pend_row['total_pendientes'] if pend_row else 0
 
@@ -760,7 +766,7 @@ def get_admin(
             "abonos_banca": 0.0
         }
 
-        # RECOLECCIÓN DE REPORTES FILTRADOS
+        # REPORTES
         if agencia_filtro:
             cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s", (normalizar(agencia_filtro), f_desde, f_hasta))
         else:
@@ -799,7 +805,7 @@ def get_admin(
                             totales_generales["premio"] += p
                             totales_generales["neto"] += t
 
-        # CONSULTAR PAGOS AUXILIARES
+        # PAGOS
         if agencia_filtro:
             cursor.execute("SELECT tipo, monto FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'", (normalizar(agencia_filtro), f_desde, f_hasta))
         else:
@@ -807,7 +813,7 @@ def get_admin(
         pagos_aux = cursor.fetchall()
 
         for pa in pagos_aux:
-            m_val = pa['monto'] or 0.0
+            m_val = float(pa['monto'] or 0.0)
             t_type = str(pa['tipo']).strip().upper() if pa['tipo'] else ''
             if t_type == 'CASHEA':
                 totales_auxiliares["cashea"] += m_val
@@ -890,7 +896,6 @@ def get_admin(
                 pct_excedente = (pct_b - pct_t) * 100.0
                 g_excedente = v_sys * (pct_b - pct_t)
                 
-                # Participación sobre el total de banca
                 g_participacion = (t_banquero_sistema * pct_part) if pct_part > 0 else 0.0
                 g_total = g_excedente + g_participacion
 
