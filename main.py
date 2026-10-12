@@ -15,7 +15,7 @@ from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
 
-# Zona horaria ti Venezuela (America/Caracas, UTC-4)
+# Zona horaria oficial de Venezuela (America/Caracas, UTC-4)
 TZ_VENEZUELA = ZoneInfo("America/Caracas")
 
 def obtener_fecha_venezuela() -> str:
@@ -132,7 +132,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS comunicados (
             id SERIAL PRIMARY KEY,
             mensaje TEXT,
-            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            agencia_destino TEXT DEFAULT 'TODAS'
         )
     ''')
 
@@ -259,9 +260,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
-    # LOHIKA TI CUENTA:
-    # No positibo ti sistema (utang ti taquilla): kissayan ti bayad ti taquilla, kissayan ti cashea, kissayan ti adelanto.
-    # No negatibo ti sistema (pabor ti taquilla / utang ti Admin): ti kuarta nga inted ti Admin (adelanto) ket manayonan nga umas-asideg iti zero (+ total_adelantos).
     if total_neto_sistemas < 0:
         monto_final = total_neto_sistemas + total_adelantos + total_pagos_taquilla - total_cashea + total_ajustes_pendientes
     else:
@@ -450,7 +448,7 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
     cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
     pagos_agencia = [dict(row) for row in cursor.fetchall()]
     
-    cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
+    cursor.execute("SELECT * FROM comunicados WHERE agencia_destino = 'TODAS' OR UPPER(TRIM(agencia_destino)) = %s ORDER BY id DESC", (agencia_norm,))
     comunicados = [dict(row) for row in cursor.fetchall()]
     
     saldo_actual = reportes_agencia[0]['monto'] if reportes_agencia else 0.0
@@ -467,7 +465,7 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
         "saldo_actual": saldo_actual
     })
 
-# REPORTAR PAGO / ABONO TI TAQUILLA (NOTIFICA KAN ADMIN = PENDIENTE)
+# REPORTAR PAGO / ABONO DE LA TAQUILLA (NOTIFICA AL ADMIN EN ESTADO PENDIENTE)
 @app.post("/reportar")
 async def post_reportar(
     agencia: str = Form(...),
@@ -493,9 +491,9 @@ async def post_reportar(
     conn.commit()
     conn.close()
 
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# SOLICITAR ADELANTO MANIPUD TAQUILLA (KUARTA NGA ITEK TEK = APROBADO A DIRECTO)
+# SOLICITAR ADELANTO (APROBADO AUTOMATICAMENTE)
 @app.post("/solicitar-adelanto")
 def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), monto: float = Form(...), observacion: str = Form(...)):
     agencia_norm = normalizar(agencia)
@@ -504,15 +502,15 @@ def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), mo
     cursor.execute(
         """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
            VALUES (%s, %s, %s, %s, %s, 'ADELANTO', 'APROBADO')""",
-        (agencia_norm, fecha, monto, observacion, f"Adelanto Entregado: {observacion}")
+        (agencia_norm, fecha, monto, observacion, f"Adelanto: {observacion}")
     )
     conn.commit()
     conn.close()
     
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# MODIFICAR REPORTE POR SISTEMA (VENTA KEN PREMIO)
+# MODIFICAR REPORTE POR SISTEMA (SE REGISTRA COMO TIPO MODIFICACION)
 @app.post("/actualizar-reporte-sistema")
 def post_actualizar_reporte_sistema(
     agencia: str = Form(...),
@@ -555,7 +553,6 @@ def post_actualizar_reporte_sistema(
         </tr>'''
         html_modificado = re.sub(patron_fila, nueva_fila, html, flags=re.DOTALL | re.IGNORECASE)
 
-        # Recomputaren amin a linia ti sistema para iti TOTALES
         filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', html_modificado, re.DOTALL)
         sum_v, sum_c, sum_p, sum_t = 0.0, 0.0, 0.0, 0.0
         for f in filas:
@@ -579,10 +576,17 @@ def post_actualizar_reporte_sistema(
         </tr>'''
         html_modificado = re.sub(patron_totales, nueva_fila_totales, html_modificado, flags=re.DOTALL | re.IGNORECASE)
 
-        cursor.execute("UPDATE reportes SET detalle_html = %s, ventas = %s, premios = %s, monto = %s WHERE id = %s", (html_modificado, sum_v, sum_p, sum_t, rep['id']))
+        cursor.execute("UPDATE reportes SET detalle_html = %s, ventas = %s, premios = %s WHERE id = %s", (html_modificado, sum_v, sum_p, rep['id']))
         conn.commit()
 
-        # No report ti napalabas nga aldaw:
+        # Registrar transacción visible de MODIFICACION
+        cursor.execute(
+            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+               VALUES (%s, %s, %s, %s, %s, 'MODIFICACION', 'APROBADO')""",
+            (agencia_norm, fecha, 0.0, f"Modificación {sistema}", f"Venta: Bs. {venta:,.2f} | Premio: Bs. {premio:,.2f}")
+        )
+        conn.commit()
+
         hoy_str = obtener_fecha_venezuela()
         if fecha < hoy_str:
             diferencial = sum_t - float(rep['monto'] or 0.0)
@@ -590,7 +594,7 @@ def post_actualizar_reporte_sistema(
                 cursor.execute(
                     """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
                        VALUES (%s, %s, %s, %s, %s, 'AJUSTE_PENDIENTE', 'APROBADO')""",
-                    (agencia_norm, hoy_str, diferencial, f"Modificación {sistema} del {fecha}", f"Ajuste automático día anterior {fecha}")
+                    (agencia_norm, hoy_str, diferencial, f"Ajuste {sistema} del {fecha}", f"Ajuste día anterior {fecha}")
                 )
                 conn.commit()
 
@@ -598,16 +602,68 @@ def post_actualizar_reporte_sistema(
 
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     recalcular_y_actualizar_reporte(agencia_norm, obtener_fecha_venezuela())
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# COMUNICADOS
+# ELIMINAR TRANSACCIÓN DESDE CUALQUIER PANEL
+@app.post("/eliminar-transaccion")
+@app.post("/admin/eliminar-transaccion")
+def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[str] = Form(None)):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = %s", (pago_id,))
+    p_data = cursor.fetchone()
+    if p_data:
+        cursor.execute("DELETE FROM pagos WHERE id = %s", (pago_id,))
+        conn.commit()
+        recalcular_y_actualizar_reporte(p_data['agencia'], p_data['fecha'])
+    conn.close()
+
+    if redirect_to:
+        return RedirectResponse(url=redirect_to, status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+
+# VALIDAR O RECHAZAR SOLICITUD / PAGO (SIN SUBIR CAPTURE)
+@app.post("/admin/validar-pago")
+def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM pagos WHERE id = %s", (solicitud_id,))
+    pago = cursor.fetchone()
+
+    if pago:
+        agencia_p = pago['agencia']
+        fecha_p = pago['fecha']
+        monto_p = float(pago['monto'] or 0.0)
+        
+        if accion == "APROBAR":
+            cursor.execute("UPDATE pagos SET estado = 'APROBADO' WHERE id = %s", (solicitud_id,))
+            msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido APROBADO y aplicado a tu cuenta."
+        else:
+            cursor.execute("UPDATE pagos SET estado = 'RECHAZADO' WHERE id = %s", (solicitud_id,))
+            msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido RECHAZADO. Por favor verifica con la administración."
+
+        # Notificación automática para la agencia
+        cursor.execute(
+            "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
+            (msg_notif, agencia_p)
+        )
+        conn.commit()
+        conn.close()
+        
+        recalcular_y_actualizar_reporte(agencia_p, fecha_p)
+        return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+
+    conn.close()
+    return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+
+# COMUNICADOS DEL ADMIN
 @app.post("/admin/crear-comunicado")
 @app.post("/admin/comunicado")
 def post_comunicado(mensaje: str = Form(...)):
     if mensaje and mensaje.strip():
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje.strip(),))
+        cursor.execute("INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, 'TODAS')", (mensaje.strip(),))
         conn.commit()
         conn.close()
     return RedirectResponse(url="/admin?tab=comunicados", status_code=status.HTTP_303_SEE_OTHER)
@@ -621,7 +677,7 @@ def post_eliminar_comunicado(comunicado_id: int = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=comunicados", status_code=status.HTTP_303_SEE_OTHER)
 
-# AGENCIAS
+# CREAR O ELIMINAR AGENCIA
 @app.post("/admin/crear-agencia")
 @app.post("/admin/crear-taquilla")
 def post_crear_agencia(agencia: str = Form(...), clave: str = Form(...), genero: str = Form("FEMENINO")):
@@ -647,54 +703,6 @@ def post_eliminar_agencia(agencia_id: int = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
 
-@app.post("/admin/eliminar-transaccion")
-def post_eliminar_transaccion(pago_id: int = Form(...)):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = %s", (pago_id,))
-    p_data = cursor.fetchone()
-    if p_data:
-        cursor.execute("DELETE FROM pagos WHERE id = %s", (pago_id,))
-        conn.commit()
-        recalcular_y_actualizar_reporte(p_data['agencia'], p_data['fecha'])
-    conn.close()
-    return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
-
-# PROCESAR SOLICITUD TI ADMIN
-@app.post("/admin/procesar-solicitud")
-async def post_procesar_solicitud(
-    solicitud_id: int = Form(...),
-    accion: str = Form(...),
-    monto_abono: Optional[float] = Form(0.0),
-    agencia: str = Form(...),
-    fecha: str = Form(...),
-    comprobante_file: Optional[UploadFile] = File(None)
-):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM pagos WHERE id = %s", (solicitud_id,))
-    solicitud = cursor.fetchone()
-
-    if solicitud:
-        monto_original = float(solicitud['monto'] or 0.0)
-        monto_pagar = monto_original if accion == "COMPLETO" else float(monto_abono or 0.0)
-        
-        nombre_guardado = f"Liquidación Solicitud #{solicitud_id} ({accion})"
-        if comprobante_file and comprobante_file.filename:
-            ext = comprobante_file.filename.split('.')[-1]
-            nombre_archivo = f"abono_{solicitud_id}_{datetime.now(TZ_VENEZUELA).strftime('%Y%m%d_%H%M%S')}.{ext}"
-            ruta_destino = os.path.join("uploads", nombre_archivo)
-            with open(ruta_destino, "wb") as buffer:
-                shutil.copyfileobj(comprobante_file.file, buffer)
-            nombre_guardado = nombre_archivo
-
-        cursor.execute("UPDATE pagos SET estado = 'APROBADO', monto = %s WHERE id = %s", (monto_pagar, solicitud_id))
-        conn.commit()
-
-    conn.close()
-    recalcular_y_actualizar_reporte(agencia, fecha)
-    return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
-
 @app.get("/admin", response_class=HTMLResponse)
 def get_admin(
     request: Request, 
@@ -716,7 +724,7 @@ def get_admin(
         cursor.execute("SELECT * FROM usuarios ORDER BY id DESC")
         agencias = [dict(row) for row in cursor.fetchall()]
         
-        cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
+        cursor.execute("SELECT * FROM comunicados WHERE agencia_destino = 'TODAS' ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
 
         hoy_vzla = obtener_fecha_venezuela()
@@ -728,19 +736,19 @@ def get_admin(
         f_hasta = hasta_fecha if hasta_fecha else fecha_bd_reciente
         agencia_filtro = agencia if agencia else ""
 
-        # BILANG TI PENDIENTE PARA TI CAMPANITA (Bayad laeng ti taquilla a di pay naaprubaran)
-        cursor.execute("SELECT COUNT(*) AS total_pendientes FROM pagos WHERE estado ILIKE '%PENDIENTE%' AND tipo != 'ADELANTO'")
+        # Contar pagos pendientes de verificación para la campanita
+        cursor.execute("SELECT COUNT(*) AS total_pendientes FROM pagos WHERE estado ILIKE '%PENDIENTE%'")
         pend_row = cursor.fetchone()
         solicitudes_pendientes_count = pend_row['total_pendientes'] if pend_row else 0
 
-        # CASHEA GENERAL
+        # Cashea general
         if agencia_filtro:
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (normalizar(agencia_filtro), f_desde, f_hasta))
         else:
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (f_desde, f_hasta))
         casheas_generales = [dict(row) for row in cursor.fetchall()]
 
-        # BALANCES GLOBALES (+ / -)
+        # Balances globales (+ / -)
         positivos = []
         negativos = []
         for ag in agencias:
@@ -766,7 +774,6 @@ def get_admin(
             "abonos_banca": 0.0
         }
 
-        # REPORTES
         if agencia_filtro:
             cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s", (normalizar(agencia_filtro), f_desde, f_hasta))
         else:
@@ -805,7 +812,6 @@ def get_admin(
                             totales_generales["premio"] += p
                             totales_generales["neto"] += t
 
-        # PAGOS
         if agencia_filtro:
             cursor.execute("SELECT tipo, monto FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'", (normalizar(agencia_filtro), f_desde, f_hasta))
         else:
