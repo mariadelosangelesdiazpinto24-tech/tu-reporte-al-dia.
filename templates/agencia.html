@@ -35,7 +35,6 @@
 </head>
 <body>
 
-    <!-- ENCABEZADO LIMPIO -->
     <div class="navbar-custom d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h3 class="m-0 fw-bold">
             <i class="fas fa-crown text-warning me-2"></i>LOS ÁNGELES DEL DINERO - TAQUILLA {{ nombre_agencia }} 🍀🌺
@@ -45,18 +44,29 @@
 
     <div class="container my-4">
 
-        <!-- COMUNICADOS Y AVISOS DE LA BANCA -->
+        <!-- COMUNICADOS CON BOTÓN DE MARCAR COMO LEÍDO -->
         {% if comunicados %}
             {% for com in comunicados %}
             <div class="alert alert-warning alert-dismissible fade show shadow-sm border-start border-warning border-4 mb-4" role="alert" style="border-radius: 12px; background: #fffde7;">
-                <h5 class="fw-bold text-dark"><i class="fas fa-bullhorn text-warning"></i> Comunicado Oficial de la Banca</h5>
-                <p class="mb-1 text-secondary fw-semibold">{{ com.mensaje }}</p>
-                <small class="text-muted">{{ com.fecha }}</small>
+                <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                    <div>
+                        <h5 class="fw-bold text-dark mb-1"><i class="fas fa-bullhorn text-warning me-2"></i>Notificación Oficial</h5>
+                        <p class="mb-1 text-secondary fw-semibold">{{ com.mensaje }}</p>
+                        <small class="text-muted">{{ com.fecha }}</small>
+                    </div>
+                    <form action="/marcar-comunicado-leido" method="POST">
+                        <input type="hidden" name="comunicado_id" value="{{ com.id }}">
+                        <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
+                        <button type="submit" class="btn btn-sm btn-dark fw-bold rounded-pill px-3 shadow-sm">
+                            <i class="fas fa-check me-1"></i> Entendido / Marcar como leído
+                        </button>
+                    </form>
+                </div>
             </div>
             {% endfor %}
         {% endif %}
 
-        <!-- CARGAR PAGO O ABONO A ADMIN (NOTIFICA AL PANEL ADMIN) -->
+        <!-- CARGAR PAGO O ABONO A ADMIN -->
         <div class="card card-custom p-4 mb-4" style="border-top: 5px solid {% if agencia and agencia.genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};">
             <h5 class="fw-bold mb-3" style="color: {% if agencia and agencia.genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};"><i class="fas fa-file-invoice-dollar"></i> Cargar Pago o Abono a Admin 🌸</h5>
             <form action="/reportar" method="POST" enctype="multipart/form-data" class="row g-3 align-items-end">
@@ -74,7 +84,7 @@
                     <input type="text" class="form-control" name="monto" placeholder="Ej: 20000.00" required>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label small fw-bold text-muted">Comprobante (Imagen o Capture)</label>
+                    <label class="form-label small fw-bold text-muted">Comprobante (Capture de la transferencia)</label>
                     <input type="file" class="form-control" name="comprobante" accept="image/*,.pdf" required>
                 </div>
                 <div class="col-12 text-end mt-3">
@@ -83,7 +93,7 @@
             </form>
         </div>
 
-        <!-- PESTAÑAS DE NAVEGACIÓN -->
+        <!-- PESTAÑAS -->
         <ul class="nav nav-tabs mb-4 fw-bold border-0" id="agenciaTab" role="tablist">
             <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#reportes"><i class="fas fa-chart-line me-1"></i> Mis Reportes</button></li>
             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#transacciones"><i class="fas fa-exchange-alt me-1"></i> Transacciones</button></li>
@@ -145,7 +155,7 @@
             <!-- 2. TRANSACCIONES -->
             <div class="tab-pane fade" id="transacciones">
                 <div class="card card-custom p-4">
-                    <h4 class="fw-bold mb-3" style="color: {% if agencia and agencia.genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};"><i class="fas fa-exchange-alt me-2"></i>Historial de Transacciones y Pagos</h4>
+                    <h4 class="fw-bold mb-3" style="color: {% if agencia and agencia.genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};"><i class="fas fa-exchange-alt me-2"></i>Historial de Transacciones, Modificaciones y Pagos</h4>
                     <div class="table-responsive">
                         <table class="table table-striped align-middle">
                             <thead class="table-dark">
@@ -155,6 +165,7 @@
                                     <th>Monto</th>
                                     <th>Detalle / Comprobante</th>
                                     <th>Estado</th>
+                                    <th class="text-center">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -162,11 +173,19 @@
                                 <tr>
                                     <td>{{ p.fecha }}</td>
                                     <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
-                                    <td class="fw-bold">Bs. {{ p.monto | dinero }}</td>
+                                    <td class="fw-bold">
+                                        {% if p.tipo == 'MODIFICACION' %}
+                                            <span class="text-muted">-</span>
+                                        {% elif p.tipo == 'PAGO_TAQUILLA' %}
+                                            <span class="text-success">Bs. {{ p.monto | dinero }}</span>
+                                        {% else %}
+                                            <span class="text-danger">Bs. {{ p.monto | dinero }}</span>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         {{ p.factura }}<br>
                                         {% if p.comprobante and (p.comprobante.endswith('.png') or p.comprobante.endswith('.jpg') or p.comprobante.endswith('.jpeg') or p.comprobante.endswith('.pdf')) %}
-                                            <a href="/uploads/{{ p.comprobante }}" target="_blank" class="small text-decoration-none fw-bold text-primary"><i class="fas fa-image"></i> Ver Comprobante</a>
+                                            <a href="/uploads/{{ p.comprobante }}" target="_blank" class="small text-decoration-none fw-bold text-primary"><i class="fas fa-image me-1"></i> Ver Comprobante</a>
                                         {% else %}
                                             <span class="small text-muted">{{ p.comprobante }}</span>
                                         {% endif %}
@@ -174,16 +193,25 @@
                                     <td>
                                         {% if p.estado == 'APROBADO' %}
                                             <span class="badge bg-success">APROBADO</span>
-                                        {% elif 'PENDIENTE' in p.estado %}
-                                            <span class="badge bg-warning text-dark">PENDIENTE VALIDACIÓN</span>
+                                        {% elif p.estado == 'PROCESADO' %}
+                                            <span class="badge bg-info text-dark">PROCESADO</span>
+                                        {% elif p.estado == 'RECHAZADO' %}
+                                            <span class="badge bg-danger">RECHAZADO</span>
                                         {% else %}
-                                            <span class="badge bg-info text-dark">{{ p.estado }}</span>
+                                            <span class="badge bg-warning text-dark">PENDIENTE POR VERIFICAR</span>
                                         {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <form action="/eliminar-transaccion" method="POST" style="display:inline;" onsubmit="return confirm('¿Seguro deseas eliminar este registro?');">
+                                            <input type="hidden" name="pago_id" value="{{ p.id }}">
+                                            <input type="hidden" name="redirect_to" value="/agencia?nombre={{ nombre_agencia }}&tab=transacciones">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar"><i class="fas fa-trash"></i></button>
+                                        </form>
                                     </td>
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted py-3">No se registran transacciones.</td>
+                                    <td colspan="6" class="text-center text-muted py-3">No se registran transacciones.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -195,7 +223,7 @@
             <!-- 3. ADELANTOS -->
             <div class="tab-pane fade" id="adelantos">
                 <div class="card card-custom p-4">
-                    <h4 class="fw-bold mb-3 text-danger"><i class="fas fa-hand-holding-usd me-2"></i>Solicitar Adelanto a la Banca</h4>
+                    <h4 class="fw-bold mb-3 text-danger"><i class="fas fa-hand-holding-usd me-2"></i>Registrar Adelanto Entregado</h4>
                     <form action="/solicitar-adelanto" method="POST" class="row g-3 align-items-end mb-4 p-3 border rounded bg-light">
                         <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
                         <div class="col-md-4">
@@ -211,7 +239,7 @@
                             <input type="text" class="form-control" name="observacion" placeholder="Motivo del adelanto" required>
                         </div>
                         <div class="col-12 text-end">
-                            <button type="submit" class="btn btn-danger fw-bold rounded-pill px-4"><i class="fas fa-paper-plane me-1"></i> Enviar Solicitud de Adelanto</button>
+                            <button type="submit" class="btn btn-danger fw-bold rounded-pill px-4"><i class="fas fa-save me-1"></i> Registrar Adelanto</button>
                         </div>
                     </form>
                 </div>
@@ -283,15 +311,15 @@
                 </div>
             </div>
 
-            <!-- 6. PENDIENTE (INFORMATIVO NO EDITABLE) -->
+            <!-- 6. PENDIENTE (TOTAL ACUMULADO REAL - NO DEJAR PLATA SUELTA) -->
             <div class="tab-pane fade" id="pendiente">
                 <div class="card card-custom p-4 border-start border-4 {% if saldo_actual > 0 %}border-danger{% else %}border-success{% endif %}">
-                    <h4 class="fw-bold mb-3 text-secondary"><i class="fas fa-clock me-2"></i>Estado de Cuenta Pendiente (No Editable)</h4>
+                    <h4 class="fw-bold mb-3 text-secondary"><i class="fas fa-clock me-2"></i>Estado de Cuenta Global Pendiente</h4>
                     
                     <div class="row g-3">
                         <div class="col-md-6">
                             <div class="p-3 bg-light rounded border">
-                                <small class="text-muted fw-bold">SALDO A FAVOR DE LA TAQUILLA</small>
+                                <small class="text-muted fw-bold">TOTAL ACUMULADO A FAVOR DE LA TAQUILLA</small>
                                 <h3 class="fw-bold mt-1 mb-0 text-success">
                                     {% if saldo_actual < 0 %}
                                     Bs. {{ (saldo_actual | abs) | dinero }}
@@ -299,13 +327,13 @@
                                     Bs. 0.00
                                     {% endif %}
                                 </h3>
-                                <small class="text-muted">Monto que la banca debe transferirte.</small>
+                                <small class="text-muted">Total que la banca tiene pendiente por liquidarte.</small>
                             </div>
                         </div>
 
                         <div class="col-md-6">
                             <div class="p-3 bg-light rounded border">
-                                <small class="text-muted fw-bold">SALDO PENDIENTE POR PAGAR</small>
+                                <small class="text-muted fw-bold">TOTAL ACUMULADO PENDIENTE POR PAGAR</small>
                                 <h3 class="fw-bold mt-1 mb-0 text-danger">
                                     {% if saldo_actual > 0 %}
                                     Bs. {{ saldo_actual | dinero }}
@@ -313,13 +341,13 @@
                                     Bs. 0.00
                                     {% endif %}
                                 </h3>
-                                <small class="text-muted">Monto adeudado a la banca a liquidar.</small>
+                                <small class="text-muted">Total adeudado a la banca a liquidar.</small>
                             </div>
                         </div>
                     </div>
 
                     <div class="alert alert-info mt-4 mb-0">
-                        <i class="fas fa-info-circle me-1"></i> <strong>Nota:</strong> Este panel es estrictamente informativo. Si realizas un pago o modificas un reporte del día anterior, el saldo se actualiza automáticamente en tu estado de cuenta y en el consolidado del Administrador.
+                        <i class="fas fa-info-circle me-1"></i> <strong>Nota:</strong> Este acumulado suma de manera histórica todos los reportes, cobros y abonos aprobados. No queda dinero suelto de ningún día.
                     </div>
                 </div>
             </div>
@@ -328,7 +356,7 @@
 
     </div>
 
-    <!-- MODALES DE DETALLE REPORTE -->
+    <!-- MODALES DE DETALLE REPORTE CON BOTÓN "SOLICITAR A LA BANCA" -->
     {% for r in reportes %}
     <div class="modal fade" id="modalDetalle{{ r.id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -340,7 +368,20 @@
                 <div class="modal-body bg-light">
                     {{ r.detalle_html | safe }}
                 </div>
-                <div class="modal-footer bg-white">
+                <div class="modal-footer bg-white d-flex justify-content-between align-items-center">
+                    <div>
+                        <!-- SI EL REPORTE CIERRA A FAVOR (NEGATIVO), APARECE EL BOTÓN DIRECTO DE SOLICITAR A LA BANCA -->
+                        {% if r.monto < 0 %}
+                        <form action="/solicitar-banca-directo" method="POST" style="display: inline;" onsubmit="return confirm('¿Deseas enviar la solicitud de pago por Bs. {{ (r.monto | abs) | dinero }} a la banca?');">
+                            <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
+                            <input type="hidden" name="fecha" value="{{ r.fecha }}">
+                            <input type="hidden" name="monto" value="{{ r.monto }}">
+                            <button type="submit" class="btn btn-success fw-bold rounded-pill px-3 shadow-sm">
+                                <i class="fas fa-university me-1"></i> Solicitar a la Banca (Bs. {{ (r.monto | abs) | dinero }})
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
                     <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
                 </div>
             </div>
