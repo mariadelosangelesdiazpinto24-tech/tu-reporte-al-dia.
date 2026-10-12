@@ -41,7 +41,7 @@ def normalizar(texto: str) -> str:
     if not texto:
         return ""
     texto = unicodedata.normalize('NFD', texto)
-    texto = ''.join(c for c in persona if unicodedata.category(persona := c) != 'Mn')
+texto = ''.join(c for c in texto if unicodedata.category(c) != 'Mn')
     return texto.strip().upper()
 
 def formatear_monto(valor):
