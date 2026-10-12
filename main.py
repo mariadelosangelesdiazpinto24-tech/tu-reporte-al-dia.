@@ -341,7 +341,6 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             pct_t = item["pct_taquilla"]
             pct_part = item["pct_participacion"]
 
-            # COMPROBAR AJUSTE MANUAL EN ESTE SISTEMA PARA EL RANGO
             cursor.execute(
                 """SELECT venta, comision, premios FROM ajustes_banqueros_manuales 
                    WHERE banquero = %s AND sistema = %s AND fecha >= %s AND fecha <= %s""",
@@ -397,7 +396,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
         desglose_banqueros[b_nombre]["total"] = subtotal_banquero
         suma_cuadros_banqueros += subtotal_banquero
 
-conn.close()
+    conn.close()
     total_mi_ganancia_global = total_ganancia_excedente + total_ganancia_participacion
 
     return (
