@@ -164,7 +164,7 @@ def actualizar_ultima_conexion(agencia: str):
             now_str = obtener_fechahora_venezuela()
             conn = get_db()
             cursor = conn.cursor()
-            cursor.execute("UPDATE usuarios SET ultima_conexion = %s WHERE UPPER(TRIM(agencia)) = %s", (now_str, agencia_norm))
+            cursor.execute("UPDATE usuarios SET技ultima_conexion = %s WHERE UPPER(TRIM(agencia)) = %s", (now_str, agencia_norm))
             conn.commit()
             conn.close()
         except Exception as e:
@@ -248,7 +248,9 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         '''
 
     detalle_original = rep['detalle_html'] or ""
-    match_sistemas = re.search(r'(<div class="mb-3"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_original, re.DOTALL)
+    match_sistemas = re.search(r'(<div class="table-responsive mb-3"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_original, re.DOTALL)
+    if not match_sistemas:
+        match_sistemas = re.search(r'(<div class="mb-3"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_original, re.DOTALL)
     tabla_sistemas_html = match_sistemas.group(1) if match_sistemas else ""
 
     total_neto_sistemas = 0.0
@@ -465,9 +467,20 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
     
-    cursor.execute("SELECT SUM(monto) AS total_acumulado FROM reportes WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
-    row_sum = cursor.fetchone()
-    saldo_acumulado = float(row_sum['total_acumulado'] or 0.0) if row_sum else 0.0
+    # CÁLCULO EN TIEMPO REAL DEL SALDO ACUMULADO (AÚN SI EL REPORTE DE HOY NO SE HA SUBIDO)
+    cursor.execute("SELECT SUM(monto) AS total_rep FROM reportes WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
+    row_rep = cursor.fetchone()
+    total_deuda_reportes = float(row_rep['total_rep'] or 0.0) if row_rep else 0.0
+
+    cursor.execute("SELECT SUM(monto) AS total_abonos FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo IN ('PAGO_TAQUILLA', 'PAGO_BANCA') AND estado = 'APROBADO'", (agencia_norm,))
+    row_abonos = cursor.fetchone()
+    total_abonos_realizados = float(row_abonos['total_abonos'] or 0.0) if row_abonos else 0.0
+
+    cursor.execute("SELECT SUM(monto) AS total_adelantos FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo IN ('ADELANTO', 'LIQUIDACION') AND estado = 'APROBADO'", (agencia_norm,))
+    row_adelantos = cursor.fetchone()
+    total_adelantos_dados = float(row_adelantos['total_adelantos'] or 0.0) if row_adelantos else 0.0
+
+    saldo_acumulado = total_deuda_reportes - total_abonos_realizados + total_adelantos_dados
 
     conn.close()
     
@@ -481,7 +494,6 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
         "saldo_actual": saldo_acumulado
     })
 
-# CAMBIAR CONTRASEÑA POR PARTE DE LA AGENCIA
 @app.post("/agencia/cambiar-clave")
 def post_cambiar_clave(agencia: str = Form(...), nueva_clave: str = Form(...), confirm_clave: str = Form(...)):
     agencia_norm = normalizar(agencia)
@@ -496,7 +508,6 @@ def post_cambiar_clave(agencia: str = Form(...), nueva_clave: str = Form(...), c
 
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=usuario&success=clave_actualizada", status_code=status.HTTP_303_SEE_OTHER)
 
-# MARCAR COMUNICADO COMO LEÍDO
 @app.post("/marcar-comunicado-leido")
 def post_marcar_leido(comunicado_id: int = Form(...), agencia: str = Form(...)):
     agencia_norm = normalizar(agencia)
@@ -511,7 +522,6 @@ def post_marcar_leido(comunicado_id: int = Form(...), agencia: str = Form(...)):
     conn.close()
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
-# SOLICITAR PAGO A LA BANCA DIRECTAMENTE DESDE EL DETALLE DEL REPORTE
 @app.post("/solicitar-banca-directo")
 def post_solicitar_banca_directo(agencia: str = Form(...), fecha: str = Form(...), monto: float = Form(...)):
     agencia_norm = normalizar(agencia)
@@ -527,7 +537,6 @@ def post_solicitar_banca_directo(agencia: str = Form(...), fecha: str = Form(...
     conn.close()
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# REPORTAR PAGO / ABONO DE LA TAQUILLA
 @app.post("/reportar")
 async def post_reportar(
     agencia: str = Form(...),
@@ -555,7 +564,6 @@ async def post_reportar(
 
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# SOLICITAR ADELANTO
 @app.post("/solicitar-adelanto")
 def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), monto: float = Form(...), observacion: str = Form(...)):
     agencia_norm = normalizar(agencia)
@@ -572,7 +580,6 @@ def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), mo
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# MODIFICAR REPORTE POR SISTEMA
 @app.post("/actualizar-reporte-sistema")
 def post_actualizar_reporte_sistema(
     agencia: str = Form(...),
@@ -665,7 +672,6 @@ def post_actualizar_reporte_sistema(
     recalcular_y_actualizar_reporte(agencia_norm, obtener_fecha_venezuela())
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# ELIMINAR TRANSACCIÓN
 @app.post("/eliminar-transaccion")
 @app.post("/admin/eliminar-transaccion")
 def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[str] = Form(None)):
@@ -683,7 +689,6 @@ def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[st
         return RedirectResponse(url=redirect_to, status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# PROCESAR SOLICITUD DE DINERO O ABONO DESDE EL ADMIN
 @app.post("/admin/procesar-solicitud-dinero")
 async def post_procesar_solicitud_dinero(
     solicitud_id: int = Form(...),
@@ -729,7 +734,6 @@ async def post_procesar_solicitud_dinero(
     recalcular_y_actualizar_reporte(agencia, fecha)
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# VALIDAR O RECHAZAR PAGO CARGADO POR TAQUILLA
 @app.post("/admin/validar-pago")
 def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
     conn = get_db()
@@ -769,7 +773,6 @@ def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# COMUNICADOS DEL ADMIN
 @app.post("/admin/crear-comunicado")
 @app.post("/admin/comunicado")
 def post_comunicado(mensaje: str = Form(...)):
@@ -793,7 +796,6 @@ def post_eliminar_comunicado(comunicado_id: int = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=comunicados", status_code=status.HTTP_303_SEE_OTHER)
 
-# CREAR O ELIMINAR AGENCIA
 @app.post("/admin/crear-agencia")
 @app.post("/admin/crear-taquilla")
 def post_crear_agencia(agencia: str = Form(...), clave: str = Form(...), genero: str = Form("FEMENINO")):
@@ -872,6 +874,7 @@ def get_admin(
         else:
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (f_desde, f_hasta))
         casheas_generales = [dict(row) for row in cursor.fetchall()]
+        total_cashea_filtrado = sum(float(c.get('monto') or 0.0) for c in casheas_generales)
 
         # BALANCES GLOBALES (+ / -) CON DESGLOSE DETALLADO
         positivos = []
@@ -879,7 +882,6 @@ def get_admin(
         for ag in agencias:
             ag_nombre = ag['agencia']
             
-            # Consultar reportes en el rango para sumar ventas y comisiones
             cursor.execute(
                 """SELECT SUM(ventas) as total_ventas, SUM(premios) as total_premios, SUM(monto) as saldo_neto, MAX(fecha) as ultima_fecha
                    FROM reportes WHERE UPPER(TRIM(agencia)) ILIKE %s AND fecha >= %s AND fecha <= %s""",
@@ -887,7 +889,6 @@ def get_admin(
             )
             fila_rep = cursor.fetchone()
             
-            # Pagos y abonos en el rango
             cursor.execute(
                 """SELECT tipo, SUM(monto) as total_monto FROM pagos 
                    WHERE UPPER(TRIM(agencia)) ILIKE %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'
@@ -1114,6 +1115,7 @@ def get_admin(
             "agencias": agencias,
             "comunicados": comunicados,
             "casheas_generales": casheas_generales,
+            "total_cashea_filtrado": total_cashea_filtrado,
             "positivos": positivos,
             "negativos": negativos,
             "sistemas_consolidados": sistemas_consolidados,
