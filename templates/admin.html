@@ -772,12 +772,12 @@
                                                                 
                                                                 <!-- BOTÓN DE EDICIÓN RÁPIDA POR SISTEMA -->
                                                                 <td class="text-center">
-                                                                    <button class="btn btn-sm btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#modalEditVal{{ loop.index }}_{{ loop.parent.loop.index }}" title="Editar Montos Directos">
+                                                                    <button class="btn btn-sm btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#modalEditVal{{ sys.id }}" title="Editar Montos Directos">
                                                                         <i class="fas fa-edit"></i>
                                                                     </button>
 
                                                                     <!-- MODAL PARA EDITAR VENTA, PREMIOS Y COMISIÓN -->
-                                                                    <div class="modal fade" id="modalEditVal{{ loop.index }}_{{ loop.parent.loop.index }}" tabindex="-1">
+                                                                    <div class="modal fade" id="modalEditVal{{ sys.id }}" tabindex="-1">
                                                                         <div class="modal-dialog modal-sm">
                                                                             <div class="modal-content text-start">
                                                                                 <div class="modal-header bg-dark text-white py-1">
