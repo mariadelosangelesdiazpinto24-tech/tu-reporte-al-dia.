@@ -586,12 +586,11 @@ def get_admin(
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (f_desde, f_hasta))
         casheas_generales = [dict(row) for row in cursor.fetchall()]
 
-        # CALCULO PRECISO DE BALANCES GLOBALES (+ / -)
+        # CALCULO DE BALANCES GLOBALES
         positivos = []
         negativos = []
         for ag in agencias:
             ag_nombre = ag['agencia']
-            # Buscar el último reporte de la agencia ignorando mayúsculas/minúsculas
             cursor.execute("SELECT monto, fecha FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC LIMIT 1", (normalizar(ag_nombre),))
             u_rep = cursor.fetchone()
             
@@ -741,7 +740,9 @@ def get_admin(
                 c_taquilla = v_sys * pct_t
                 pct_excedente = (pct_b - pct_t) * 100.0
                 g_excedente = v_sys * (pct_b - pct_t)
-                g_participacion = (t_banquero_sistema * pct_part) if (pct_part > 0 and t_banquero_sistema > 0) else 0.0
+                
+                # PARTICIPACIÓN DIRECTA: Si el total es positivo suma, si es negativo resta
+                g_participacion = (t_banquero_sistema * pct_part) if pct_part > 0 else 0.0
                 g_total = g_excedente + g_participacion
 
                 total_ganancia_excedente += g_excedente
@@ -764,7 +765,7 @@ def get_admin(
                 subtotal_banquero += t_banquero_sistema
                 desglose_banqueros[b_nombre]["total_mi_ganancia_banca"] += g_total
 
-            # Si la comercializadora absorbe cashea (NYS), se le descuenta de lo que se le entrega
+            # Si NYS absorbe cashea, se descuenta de lo que se le entrega
             if cfg["absorbe_cashea"]:
                 subtotal_banquero -= totales_auxiliares["cashea"]
 
