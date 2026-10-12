@@ -397,19 +397,9 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
         desglose_banqueros[b_nombre]["total"] = subtotal_banquero
         suma_cuadros_banqueros += subtotal_banquero
 
-    conn.close()
-total_mi_ganancia_global = total_ganancia_excedente + total_ganancia_participacion
+conn.close()
+    total_mi_ganancia_global = total_ganancia_excedente + total_ganancia_participacion
 
-    return (
-        sistemas_consolidados,
-        totales_generales,
-        totales_auxiliares,
-        desglose_banqueros,
-        total_ganancia_excedente,
-        total_ganancia_participacion,
-        total_mi_ganancia_global,
-        suma_cuadros_banqueros
-    )
     return (
         sistemas_consolidados,
         totales_generales,
