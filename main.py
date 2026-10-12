@@ -36,12 +36,11 @@ SISTEMAS_OFICIALES = [
     "PREMIER", "SRQ POLLA", "WINBIG VENTAS", "WINBIG BINGO", 
     "WINBIG POLLAS", "VENTA ACTIVA", "PARLEY", "CALAMAR", "GUACA"
 ]
-
 def normalizar(texto: str) -> str:
     if not texto:
         return ""
     texto = unicodedata.normalize('NFD', texto)
-texto = ''.join(c for c in texto if unicodedata.category(c) != 'Mn')
+    texto = ''.join(c for c in texto if unicodedata.category(c) != 'Mn')
     return texto.strip().upper()
 
 def formatear_monto(valor):
