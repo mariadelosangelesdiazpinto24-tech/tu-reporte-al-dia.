@@ -50,7 +50,15 @@ ALIAS_AGENCIAS = {
     "CAMINO DE LA SUERTE": "FERNANDO",
     "AGENCIA VALLEMIL": "VALLEMIL",
     "AGENCIA ORQUIDEA 2": "ORQUIDEA",
-    "AGENCIA ORQUÍDEA 2": "ORQUIDEA"
+    "AGENCIA ORQUÍDEA 2": "ORQUIDEA",
+    # Mapeos de taquillas que pueden variar entre sistemas / Colab
+    "LA LEONA": "ALEXA",
+    "ALEXA🦁": "ALEXA",
+    "PALOMITA🕊️": "PALOMITA",
+    "FRANYE": "PALOMITA",
+    "FRANYE🕊️": "PALOMITA",
+    "GEGE🐼": "GEGE",
+    "LILI LA LOBA": "LILI LA LOBA"
 }
 
 def normalizar(texto: str) -> str:
@@ -210,8 +218,7 @@ def init_db():
         )
     ''')
 
-    # Garantizar usuarios base en la tabla
-    agencias_base = ["MILA", "ANA MARIA", "NABEL", "VIP23", "DESTINO SUERTE", "VALLEMIL"]
+    agencias_base = ["MILA", "ANA MARIA", "NABEL", "VIP23", "DESTINO SUERTE", "VALLEMIL", "ALEXA", "PALOMITA", "GEGE", "LILI LA LOBA"]
     for ag in agencias_base:
         try:
             cursor.execute("INSERT INTO usuarios (agencia, clave, genero, rol) VALUES (%s, '123456', 'FEMENINO', 'TAQUILLA') ON CONFLICT (agencia) DO NOTHING", (ag,))
@@ -267,7 +274,6 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             continue
 
         if rep_db and rep_db['detalle_html']:
-            # Extraer tabla de sistemas buscando cualquier tabla que tenga filas de datos
             tablas_encontradas = re.findall(r'<table[^>]*>(.*?)<\/table>', rep_db['detalle_html'], re.DOTALL | re.IGNORECASE)
             for t_html in tablas_encontradas:
                 filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', t_html, re.DOTALL | re.IGNORECASE)
@@ -449,7 +455,7 @@ def actualizar_ultima_conexion(agencia: str):
         except Exception as e:
             print("Error actualizando conexion:", e)
 
-# RECALCULAR Y ACTUALIZAR REPORTE SIN DESTRUIR EL DETALLE_HTML
+# RECALCULAR Y ACTUALIZAR REPORTE SIN DESTRUIR EL DETALLE_HTML DE COLAB
 def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     agencia_norm = normalizar(agencia)
     conn = get_db()
@@ -529,12 +535,14 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     detalle_original = rep['detalle_html'] or ""
     
-    # Conservar la tabla de sistemas enviada originalmente por Colab sin recortar
-    tabla_sistemas_html = ""
-    partes = detalle_original.split('<!-- BLOQUES_EXTRAS -->')
-    if partes:
-        tabla_sistemas_html = partes[0]
+    # PROTECCIÓN: Si ya tiene bloques extras, tomamos solo la tabla de sistemas
+    # Si no los tiene, conservamos TODO el HTML original de Colab
+    if '<!-- BLOQUES_EXTRAS -->' in detalle_original:
+        tabla_sistemas_html = detalle_original.split('<!-- BLOQUES_EXTRAS -->')[0]
     else:
+        tabla_sistemas_html = detalle_original
+
+    if not tabla_sistemas_html.strip():
         tabla_sistemas_html = detalle_original
 
     total_neto_sistemas = 0.0
@@ -706,13 +714,11 @@ async def guardar_reporte_colab(request: Request):
     conn = get_db()
     cursor = conn.cursor()
 
-    # Asegurar que la agencia exista en usuarios
     cursor.execute("INSERT INTO usuarios (agencia, clave, genero, rol) VALUES (%s, '123456', 'FEMENINO', 'TAQUILLA') ON CONFLICT (agencia) DO NOTHING", (agencia,))
 
     cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia, fecha))
     rep = cursor.fetchone()
 
-    # Si se actualiza un día anterior, registrar el diferencial
     if rep and fecha < hoy_str:
         monto_anterior = float(rep['monto'] or 0.0)
         diferencial = monto - monto_anterior
@@ -876,16 +882,9 @@ def get_agencia(
     cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
     reportes_agencia_raw = cursor.fetchall()
 
-    fecha_minima = hoy_vzla
-    fecha_maxima = hoy_vzla
-    if reportes_agencia_raw:
-        fechas_existentes = [r['fecha'] for r in reportes_agencia_raw if r['fecha']]
-        if fechas_existentes:
-            fecha_minima = min(fechas_existentes)
-            fecha_maxima = max(fechas_existentes)
-
-    f_desde = desde_fecha if desde_fecha else fecha_minima
-    f_hasta = hasta_fecha if hasta_fecha else fecha_maxima
+    # Si no se definen fechas, fijar por defecto la fecha actual de Venezuela
+    f_desde = desde_fecha if desde_fecha else hoy_vzla
+    f_hasta = hasta_fecha if hasta_fecha else hoy_vzla
 
     reportes_agencia = []
     for r in reportes_agencia_raw:
@@ -1349,7 +1348,7 @@ def post_actualizar_regla_banquero(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/guardar-ajuste-banquero-sistema")
-def post_guardar_ajuste_banquero_sistema(
+def post_guardar_ajuste_banquero-sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     fecha: str = Form(...),
@@ -1600,4 +1599,5 @@ def get_admin(
 
     except Exception as e:
         print("Error en admin:", e)
+        traceback.print_exc()
         return HTMLResponse(content=f"Error interno en admin: {e}", status_code=500)
