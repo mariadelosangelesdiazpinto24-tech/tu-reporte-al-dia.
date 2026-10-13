@@ -15,7 +15,6 @@ from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
 
-# Zona horaria oficial de Venezuela (America/Caracas, UTC-4)
 TZ_VENEZUELA = ZoneInfo("America/Caracas")
 
 def obtener_fecha_venezuela() -> str:
@@ -148,7 +147,6 @@ def init_db():
         )
     ''')
 
-    # TABLA PARA PORCENTAJES EDITABLES DE BANQUEROS
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS configuracion_banqueros (
             id SERIAL PRIMARY KEY,
@@ -162,7 +160,6 @@ def init_db():
         )
     ''')
 
-    # TABLA PARA EDICIÓN MANUAL DE MONTOS (VENTA, COMISIÓN, PREMIOS)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS ajustes_banqueros_manuales (
             id SERIAL PRIMARY KEY,
@@ -520,7 +517,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
-    # FÓRMULA UNIVERSAL
     monto_final = total_neto_sistemas - total_pagos_taquilla + total_adelantos - total_cashea + total_ajustes_pendientes
 
     bloque_pagos_banca = f'''
@@ -694,9 +690,6 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
 
     return templates.TemplateResponse(request=request, name="login.html", context={"error": "Usuario o clave incorrectos"})
 
-# ==============================================================
-# VISTA PRIVADA PARA CADA BANQUERO (SEMANAL / TRANSPARENTE)
-# ==============================================================
 @app.get("/banquero", response_class=HTMLResponse)
 def get_banquero(
     request: Request, 
@@ -768,7 +761,30 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
     agencia_info = cursor.fetchone()
     
     cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
-    reportes_agencia = [dict(row) for row in cursor.fetchall()]
+    reportes_agencia_raw = cursor.fetchall()
+    
+    reportes_agencia = []
+    for r in reportes_agencia_raw:
+        r_dict = dict(r)
+        
+        # Extraer comisiones totales directamente del HTML
+        comision_extraida = 0.0
+        if r_dict.get('detalle_html'):
+            match_tot = re.search(r'TOTALES.*?<\/tr>', r_dict['detalle_html'], re.DOTALL | re.IGNORECASE)
+            if match_tot:
+                cols_tot = re.findall(r'<td[^>]*>(.*?)<\/td>', match_tot.group(0), re.DOTALL)
+                if len(cols_tot) >= 3:
+                    try:
+                        comision_extraida = float(re.sub(r'[^\d.-]', '', cols_tot[2]))
+                    except:
+                        pass
+        
+        # Si no la encuentra, estimar diferencia ventas - premios - neto
+        if comision_extraida == 0.0 and (r_dict.get('ventas', 0) > 0):
+            comision_extraida = max(0.0, float(r_dict.get('ventas', 0)) - float(r_dict.get('premios', 0)) - float(r_dict.get('monto', 0)))
+            
+        r_dict['comision'] = comision_extraida
+        reportes_agencia.append(r_dict)
     
     cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
     pagos_agencia = [dict(row) for row in cursor.fetchall()]
@@ -787,7 +803,6 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
     
-    # SALDO ACUMULADO EXACTO EN TIEMPO REAL
     cursor.execute("SELECT SUM(monto) AS total_rep FROM reportes WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
     row_rep = cursor.fetchone()
     total_deuda_reportes = float(row_rep['total_rep'] or 0.0) if row_rep else 0.0
@@ -900,6 +915,7 @@ def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), mo
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
+# CORRECCIÓN EN MODIFICACIÓN DE REPORTES (ACTUALIZA DIRECTO EL MONTO)
 @app.post("/actualizar-reporte-sistema")
 def post_actualizar_reporte_sistema(
     agencia: str = Form(...),
@@ -967,7 +983,10 @@ def post_actualizar_reporte_sistema(
         </tr>'''
         html_modificado = re.sub(patron_totales, nueva_fila_totales, html_modificado, flags=re.DOTALL | re.IGNORECASE)
 
-        cursor.execute("UPDATE reportes SET detalle_html = %s, ventas = %s, premios = %s WHERE id = %s", (html_modificado, sum_v, sum_p, rep['id']))
+        cursor.execute(
+            "UPDATE reportes SET monto = %s, detalle_html = %s, ventas = %s, premios = %s WHERE id = %s",
+            (sum_t, html_modificado, sum_v, sum_p, rep['id'])
+        )
         conn.commit()
 
         cursor.execute(
@@ -976,17 +995,6 @@ def post_actualizar_reporte_sistema(
             (agencia_norm, fecha, 0.0, f"Modificación {sistema}", f"Venta: Bs. {venta:,.2f} | Premio: Bs. {premio:,.2f}")
         )
         conn.commit()
-
-        hoy_str = obtener_fecha_venezuela()
-        if fecha < hoy_str:
-            diferencial = sum_t - float(rep['monto'] or 0.0)
-            if diferencial != 0.0:
-                cursor.execute(
-                    """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-                       VALUES (%s, %s, %s, %s, %s, 'AJUSTE_PENDIENTE', 'APROBADO')""",
-                    (agencia_norm, hoy_str, diferencial, f"Ajuste {sistema} del {fecha}", f"Ajuste día anterior {fecha}")
-                )
-                conn.commit()
 
     conn.close()
 
@@ -1095,7 +1103,53 @@ def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# EDITAR EN VIVO LOS PORCENTAJES DE LOS BANQUEROS
+# LIQUIDAR SALDO NEGATIVO CON SUBIDA DE CAPTURE DIRECTO
+@app.post("/admin/liquidar-saldo-negativo")
+async def post_liquidar_saldo_negativo(
+    agencia: str = Form(...),
+    fecha: str = Form(...),
+    monto: float = Form(...),
+    comprobante_file: UploadFile = File(...)
+):
+    agencia_norm = normalizar(agencia)
+    monto_pago = abs(monto)
+
+    nombre_archivo = f"liquidacion_negativo_{agencia_norm}_{datetime.now(TZ_VENEZUELA).strftime('%Y%m%d_%H%M%S')}_{comprobante_file.filename}"
+    ruta_guardar = os.path.join("uploads", nombre_archivo)
+    with open(ruta_guardar, "wb") as buffer:
+        shutil.copyfileobj(comprobante_file.file, buffer)
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+           VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
+        (agencia_norm, fecha, monto_pago, "Liquidación Saldo a Favor", nombre_archivo)
+    )
+
+    mensaje = f"✅ Tu saldo a favor de Bs. {monto_pago:,.2f} del día {fecha} ha sido LIQUIDADO. Ya puedes revisar tu capture."
+    try:
+        cursor.execute(
+            "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
+            (mensaje, agencia_norm)
+        )
+    except Exception:
+        cursor.execute(
+            "INSERT INTO comunicados (mensaje) VALUES (%s)",
+            (mensaje,)
+        )
+
+    conn.commit()
+    conn.close()
+
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
+    hoy_vzla = obtener_fecha_venezuela()
+    if fecha != hoy_vzla:
+        recalcular_y_actualizar_reporte(agencia_norm, hoy_vzla)
+
+    return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
+
 @app.post("/admin/actualizar-regla-banquero")
 def post_actualizar_regla_banquero(
     regla_id: int = Form(...),
@@ -1119,7 +1173,6 @@ def post_actualizar_regla_banquero(
     url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
-# EDITAR EN VIVO VENTA, COMISIÓN O PREMIOS DE CUALQUIER SISTEMA EN EL BANQUERO
 @app.post("/admin/guardar-ajuste-banquero-sistema")
 def post_guardar_ajuste_banquero_sistema(
     banquero: str = Form(...),
@@ -1146,7 +1199,6 @@ def post_guardar_ajuste_banquero_sistema(
     url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
-# RESTABLECER LOS VALORES MANUALES AL CÁLCULO ORIGINAL
 @app.post("/admin/restablecer-ajuste-banquero-sistema")
 def post_restablecer_ajuste_banquero_sistema(
     banquero: str = Form(...),
@@ -1332,7 +1384,6 @@ def get_admin(
 
         conn.close()
 
-        # CÁLCULOS CENTRALIZADOS DE BANCA Y SISTEMAS
         (
             sistemas_consolidados,
             totales_generales,
