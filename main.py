@@ -616,7 +616,6 @@ def post_guardar_ajustes_banquero_global(
     url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
-# ENDPOINT QUE RECIBE LOS TOTALES DESDE COLAB DIRECTO
 @app.post("/api/cargar-totales-lider-nys")
 async def cargar_totales_lider_nys(request: Request):
     data = await request.form()
@@ -667,7 +666,6 @@ async def guardar_reporte_colab(request: Request):
     cashea_monto = float(data.get("cashea_monto", 0.0))
     cashea_detalle = data.get("cashea_detalle", "")
 
-    # Soporte por si Colab envía Guaca y Calamar en la misma llamada
     venta_lider = float(data.get("venta_lider", 0.0) or 0.0)
     premios_lider = float(data.get("premios_lider", 0.0) or 0.0)
     venta_nys = float(data.get("venta_nys", 0.0) or 0.0)
@@ -853,7 +851,7 @@ def get_agencia(
     conn = get_db()
     cursor = conn.cursor()
     
-    # Tolerancia para buscar a Mila bajo ambos nombres
+    # Búsqueda amplia para garantizar que MILA y alias se encuentren siempre
     cursor.execute("SELECT * FROM usuarios WHERE UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) = 'MILA'", (agencia_norm,))
     agencia_info = cursor.fetchone()
     
@@ -1319,8 +1317,9 @@ def post_actualizar_regla_banquero(
     url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
+# NOMBRE CORREGIDO CON GUIONES BAJOS PARA EVITAR SYNTAXERROR
 @app.post("/admin/guardar-ajuste-banquero-sistema")
-def post_guardar_ajuste_banquero-sistema(
+def post_guardar_ajuste_banquero_sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     fecha: str = Form(...),
@@ -1346,7 +1345,7 @@ def post_guardar_ajuste_banquero-sistema(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/restablecer-ajuste-banquero-sistema")
-def post_restablecer_ajuste_banquero-sistema(
+def post_restablecer_ajuste_banquero_sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     desde_fecha: Optional[str] = Form(None),
