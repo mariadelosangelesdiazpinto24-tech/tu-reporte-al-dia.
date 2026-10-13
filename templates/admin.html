@@ -150,6 +150,9 @@
                 <button class="nav-link {% if tab == 'consolidado' or tab_activa == 'consolidado' %}active{% endif %}" id="consolidado-tab" data-bs-toggle="tab" data-bs-target="#consolidado" type="button"><i class="fas fa-chart-pie"></i> Consolidado por Sistemas</button>
             </li>
             <li class="nav-item">
+                <button class="nav-link {% if tab == 'auditoria_sistemas' or tab_activa == 'auditoria_sistemas' %}active{% endif %}" id="auditoria_sistemas-tab" data-bs-toggle="tab" data-bs-target="#auditoria_sistemas" type="button"><i class="fas fa-search-dollar"></i> Auditoría por Sistemas 🔍</button>
+            </li>
+            <li class="nav-item">
                 <button class="nav-link {% if tab == 'totalizador' or tab_activa == 'totalizador' %}active{% endif %}" id="totalizador-tab" data-bs-toggle="tab" data-bs-target="#totalizador" type="button"><i class="fas fa-calculator"></i> Totalizador 📊</button>
             </li>
             <li class="nav-item">
@@ -702,7 +705,98 @@
                 </div>
             </div>
 
-            <!-- 7. TOTALIZADOR -->
+            <!-- 7. PESTAÑA: AUDITORÍA POR SISTEMAS Y JUSTIFICACIÓN POR AGENCIA -->
+            <div class="tab-pane fade {% if tab == 'auditoria_sistemas' or tab_activa == 'auditoria_sistemas' %}show active{% endif %}" id="auditoria_sistemas" role="tabpanel">
+                <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #6f42c1; border-radius: 15px;">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                            <h5 class="fw-bold m-0" style="color: #6f42c1;">
+                                <i class="fas fa-search-dollar me-2"></i>Auditoría de Sistemas y Justificación por Agencia
+                            </h5>
+                            <span class="badge bg-secondary p-2">Período: {{ desde_fecha }} al {{ hasta_fecha }}</span>
+                        </div>
+                        
+                        <p class="text-muted small mb-4">
+                            💡 Haz clic sobre cualquier tarjeta de sistema para desplegar la lista de agencias que originaron el monto con sus ventas, comisiones y premios.
+                        </p>
+
+                        <div class="row g-3">
+                            {% for sys_nombre, totales in sistemas_consolidados.items() %}
+                            <div class="col-md-6 col-lg-4">
+                                <div class="card border shadow-sm h-100" style="border-radius: 12px; overflow: hidden;">
+                                    <div class="card-header d-flex justify-content-between align-items-center cursor-pointer py-3" 
+                                         data-bs-toggle="collapse" 
+                                         data-bs-target="#collapseSys{{ loop.index }}" 
+                                         style="background: #f8f9fa; cursor: pointer;">
+                                        <div>
+                                            <h6 class="fw-bold mb-0 text-dark">{{ sys_nombre }}</h6>
+                                            <small class="text-muted">Venta: Bs. {{ totales.venta | dinero }}</small>
+                                        </div>
+                                        <div class="text-end">
+                                            <span class="fs-6 fw-bold {% if totales.neto < 0 %}text-danger{% else %}text-success{% endif %}">
+                                                {% if totales.neto >= 0 %}+{% endif %}Bs. {{ totales.neto | dinero }}
+                                            </span>
+                                            <i class="fas fa-chevron-down ms-2 text-muted small"></i>
+                                        </div>
+                                    </div>
+
+                                    <div class="collapse" id="collapseSys{{ loop.index }}">
+                                        <div class="card-body p-2 bg-light">
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-hover mb-0 bg-white border" style="font-size: 11px;">
+                                                    <thead class="table-dark">
+                                                        <tr>
+                                                            <th>Agencia</th>
+                                                            <th class="text-end">Venta</th>
+                                                            <th class="text-end">Com.</th>
+                                                            <th class="text-end">Premio</th>
+                                                            <th class="text-end">Total</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% if sistemas_agencias_detalle.get(sys_nombre) %}
+                                                            {% for ag_item in sistemas_agencias_detalle.get(sys_nombre) %}
+                                                            <tr>
+                                                                <td class="fw-bold text-uppercase">{{ ag_item.agencia }}</td>
+                                                                <td class="text-end">Bs. {{ ag_item.venta | dinero }}</td>
+                                                                <td class="text-end text-primary">Bs. {{ ag_item.comision | dinero }}</td>
+                                                                <td class="text-end text-danger">Bs. {{ ag_item.premio | dinero }}</td>
+                                                                <td class="text-end fw-bold {% if ag_item.total < 0 %}text-danger{% else %}text-success{% endif %}">
+                                                                    Bs. {{ ag_item.total | dinero }}
+                                                                </td>
+                                                            </tr>
+                                                            {% endfor %}
+                                                        {% else %}
+                                                            <tr>
+                                                                <td colspan="5" class="text-center text-muted py-2">Sin movimientos registrados.</td>
+                                                            </tr>
+                                                        {% endif %}
+                                                    </tbody>
+                                                    <tfoot class="table-secondary fw-bold">
+                                                        <tr>
+                                                            <td>TOTAL</td>
+                                                            <td class="text-end">Bs. {{ totales.venta | dinero }}</td>
+                                                            <td class="text-end text-primary">Bs. {{ totales.comision | dinero }}</td>
+                                                            <td class="text-end text-danger">Bs. {{ totales.premio | dinero }}</td>
+                                                            <td class="text-end {% if totales.neto < 0 %}text-danger{% else %}text-success{% endif %}">
+                                                                Bs. {{ totales.neto | dinero }}
+                                                            </td>
+                                                        </tr>
+                                                    </tfoot>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- 8. TOTALIZADOR -->
             <div class="tab-pane fade {% if tab == 'totalizador' or tab_activa == 'totalizador' %}show active{% endif %}" id="totalizador" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #0d47a1;">
                     <div class="card-body">
@@ -747,7 +841,7 @@
                 </div>
             </div>
 
-            <!-- 8. DESGLOSE BANCA -->
+            <!-- 9. DESGLOSE BANCA -->
             <div class="tab-pane fade {% if tab == 'desglose_banca' or tab_activa == 'desglose_banca' %}show active{% endif %}" id="desglose_banca" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
