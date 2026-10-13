@@ -455,7 +455,7 @@ def actualizar_ultima_conexion(agencia: str):
         except Exception as e:
             print("Error actualizando conexion:", e)
 
-# RECALCULAR Y ACTUALIZAR REPORTE SIN DESTRUIR EL DETALLE_HTML DE COLAB
+# RECALCULAR Y ACTUALIZAR REPORTE SIN DESTRUIR EL DETALLE_HTML
 def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     agencia_norm = normalizar(agencia)
     conn = get_db()
@@ -535,16 +535,22 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     detalle_original = rep['detalle_html'] or ""
     
-    # PROTECCIÓN: Si ya tiene bloques extras, tomamos solo la tabla de sistemas
-    # Si no los tiene, conservamos TODO el HTML original de Colab
+    # AISLAMIENTO EXACTO: Extraer únicamente la tabla de reporte de sistemas
+    tabla_sistemas_html = ""
     if '<!-- BLOQUES_EXTRAS -->' in detalle_original:
-        tabla_sistemas_html = detalle_original.split('<!-- BLOQUES_EXTRAS -->')[0]
+        tabla_sistemas_html = detalle_original.split('<!-- BLOQUES_EXTRAS -->')[0].strip()
+    elif '<div class="mb-3"' in detalle_original:
+        # Si ya se le habían inyectado bloques antes sin el comentario, cortar antes del primer bloque inyectado
+        idx_bloque = detalle_original.find('<div class="mb-3"')
+        tabla_sistemas_html = detalle_original[:idx_bloque].strip()
     else:
+        tabla_sistemas_html = detalle_original.strip()
+
+    # Si por algún motivo se quedó sin contenido, conservar el detalle original
+    if not tabla_sistemas_html:
         tabla_sistemas_html = detalle_original
 
-    if not tabla_sistemas_html.strip():
-        tabla_sistemas_html = detalle_original
-
+    # Obtener el total neto de la tabla de sistemas
     total_neto_sistemas = 0.0
     filas_tabla = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_sistemas_html, re.DOTALL | re.IGNORECASE)
     for fila in filas_tabla:
