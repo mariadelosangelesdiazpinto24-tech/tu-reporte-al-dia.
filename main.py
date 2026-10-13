@@ -36,7 +36,7 @@ SISTEMAS_OFICIALES = [
     "WINBIG POLLAS", "MATRIX", "PARLEY", "CALAMAR", "GUACA"
 ]
 
-# HOMOLOGACIÓN DE ALIAS DE AGENCIAS Y SISTEMAS
+# HOMOLOGACIÓN DE ALIAS DE AGENCIAS
 ALIAS_AGENCIAS = {
     "RUTA MILLONARIA": "ANA MARIA",
     "DESTINO FORTUNA": "DESTINO SUERTE",
@@ -510,138 +510,121 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         tipo_p = str(p['tipo']).strip().upper() if p['tipo'] else 'PAGO_TAQUILLA'
         comp = p['comprobante'] or ''
         
-        comp_display = f'<a href="/uploads/{comp}" target="_blank">Ver Comprobante</a>' if (comp and (comp.endswith('.png') or comp.endswith('.jpg') or comp.endswith('.jpeg') or comp.endswith('.pdf'))) else comp
+        comp_display = f'<a href="/uploads/{comp}" target="_blank" class="fw-bold text-decoration-none">Ver Capture</a>' if (comp and (comp.endswith('.png') or comp.endswith('.jpg') or comp.endswith('.jpeg') or comp.endswith('.pdf'))) else comp
 
         if tipo_p in ['ADELANTO', 'LIQUIDACION']:
             total_adelantos += monto_p
             adelantos_rows_html += f'''
-            <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{comp_display}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #e91e63; font-weight: bold;">Bs. {monto_p:,.2f}</td>
-            </tr>
+            <div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+                <span class="small">{p['fecha']} - {comp_display}</span>
+                <span class="fw-bold text-danger small">Bs. {monto_p:,.2f}</span>
+            </div>
             '''
         elif tipo_p == 'CASHEA':
             total_cashea += monto_p
             cashea_rows_html += f'''
-            <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['factura']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #e91e63; font-weight: bold;">Bs. {monto_p:,.2f}</td>
-            </tr>
+            <div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+                <span class="small">{p['fecha']} ({p['factura']})</span>
+                <span class="fw-bold text-info small">Bs. {monto_p:,.2f}</span>
+            </div>
             '''
         elif tipo_p in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
             total_pagos_taquilla += monto_p
             pagos_banca_rows_html += f'''
-            <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['factura']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #2e7d32; font-weight: bold;">Bs. {monto_p:,.2f}</td>
-            </tr>
+            <div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+                <span class="small">{p['fecha']} ({p['factura']})</span>
+                <span class="fw-bold text-success small">Bs. {monto_p:,.2f}</span>
+            </div>
             '''
 
     for aj in ajustes_anteriores:
         monto_aj = float(aj['monto'] or 0.0)
         total_ajustes_pendientes += monto_aj
-        color_aj = "#2e7d32" if monto_aj < 0 else "#e91e63"
+        color_aj = "#198754" if monto_aj < 0 else "#dc3545"
         ajustes_rows_html += f'''
-        <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
-            <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{aj['fecha']}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{aj['comprobante']}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: {color_aj}; font-weight: bold;">Bs. {monto_aj:,.2f}</td>
-        </tr>
+        <div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+            <span class="small">{aj['fecha']} ({aj['comprobante']})</span>
+            <span class="fw-bold small" style="color: {color_aj};">Bs. {monto_aj:,.2f}</span>
+        </div>
         '''
 
     detalle_original = rep['detalle_html'] or ""
-    match_sistemas = re.search(r'(<div class="table-responsive mb-3"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_original, re.DOTALL)
-    if not match_sistemas:
-        match_sistemas = re.search(r'(<div class="mb-3"[^>]*>.*?REPORTE DE SISTEMAS.*?<\/table>.*?<\/div>)', detalle_original, re.DOTALL)
-    tabla_sistemas_html = match_sistemas.group(1) if match_sistemas else ""
-
+    
+    # Extraer el total neto del reporte
     total_neto_sistemas = 0.0
-    filas_tabla = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_sistemas_html, re.DOTALL)
-    for fila in filas_tabla:
-        if 'TOTALES' in fila.upper():
-            cols = re.findall(r'<td[^>]*>(.*?)<\/td>', fila)
-            if cols:
-                try:
-                    total_neto_sistemas = float(cols[-1].replace(',', '').replace('Bs.', '').strip())
-                except:
-                    pass
+    match_tot = re.search(r'TOTALES.*?<\/tr>', detalle_original, re.DOTALL | re.IGNORECASE)
+    if match_tot:
+        cols_tot = re.findall(r'<td[^>]*>(.*?)<\/td>', match_tot.group(0), re.DOTALL)
+        if cols_tot:
+            try:
+                total_neto_sistemas = float(cols_tot[-1].replace(',', '').replace('Bs.', '').strip())
+            except:
+                pass
 
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
+    # FÓRMULA UNIVERSAL
     monto_final = total_neto_sistemas - total_pagos_taquilla + total_adelantos - total_cashea + total_ajustes_pendientes
 
-    bloque_pagos_banca = f'''
-    <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #2e7d32;">
-        <h5 style="color: #2e7d32; font-weight: bold; border-bottom: 2px solid #2e7d32; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-university"></i> PAGOS / ABONOS A LA BANCA</h5>
-        <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #e8f5e9; color: #1b5e20; font-size: 13px;">
-                <th style="padding: 10px;">FECHA</th>
-                <th style="padding: 10px;">REFERENCIA / DETALLE</th>
-                <th style="padding: 10px; text-align: right;">MONTO ABONADO</th>
-            </tr>
-            {pagos_banca_rows_html if pagos_banca_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">No hay pagos abonados aún.</td></tr>'}
-        </table>
-    </div>
-    '''
+    # DISEÑO ULTRA COMPACTO, ELEGANTE Y ADAPTABLE A TELÉFONOS MÓVILES
+    detalle_actualizado = f'''
+    <div class="p-2">
+        <!-- 1. TOTAL INICIAL DEL REPORTE -->
+        <div class="card shadow-sm border-0 mb-2 p-3 bg-white" style="border-radius: 12px; border-left: 5px solid #0d6efd !important;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="fw-bold mb-0 text-dark"><i class="fas fa-file-invoice text-primary me-1"></i> Total Reporte del Día</h6>
+                    <small class="text-muted">Resultado neto de los sistemas</small>
+                </div>
+                <h5 class="fw-bold mb-0 text-primary">Bs. {total_neto_sistemas:,.2f}</h5>
+            </div>
+        </div>
 
-    bloque_cashea = f'''
-    <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #00bcd4;">
-        <h5 style="color: #00bcd4; font-weight: bold; border-bottom: 2px solid #00bcd4; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-shopping-cart"></i> CASHEA (Registros absorbidos)</h5>
-        <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #e0f7fa; color: #006064; font-size: 13px;">
-                <th style="padding: 10px;">FECHA</th>
-                <th style="padding: 10px;">DETALLE / FACTURA</th>
-                <th style="padding: 10px; text-align: right;">MONTO ABSORBIDO</th>
-            </tr>
-            {cashea_rows_html if cashea_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">No hay registros de Cashea.</td></tr>'}
-        </table>
-    </div>
-    '''
+        <!-- 2. ABONOS O PAGOS REALIZADOS A LA BANCA -->
+        <div class="card shadow-sm border-0 mb-2 p-3 bg-white" style="border-radius: 12px; border-left: 5px solid #198754 !important;">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <h6 class="fw-bold mb-0 text-success"><i class="fas fa-university me-1"></i> Pagos / Abonos a la Banca</h6>
+                <span class="badge bg-success-subtle text-success border border-success fw-bold">Bs. {total_pagos_taquilla:,.2f}</span>
+            </div>
+            {pagos_banca_rows_html if pagos_banca_rows_html else '<small class="text-muted">No se registran abonos.</small>'}
+        </div>
 
-    bloque_ajustes = f'''
-    <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ff9800;">
-        <h5 style="color: #ff9800; font-weight: bold; border-bottom: 2px solid #ff9800; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-exclamation-triangle"></i> PENDIENTES / AJUSTES DE DÍAS ANTERIORES</h5>
-        <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #fff3e0; color: #e65100; font-size: 13px;">
-                <th style="padding: 10px;">FECHA DÍA ANTERIOR</th>
-                <th style="padding: 10px;">DETALLE AJUSTE</th>
-                <th style="padding: 10px; text-align: right;">DIFERENCIAL ACUMULADO</th>
-            </tr>
-            {ajustes_rows_html if ajustes_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Sin ajustes pendientes acumulados.</td></tr>'}
-        </table>
-    </div>
-    '''
+        <!-- 3. CASHEA ABSORBIDO -->
+        <div class="card shadow-sm border-0 mb-2 p-3 bg-white" style="border-radius: 12px; border-left: 5px solid #0dcaf0 !important;">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <h6 class="fw-bold mb-0 text-info"><i class="fas fa-shopping-cart me-1"></i> Cashea Absorbido</h6>
+                <span class="badge bg-info-subtle text-info border border-info fw-bold">Bs. {total_cashea:,.2f}</span>
+            </div>
+            {cashea_rows_html if cashea_rows_html else '<small class="text-muted">No hay registros de Cashea.</small>'}
+        </div>
 
-    bloque_adelantos = f'''
-    <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #e91e63;">
-        <h5 style="color: #e91e63; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-hand-holding-usd"></i> ADELANTOS / LIQUIDACIÓN (Plata entregada por Admin)</h5>
-        <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #fce4ec; color: #880e4f; font-size: 13px;">
-                <th style="padding: 10px;">FECHA</th>
-                <th style="padding: 10px;">MOTIVO</th>
-                <th style="padding: 10px; text-align: right;">MONTO APLICADO</th>
-            </tr>
-            {adelantos_rows_html if adelantos_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Adelanto: 0.00 Bs.</td></tr>'}
-        </table>
-    </div>
-    '''
+        <!-- 4. ADELANTOS / LIQUIDACIONES -->
+        <div class="card shadow-sm border-0 mb-2 p-3 bg-white" style="border-radius: 12px; border-left: 5px solid #e91e63 !important;">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <h6 class="fw-bold mb-0 text-danger"><i class="fas fa-hand-holding-usd me-1"></i> Adelantos Entregados</h6>
+                <span class="badge bg-danger-subtle text-danger border border-danger fw-bold">Bs. {total_adelantos:,.2f}</span>
+            </div>
+            {adelantos_rows_html if adelantos_rows_html else '<small class="text-muted">No hay adelantos registrados.</small>'}
+        </div>
 
-    bloque_pendientes = f'''
-    <div class="mb-2" style="background: #ffffff; border-radius: 12px; padding: 20px; color: #1a252c; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 6px solid #e91e63; border: 1px solid #e0e0e0;">
-        <h5 style="color: #e91e63; font-weight: bold; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; margin-bottom: 12px;"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h5>
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span style="font-size: 14px; color: #333; font-weight: bold;">Fecha: {fecha_reporte}</span>
-            <span style="font-size: 14px; font-weight: bold; color: #333;">{("Total a Pagar" if monto_final >= 0 else "Saldo a favor / Solicitar")}</span>
-            <span style="font-size: 18px; font-weight: bold; color: {('#2e7d32' if monto_final < 0 else '#e91e63')};">Bs. {monto_final:,.2f}</span>
+        <!-- 5. AJUSTES ANTERIORES SI APLICAN -->
+        {'<div class="card shadow-sm border-0 mb-2 p-3 bg-white" style="border-radius: 12px; border-left: 5px solid #ff9800 !important;"><div class="d-flex justify-content-between align-items-center mb-1"><h6 class="fw-bold mb-0 text-warning" style="color: #e65100 !important;"><i class="fas fa-exclamation-triangle me-1"></i> Ajustes / Pendientes Anteriores</h6><span class="badge bg-warning text-dark fw-bold">Bs. ' + f"{total_ajustes_pendientes:,.2f}" + '</span></div>' + ajustes_rows_html + '</div>' if total_ajustes_pendientes != 0 else ''}
+
+        <!-- 6. ESTADO DE CUENTA FINAL DEFINITIVO -->
+        <div class="card shadow-sm border-0 p-3 mt-3 bg-white" style="border-radius: 12px; border-left: 6px solid ' + ('#198754' if monto_final < 0 else '#dc3545') + ' !important; background: #fafafa;">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h5 class="fw-bold mb-0 text-dark">{'SALDO A FAVOR' if monto_final < 0 else ('CUENTA EN CERO / AL DÍA' if monto_final == 0 else 'TOTAL RESTANTE A PAGAR')}</h5>
+                    <small class="text-muted">Fecha: {fecha_reporte}</small>
+                </div>
+                <h4 class="fw-bold mb-0" style="color: ' + ('#198754' if monto_final < 0 else ('#6c757d' if monto_final == 0 else '#dc3545')) + ';">
+                    Bs. {abs(monto_final):,.2f}
+                </h4>
+            </div>
         </div>
     </div>
     '''
-
-    detalle_actualizado = tabla_sistemas_html + bloque_pagos_banca + bloque_cashea + bloque_ajustes + bloque_adelantos + bloque_pendientes
 
     conn = get_db()
     cursor = conn.cursor()
@@ -851,6 +834,7 @@ def get_agencia(
         r_dict['comision'] = comision_sum
         reportes_agencia.append(r_dict)
 
+    # AUDITORÍA DE SISTEMAS PROPIA DE ESTA AGENCIA
     cursor.execute(
         "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s", 
         (agencia_norm, f_desde, f_hasta)
