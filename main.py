@@ -36,6 +36,7 @@ SISTEMAS_OFICIALES = [
     "WINBIG POLLAS", "MATRIX", "PARLEY", "CALAMAR", "GUACA"
 ]
 
+# HOMOLOGACIÓN DE ALIAS DE AGENCIAS (INCLUYENDO MILA / LADD LA CONEJITA)
 ALIAS_AGENCIAS = {
     "RUTA MILLONARIA": "ANA MARIA",
     "DESTINO FORTUNA": "DESTINO SUERTE",
@@ -43,6 +44,7 @@ ALIAS_AGENCIAS = {
     "DATOS VIP 23": "VIP23",
     "CAMINO DE LA SUERTE": "FERNANDO",
     "LADD LA CONEJITA": "MILA",
+    "LA CONEJITA": "MILA",
     "AGENCIA VALLEMIL": "VALLEMIL",
     "AGENCIA ORQUIDEA 2": "ORQUIDEA",
     "AGENCIA ORQUÍDEA 2": "ORQUIDEA"
@@ -205,64 +207,15 @@ def init_db():
         )
     ''')
 
+    # UNIFICACIÓN DE ALIAS DIRECTOS EN DB (ANA MARIA Y MILA)
     try:
         cursor.execute("UPDATE pagos SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
-        cursor.execute("UPDATE lecturas_comunicados SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
-        cursor.execute("""
-            DELETE FROM reportes r1
-            WHERE UPPER(TRIM(r1.agencia)) = 'RUTA MILLONARIA'
-              AND EXISTS (
-                  SELECT 1 FROM reportes r2 
-                  WHERE UPPER(TRIM(r2.agencia)) = 'ANA MARIA' 
-                    AND r2.fecha = r1.fecha
-              )
-        """)
         cursor.execute("UPDATE reportes SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
-        cursor.execute("DELETE FROM usuarios WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
+        cursor.execute("UPDATE pagos SET agencia = 'MILA' WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA')")
+        cursor.execute("UPDATE reportes SET agencia = 'MILA' WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA')")
+        cursor.execute("DELETE FROM usuarios WHERE UPPER(TRIM(agencia)) IN ('RUTA MILLONARIA', 'LADD LA CONEJITA', 'LA CONEJITA')")
     except Exception as e_mig:
         print("Aviso en unificación:", e_mig)
-
-    cursor.execute("SELECT COUNT(*) AS total FROM configuracion_banqueros")
-    cuenta = cursor.fetchone()
-    if cuenta and cuenta['total'] == 0:
-        reglas_iniciales = [
-            ("COMERCIALIZADORA SUPER APUESTAS", "BETSOL", 0.15, 0.12, 0.10, False),
-            ("COMERCIALIZADORA LOTTOLUCKY", "LOTTOLUCKY", 0.17, 0.13, 0.00, False),
-            ("COMERCIALIZADORA NYS", "POZO", 0.13, 0.11, 0.00, True),
-            ("COMERCIALIZADORA NYS", "LA IMAGINARIA", 0.17, 0.14, 0.35, True),
-            ("COMERCIALIZADORA NYS", "WINBIG POLLAS", 0.18, 0.14, 0.00, True),
-            ("COMERCIALIZADORA NYS", "CALAMAR", 0.18, 0.14, 0.25, True),
-            ("COMERCIALIZADORA LIDER", "MAXPLAY", 0.16, 0.12, 0.20, False),
-            ("COMERCIALIZADORA LIDER", "MATRIX", 0.16, 0.12, 0.20, False),
-            ("COMERCIALIZADORA LIDER", "SRQ", 0.16, 0.12, 0.30, False),
-            ("COMERCIALIZADORA LIDER", "LOTIPOS", 0.17, 0.13, 0.20, False),
-            ("COMERCIALIZADORA LIDER", "GATO", 0.16, 0.12, 0.20, False),
-            ("COMERCIALIZADORA LIDER", "PREMIER", 0.16, 0.12, 0.00, False),
-            ("COMERCIALIZADORA LIDER", "POSNET", 0.15, 0.12, 0.20, False),
-            ("COMERCIALIZADORA LIDER", "PARLEY", 0.12, 0.10, 0.00, False),
-            ("COMERCIALIZADORA LIDER", "GUACA", 0.17, 0.13, 0.30, False),
-            ("COMERCIALIZADORA LOTTIPLAY", "LOTTIPLAY", 0.15, 0.12, 0.00, False)
-        ]
-        for r in reglas_iniciales:
-            cursor.execute(
-                """INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
-                   VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING""",
-                r
-            )
-        
-        banqueros_usuarios = [
-            ("SUPER APUESTAS", "123456"),
-            ("LOTTOLUCKY", "123456"),
-            ("NYS", "123456"),
-            ("LIDER", "123456"),
-            ("LOTTIPLAY", "123456")
-        ]
-        for usr, pwd in banqueros_usuarios:
-            cursor.execute(
-                """INSERT INTO usuarios (agencia, clave, genero, rol)
-                   VALUES (%s, %s, 'BANQUERO', 'BANQUERO') ON CONFLICT (agencia) DO NOTHING""",
-                (normalizar(usr), pwd)
-            )
 
     conn.commit()
     conn.close()
@@ -663,6 +616,7 @@ def post_guardar_ajustes_banquero_global(
     url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
+# ENDPOINT QUE RECIBE LOS TOTALES DESDE COLAB DIRECTO
 @app.post("/api/cargar-totales-lider-nys")
 async def cargar_totales_lider_nys(request: Request):
     data = await request.form()
@@ -699,7 +653,7 @@ async def cargar_totales_lider_nys(request: Request):
 
     conn.commit()
     conn.close()
-    return {"status": "ok", "mensaje": "Guaca y Calamar cargados exitosamente al cuadro de banqueros"}
+    return {"status": "ok", "mensaje": "Guaca y Calamar cargados con éxito"}
 
 @app.post("/api/guardar-reporte-colab")
 async def guardar_reporte_colab(request: Request):
@@ -713,6 +667,7 @@ async def guardar_reporte_colab(request: Request):
     cashea_monto = float(data.get("cashea_monto", 0.0))
     cashea_detalle = data.get("cashea_detalle", "")
 
+    # Soporte por si Colab envía Guaca y Calamar en la misma llamada
     venta_lider = float(data.get("venta_lider", 0.0) or 0.0)
     premios_lider = float(data.get("premios_lider", 0.0) or 0.0)
     venta_nys = float(data.get("venta_nys", 0.0) or 0.0)
@@ -898,10 +853,11 @@ def get_agencia(
     conn = get_db()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT * FROM usuarios WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
+    # Tolerancia para buscar a Mila bajo ambos nombres
+    cursor.execute("SELECT * FROM usuarios WHERE UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) = 'MILA'", (agencia_norm,))
     agencia_info = cursor.fetchone()
     
-    cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
+    cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA') ORDER BY fecha DESC", (agencia_norm,))
     reportes_agencia_raw = cursor.fetchall()
 
     fecha_minima = hoy_vzla
@@ -939,7 +895,7 @@ def get_agencia(
         reportes_agencia.append(r_dict)
 
     cursor.execute(
-        "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha ASC", 
+        "SELECT * FROM reportes WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA')) AND fecha >= %s AND fecha <= %s ORDER BY fecha ASC", 
         (agencia_norm, f_desde, f_hasta)
     )
     reps_rango = cursor.fetchall()
@@ -982,7 +938,7 @@ def get_agencia(
                         totales_auditoria["premio"] += sp
                         totales_auditoria["neto"] += st
 
-    cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
+    cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA') ORDER BY id DESC", (agencia_norm,))
     pagos_agencia = [dict(row) for row in cursor.fetchall()]
     
     try:
@@ -999,7 +955,7 @@ def get_agencia(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
     
-    cursor.execute("SELECT SUM(monto) AS total_rep FROM reportes WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
+    cursor.execute("SELECT SUM(monto) AS total_rep FROM reportes WHERE UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA')", (agencia_norm,))
     row_rep = cursor.fetchone()
     saldo_acumulado = float(row_rep['total_rep'] or 0.0) if row_rep else 0.0
 
@@ -1364,7 +1320,7 @@ def post_actualizar_regla_banquero(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/guardar-ajuste-banquero-sistema")
-def post_guardar_ajuste_banquero_sistema(
+def post_guardar_ajuste_banquero-sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     fecha: str = Form(...),
@@ -1390,7 +1346,7 @@ def post_guardar_ajuste_banquero_sistema(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/restablecer-ajuste-banquero-sistema")
-def post_restablecer_ajuste_banquero_sistema(
+def post_restablecer_ajuste_banquero-sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     desde_fecha: Optional[str] = Form(None),
