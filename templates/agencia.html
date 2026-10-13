@@ -93,7 +93,7 @@
             </form>
         </div>
 
-        <!-- PESTAÑAS (INCLUYE MI CUENTA / GESTIÓN DE USUARIO) -->
+        <!-- PESTAÑAS -->
         <ul class="nav nav-tabs mb-4 fw-bold border-0" id="agenciaTab" role="tablist">
             <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#reportes"><i class="fas fa-chart-line me-1"></i> Mis Reportes</button></li>
             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#transacciones"><i class="fas fa-exchange-alt me-1"></i> Transacciones</button></li>
@@ -124,6 +124,7 @@
                                 <tr>
                                     <th>Fecha</th>
                                     <th>Ventas (Bs.)</th>
+                                    <th>Comisión Taquilla (Bs.)</th>
                                     <th>Cuenta / Saldo Restante (Bs.)</th>
                                     <th class="text-center">Acciones</th>
                                 </tr>
@@ -133,7 +134,8 @@
                                 <tr data-fecha="{{ r.fecha }}">
                                     <td class="fw-bold">{{ r.fecha }}</td>
                                     <td>Bs. {{ r.ventas | dinero }}</td>
-                                    <td class="fw-bold {% if r.monto < 0 %}text-success{% else %}text-danger{% endif %}">
+                                    <td class="text-primary fw-bold">Bs. {{ r.comision | dinero }}</td>
+                                    <td class="fw-bold {% if r.monto < 0 %}text-success{% elif r.monto > 0 %}text-danger{% else %}text-muted{% endif %}">
                                         Bs. {{ r.monto | dinero }} {% if r.monto < 0 %}(A favor){% endif %}
                                     </td>
                                     <td class="text-center">
@@ -144,7 +146,7 @@
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="4" class="text-center text-muted py-3">No hay reportes cargados actualmente.</td>
+                                    <td colspan="5" class="text-center text-muted py-3">No hay reportes cargados actualmente.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -322,7 +324,7 @@
                             <div class="p-3 bg-light rounded border">
                                 <small class="text-muted fw-bold">TOTAL ACUMULADO A FAVOR DE LA TAQUILLA</small>
                                 <h3 class="fw-bold mt-1 mb-0 text-success">
-                                    {% if saldo_actual < 0 %}
+                                    {% if saldo_actual < -0.01 %}
                                     Bs. {{ (saldo_actual | abs) | dinero }}
                                     {% else %}
                                     Bs. 0.00
@@ -336,7 +338,7 @@
                             <div class="p-3 bg-light rounded border">
                                 <small class="text-muted fw-bold">TOTAL ACUMULADO PENDIENTE POR PAGAR</small>
                                 <h3 class="fw-bold mt-1 mb-0 text-danger">
-                                    {% if saldo_actual > 0 %}
+                                    {% if saldo_actual > 0.01 %}
                                     Bs. {{ saldo_actual | dinero }}
                                     {% else %}
                                     Bs. 0.00
@@ -348,12 +350,12 @@
                     </div>
 
                     <div class="alert alert-info mt-4 mb-0">
-                        <i class="fas fa-info-circle me-1"></i> <strong>Nota:</strong> Este acumulado suma de manera histórica todos los reportes, cobros y abonos aprobados.
+                        <i class="fas fa-info-circle me-1"></i> <strong>Nota:</strong> Este acumulado refleja el saldo pendiente real vigente tras todos los abonos y liquidaciones.
                     </div>
                 </div>
             </div>
 
-            <!-- 7. GESTIÓN DE USUARIO / CAMBIAR CONTRASEÑA -->
+            <!-- 7. GESTIÓN DE USUARIO -->
             <div class="tab-pane fade" id="usuario">
                 <div class="card card-custom p-4 border-start border-4 border-primary">
                     <h4 class="fw-bold mb-3" style="color: {% if agencia and agencia.genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};">
@@ -411,7 +413,7 @@
                     <h5 class="modal-title fw-bold"><i class="fas fa-file-invoice me-2"></i>Reporte Fecha: {{ r.fecha }} 🍀🌺</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body bg-light">
+                <div class="modal-body bg-light modal-cuerpo-reporte">
                     {{ r.detalle_html | safe }}
                 </div>
                 <div class="modal-footer bg-white d-flex justify-content-between align-items-center">
@@ -447,6 +449,7 @@
                 }
             });
         }
+
         function mostrarTodosReportes() {
             document.getElementById("buscarFechaReporte").value = "";
             var filas = document.querySelectorAll("#tablaReportesAgencia tbody tr");
@@ -454,10 +457,42 @@
                 fila.style.display = "";
             });
         }
+
+        // Script automático que calcula y reemplaza el "-" de comisiones en el modal
+        document.addEventListener("DOMContentLoaded", function() {
+            document.querySelectorAll(".modal-cuerpo-reporte").forEach(function(modal) {
+                var tabla = modal.querySelector("table");
+                if (!tabla) return;
+                
+                var filas = tabla.querySelectorAll("tr");
+                var sumaComision = 0.0;
+                var celdaGuion = null;
+
+                filas.forEach(function(fila) {
+                    var celdas = fila.querySelectorAll("td");
+                    if (celdas.length >= 5) {
+                        var textoPrimero = celdas[0].innerText.toUpperCase();
+                        if (textoPrimero.includes("TOTALES")) {
+                            if (celdas[2].innerText.trim() === "-") {
+                                celdaGuion = celdas[2];
+                            }
+                        } else if (!textoPrimero.includes("SISTEMA")) {
+                            var valorCom = parseFloat(celdas[2].innerText.replace(/,/g, '').trim());
+                            if (!isNaN(valorCom)) {
+                                sumaComision += valorCom;
+                            }
+                        }
+                    }
+                });
+
+                if (celdaGuion && sumaComision > 0) {
+                    celdaGuion.innerText = sumaComision.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    celdaGuion.style.fontWeight = "bold";
+                    celdaGuion.style.color = "#0d47a1";
+                }
+            });
+        });
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
