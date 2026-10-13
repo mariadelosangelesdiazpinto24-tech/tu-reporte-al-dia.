@@ -36,7 +36,6 @@ SISTEMAS_OFICIALES = [
     "WINBIG POLLAS", "MATRIX", "PARLEY", "CALAMAR", "GUACA"
 ]
 
-# HOMOLOGACIÓN DE ALIAS DE AGENCIAS
 ALIAS_AGENCIAS = {
     "RUTA MILLONARIA": "ANA MARIA",
     "DESTINO FORTUNA": "DESTINO SUERTE",
@@ -195,11 +194,16 @@ def init_db():
         )
     ''')
 
-    try:
-        cursor.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS rol TEXT DEFAULT 'TAQUILLA'")
-        cursor.execute("ALTER TABLE comunicados ADD COLUMN IF NOT EXISTS agencia_destino TEXT DEFAULT 'TODAS'")
-    except Exception:
-        pass
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ajustes_globales_banqueros (
+            id SERIAL PRIMARY KEY,
+            banquero TEXT,
+            fecha TEXT,
+            adelantos DOUBLE PRECISION DEFAULT 0,
+            pendientes DOUBLE PRECISION DEFAULT 0,
+            UNIQUE(banquero, fecha)
+        )
+    ''')
 
     try:
         cursor.execute("UPDATE pagos SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
@@ -306,11 +310,11 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
     for rep_db in reps_db:
         ag_origen = normalizar(rep_db['agencia'])
         if rep_db and rep_db['detalle_html']:
-            tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', rep_db['detalle_html'], re.DOTALL)
+            tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', rep_db['detalle_html'], re.DOTALL | re.IGNORECASE)
             if tabla_match:
-                filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_match.group(1), re.DOTALL)
+                filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_match.group(1), re.DOTALL | re.IGNORECASE)
                 for f in filas:
-                    cols = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', f, re.DOTALL)
+                    cols = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', f, re.DOTALL | re.IGNORECASE)
                     if len(cols) >= 5:
                         sys_raw = re.sub(r'<[^>]+>', '', cols[0]).strip()
                         if not sys_raw or "SISTEMA" in sys_raw.upper() or "TOTALES" in sys_raw.upper():
@@ -373,9 +377,21 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
     suma_cuadros_banqueros = 0.0
 
     for b_nombre, cfg in ESTRUCTURA_BANQUEROS.items():
+        cursor.execute(
+            """SELECT SUM(adelantos) as sum_adelantos, SUM(pendientes) as sum_pendientes 
+               FROM ajustes_globales_banqueros 
+               WHERE banquero = %s AND fecha >= %s AND fecha <= %s""",
+            (b_nombre, f_desde, f_hasta)
+        )
+        row_ajustes_glob = cursor.fetchone()
+        adelantos_b_val = float(row_ajustes_glob['sum_adelantos'] or 0.0) if row_ajustes_glob else 0.0
+        pendientes_b_val = float(row_ajustes_glob['sum_pendientes'] or 0.0) if row_ajustes_glob else 0.0
+
         desglose_banqueros[b_nombre] = {
             "sistemas": [],
             "cashea_descontado": totales_auxiliares["cashea"] if cfg["absorbe_cashea"] else 0.0,
+            "adelantos_banquero": adelantos_b_val,
+            "pendientes_banquero": pendientes_b_val,
             "total_a_pagar_banquero": 0.0,
             "total_mi_ganancia_banca": 0.0,
             "total": 0.0
@@ -442,6 +458,8 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
 
         if cfg["absorbe_cashea"]:
             subtotal_banquero -= totales_auxiliares["cashea"]
+
+        subtotal_banquero = subtotal_banquero + adelantos_b_val + pendientes_b_val
 
         desglose_banqueros[b_nombre]["total_a_pagar_banquero"] = subtotal_banquero
         desglose_banqueros[b_nombre]["total"] = subtotal_banquero
@@ -549,11 +567,10 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         '''
 
     detalle_original = rep['detalle_html'] or ""
-    
     total_neto_sistemas = 0.0
     match_tot = re.search(r'TOTALES.*?<\/tr>', detalle_original, re.DOTALL | re.IGNORECASE)
     if match_tot:
-        cols_tot = re.findall(r'<td[^>]*>(.*?)<\/td>', match_tot.group(0), re.DOTALL)
+        cols_tot = re.findall(r'<td[^>]*>(.*?)<\/td>', match_tot.group(0), re.DOTALL | re.IGNORECASE)
         if cols_tot:
             try:
                 total_neto_sistemas = float(cols_tot[-1].replace(',', '').replace('Bs.', '').strip())
@@ -623,6 +640,67 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     conn.commit()
     conn.close()
 
+@app.post("/admin/guardar-ajustes-banquero-global")
+def post_guardar_ajustes_banquero_global(
+    banquero: str = Form(...),
+    fecha: str = Form(...),
+    adelantos: float = Form(0.0),
+    pendientes: float = Form(0.0),
+    desde_fecha: Optional[str] = Form(None),
+    hasta_fecha: Optional[str] = Form(None)
+):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        """INSERT INTO ajustes_globales_banqueros (banquero, fecha, adelantos, pendientes)
+           VALUES (%s, %s, %s, %s)
+           ON CONFLICT (banquero, fecha)
+           DO UPDATE SET adelantos = EXCLUDED.adelantos, pendientes = EXCLUDED.pendientes""",
+        (banquero, fecha, adelantos, pendientes)
+    )
+    conn.commit()
+    conn.close()
+    url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
+    return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/api/cargar-totales-lider-nys")
+async def cargar_totales_lider_nys(request: Request):
+    data = await request.form()
+    fecha = data.get("fecha", obtener_fecha_venezuela())
+    
+    venta_lider = float(data.get("venta_lider", 0.0) or 0.0)
+    premios_lider = float(data.get("premios_lider", 0.0) or 0.0)
+    
+    venta_nys = float(data.get("venta_nys", 0.0) or 0.0)
+    premios_nys = float(data.get("premios_nys", 0.0) or 0.0)
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    if venta_lider > 0 or premios_lider > 0:
+        comis_lider = venta_lider * 0.17
+        cursor.execute(
+            """INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+               VALUES ('COMERCIALIZADORA LIDER', 'GUACA', %s, %s, %s, %s)
+               ON CONFLICT (banquero, sistema, fecha)
+               DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
+            (fecha, venta_lider, comis_lider, premios_lider)
+        )
+
+    if venta_nys > 0 or premios_nys > 0:
+        comis_nys = venta_nys * 0.18
+        cursor.execute(
+            """INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+               VALUES ('COMERCIALIZADORA NYS', 'CALAMAR', %s, %s, %s, %s)
+               ON CONFLICT (banquero, sistema, fecha)
+               DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
+            (fecha, venta_nys, comis_nys, premios_nys)
+        )
+
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "mensaje": "Guaca y Calamar cargados exitosamente al cuadro de banqueros"}
+
 @app.post("/api/guardar-reporte-colab")
 async def guardar_reporte_colab(request: Request):
     data = await request.form()
@@ -634,6 +712,11 @@ async def guardar_reporte_colab(request: Request):
     detalle_html = data.get("detalle_html", "")
     cashea_monto = float(data.get("cashea_monto", 0.0))
     cashea_detalle = data.get("cashea_detalle", "")
+
+    venta_lider = float(data.get("venta_lider", 0.0) or 0.0)
+    premios_lider = float(data.get("premios_lider", 0.0) or 0.0)
+    venta_nys = float(data.get("venta_nys", 0.0) or 0.0)
+    premios_nys = float(data.get("premios_nys", 0.0) or 0.0)
 
     hoy_str = obtener_fecha_venezuela()
     conn = get_db()
@@ -675,6 +758,24 @@ async def guardar_reporte_colab(request: Request):
                 "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, %s, %s, 'CASHEA', 'APROBADO')",
                 (agencia, fecha, cashea_monto, cashea_detalle, cashea_detalle)
             )
+
+    if venta_lider > 0 or premios_lider > 0:
+        cursor.execute(
+            """INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+               VALUES ('COMERCIALIZADORA LIDER', 'GUACA', %s, %s, %s, %s)
+               ON CONFLICT (banquero, sistema, fecha)
+               DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
+            (fecha, venta_lider, venta_lider * 0.17, premios_lider)
+        )
+
+    if venta_nys > 0 or premios_nys > 0:
+        cursor.execute(
+            """INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+               VALUES ('COMERCIALIZADORA NYS', 'CALAMAR', %s, %s, %s, %s)
+               ON CONFLICT (banquero, sistema, fecha)
+               DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
+            (fecha, venta_nys, venta_nys * 0.18, premios_nys)
+        )
 
     conn.commit()
     conn.close()
@@ -767,6 +868,8 @@ def get_banquero(
     cuadro_banquero = desglose_banqueros.get(nombre_comercializadora, {
         "sistemas": [],
         "cashea_descontado": 0.0,
+        "adelantos_banquero": 0.0,
+        "pendientes_banquero": 0.0,
         "total_a_pagar_banquero": 0.0
     })
 
@@ -801,7 +904,6 @@ def get_agencia(
     cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
     reportes_agencia_raw = cursor.fetchall()
 
-    # Rango por defecto: si no filtran, busca desde el primer reporte disponible
     fecha_minima = hoy_vzla
     fecha_maxima = hoy_vzla
     if reportes_agencia_raw:
@@ -818,11 +920,11 @@ def get_agencia(
         r_dict = dict(r)
         comision_sum = 0.0
         if r_dict.get('detalle_html'):
-            tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', r_dict['detalle_html'], re.DOTALL)
+            tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', r_dict['detalle_html'], re.DOTALL | re.IGNORECASE)
             if tabla_match:
-                filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_match.group(1), re.DOTALL)
+                filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_match.group(1), re.DOTALL | re.IGNORECASE)
                 for f in filas:
-                    cols = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', f, re.DOTALL)
+                    cols = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', f, re.DOTALL | re.IGNORECASE)
                     if len(cols) >= 5 and "TOTALES" not in cols[0].upper() and "SISTEMA" not in cols[0].upper():
                         try:
                             c_val = float(re.sub(r'[^\d.-]', '', cols[2]))
@@ -836,7 +938,6 @@ def get_agencia(
         r_dict['comision'] = comision_sum
         reportes_agencia.append(r_dict)
 
-    # AUDITORÍA DE SISTEMAS EN EL RANGO INDICADO
     cursor.execute(
         "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha ASC", 
         (agencia_norm, f_desde, f_hasta)
@@ -848,11 +949,11 @@ def get_agencia(
     
     for rep_item in reps_rango:
         if rep_item and rep_item['detalle_html']:
-            t_match = re.search(r'<table[^>]*>(.*?)<\/table>', rep_item['detalle_html'], re.DOTALL)
+            t_match = re.search(r'<table[^>]*>(.*?)<\/table>', rep_item['detalle_html'], re.DOTALL | re.IGNORECASE)
             if t_match:
-                filas_s = re.findall(r'<tr[^>]*>(.*?)<\/tr>', t_match.group(1), re.DOTALL)
+                filas_s = re.findall(r'<tr[^>]*>(.*?)<\/tr>', t_match.group(1), re.DOTALL | re.IGNORECASE)
                 for fs in filas_s:
-                    cols_s = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', fs, re.DOTALL)
+                    cols_s = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', fs, re.DOTALL | re.IGNORECASE)
                     if len(cols_s) >= 5:
                         s_raw = re.sub(r'<[^>]+>', '', cols_s[0]).strip()
                         if not s_raw or "SISTEMA" in s_raw.upper() or "TOTALES" in s_raw.upper():
@@ -1050,10 +1151,10 @@ def post_actualizar_reporte_sistema(
         </tr>'''
         html_modificado = re.sub(patron_fila, nueva_fila, html, flags=re.DOTALL | re.IGNORECASE)
 
-        filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', html_modificado, re.DOTALL)
+        filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', html_modificado, re.DOTALL | re.IGNORECASE)
         sum_v, sum_c, sum_p, sum_t = 0.0, 0.0, 0.0, 0.0
         for f in filas:
-            cols = re.findall(r'<td[^>]*>(.*?)<\/td>', f, re.DOTALL)
+            cols = re.findall(r'<td[^>]*>(.*?)<\/td>', f, re.DOTALL | re.IGNORECASE)
             if len(cols) >= 5 and "TOTALES" not in cols[0].upper():
                 try:
                     sum_v += float(re.sub(r'[^\d.-]', '', cols[1]))
