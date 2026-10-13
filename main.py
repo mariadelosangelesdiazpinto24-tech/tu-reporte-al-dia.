@@ -550,7 +550,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     detalle_original = rep['detalle_html'] or ""
     
-    # Extraer el total neto del reporte
     total_neto_sistemas = 0.0
     match_tot = re.search(r'TOTALES.*?<\/tr>', detalle_original, re.DOTALL | re.IGNORECASE)
     if match_tot:
@@ -564,13 +563,10 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
-    # FÓRMULA UNIVERSAL
     monto_final = total_neto_sistemas - total_pagos_taquilla + total_adelantos - total_cashea + total_ajustes_pendientes
 
-    # DISEÑO ULTRA COMPACTO, ELEGANTE Y ADAPTABLE A TELÉFONOS MÓVILES
     detalle_actualizado = f'''
     <div class="p-2">
-        <!-- 1. TOTAL INICIAL DEL REPORTE -->
         <div class="card shadow-sm border-0 mb-2 p-3 bg-white" style="border-radius: 12px; border-left: 5px solid #0d6efd !important;">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
@@ -581,7 +577,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             </div>
         </div>
 
-        <!-- 2. ABONOS O PAGOS REALIZADOS A LA BANCA -->
         <div class="card shadow-sm border-0 mb-2 p-3 bg-white" style="border-radius: 12px; border-left: 5px solid #198754 !important;">
             <div class="d-flex justify-content-between align-items-center mb-1">
                 <h6 class="fw-bold mb-0 text-success"><i class="fas fa-university me-1"></i> Pagos / Abonos a la Banca</h6>
@@ -590,7 +585,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             {pagos_banca_rows_html if pagos_banca_rows_html else '<small class="text-muted">No se registran abonos.</small>'}
         </div>
 
-        <!-- 3. CASHEA ABSORBIDO -->
         <div class="card shadow-sm border-0 mb-2 p-3 bg-white" style="border-radius: 12px; border-left: 5px solid #0dcaf0 !important;">
             <div class="d-flex justify-content-between align-items-center mb-1">
                 <h6 class="fw-bold mb-0 text-info"><i class="fas fa-shopping-cart me-1"></i> Cashea Absorbido</h6>
@@ -599,7 +593,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             {cashea_rows_html if cashea_rows_html else '<small class="text-muted">No hay registros de Cashea.</small>'}
         </div>
 
-        <!-- 4. ADELANTOS / LIQUIDACIONES -->
         <div class="card shadow-sm border-0 mb-2 p-3 bg-white" style="border-radius: 12px; border-left: 5px solid #e91e63 !important;">
             <div class="d-flex justify-content-between align-items-center mb-1">
                 <h6 class="fw-bold mb-0 text-danger"><i class="fas fa-hand-holding-usd me-1"></i> Adelantos Entregados</h6>
@@ -608,10 +601,8 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             {adelantos_rows_html if adelantos_rows_html else '<small class="text-muted">No hay adelantos registrados.</small>'}
         </div>
 
-        <!-- 5. AJUSTES ANTERIORES SI APLICAN -->
         {'<div class="card shadow-sm border-0 mb-2 p-3 bg-white" style="border-radius: 12px; border-left: 5px solid #ff9800 !important;"><div class="d-flex justify-content-between align-items-center mb-1"><h6 class="fw-bold mb-0 text-warning" style="color: #e65100 !important;"><i class="fas fa-exclamation-triangle me-1"></i> Ajustes / Pendientes Anteriores</h6><span class="badge bg-warning text-dark fw-bold">Bs. ' + f"{total_ajustes_pendientes:,.2f}" + '</span></div>' + ajustes_rows_html + '</div>' if total_ajustes_pendientes != 0 else ''}
 
-        <!-- 6. ESTADO DE CUENTA FINAL DEFINITIVO -->
         <div class="card shadow-sm border-0 p-3 mt-3 bg-white" style="border-radius: 12px; border-left: 6px solid ' + ('#198754' if monto_final < 0 else '#dc3545') + ' !important; background: #fafafa;">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
@@ -792,15 +783,14 @@ def get_agencia(
     request: Request, 
     nombre: Optional[str] = None,
     desde_fecha: Optional[str] = None,
-    hasta_fecha: Optional[str] = None
+    hasta_fecha: Optional[str] = None,
+    tab: Optional[str] = "reportes"
 ):
     if not nombre:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
     
     agencia_norm = normalizar(nombre)
     hoy_vzla = obtener_fecha_venezuela()
-    f_desde = desde_fecha if desde_fecha else hoy_vzla
-    f_hasta = hasta_fecha if hasta_fecha else hoy_vzla
 
     conn = get_db()
     cursor = conn.cursor()
@@ -810,7 +800,19 @@ def get_agencia(
     
     cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
     reportes_agencia_raw = cursor.fetchall()
-    
+
+    # Rango por defecto: si no filtran, busca desde el primer reporte disponible
+    fecha_minima = hoy_vzla
+    fecha_maxima = hoy_vzla
+    if reportes_agencia_raw:
+        fechas_existentes = [r['fecha'] for r in reportes_agencia_raw if r['fecha']]
+        if fechas_existentes:
+            fecha_minima = min(fechas_existentes)
+            fecha_maxima = max(fechas_existentes)
+
+    f_desde = desde_fecha if desde_fecha else fecha_minima
+    f_hasta = hasta_fecha if hasta_fecha else fecha_maxima
+
     reportes_agencia = []
     for r in reportes_agencia_raw:
         r_dict = dict(r)
@@ -834,9 +836,9 @@ def get_agencia(
         r_dict['comision'] = comision_sum
         reportes_agencia.append(r_dict)
 
-    # AUDITORÍA DE SISTEMAS PROPIA DE ESTA AGENCIA
+    # AUDITORÍA DE SISTEMAS EN EL RANGO INDICADO
     cursor.execute(
-        "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s", 
+        "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha ASC", 
         (agencia_norm, f_desde, f_hasta)
     )
     reps_rango = cursor.fetchall()
@@ -913,7 +915,8 @@ def get_agencia(
         "auditoria_sistemas": auditoria_sistemas_agencia,
         "totales_auditoria": totales_auditoria,
         "desde_fecha": f_desde,
-        "hasta_fecha": f_hasta
+        "hasta_fecha": f_hasta,
+        "tab_activa": tab or "reportes"
     })
 
 @app.post("/agencia/cambiar-clave")
