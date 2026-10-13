@@ -533,22 +533,18 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         '''
 
     detalle_original = rep['detalle_html'] or ""
-    
-    # BUSCAR EXACTAMENTE LA TABLA DE SISTEMAS CON REGEX PARA QUE NUNCA SE PIERDA
-    tabla_match = re.search(r'(<div[^>]*class="table-responsive[^>]*>.*?<\/table>\s*<\/div>)', detalle_original, re.DOTALL | re.IGNORECASE)
-    
-    if tabla_match:
-        tabla_sistemas_html = tabla_match.group(1)
-    else:
-        tabla_match_alt = re.search(r'(<table[^>]*>.*?SISTEMA.*?<\/table>)', detalle_original, re.DOTALL | re.IGNORECASE)
-        if tabla_match_alt:
-            tabla_sistemas_html = f'<div class="table-responsive mb-3">{tabla_match_alt.group(1)}</div>'
-        else:
-            if '<!-- BLOQUES_EXTRAS -->' in detalle_original:
-                tabla_sistemas_html = detalle_original.split('<!-- BLOQUES_EXTRAS -->')[0]
-            else:
-                tabla_sistemas_html = detalle_original
 
+    # 1. AISLAR LA TABLA LIMPIA Y ELIMINAR TODO BLOQUE DUPLICADO
+    if '<!-- BLOQUES_EXTRAS -->' in detalle_original:
+        tabla_sistemas_html = detalle_original.split('<!-- BLOQUES_EXTRAS -->')[0].strip()
+    elif 'PAGOS / ABONOS A LA BANCA' in detalle_original:
+        # Cortar antes de cualquier inyección previa de pagos
+        pos_corte = detalle_original.find('<div class="mb-3"')
+        tabla_sistemas_html = detalle_original[:pos_corte].strip() if pos_corte != -1 else detalle_original
+    else:
+        tabla_sistemas_html = detalle_original.strip()
+
+    # 2. CALCULAR TOTAL NETO DIRECTO DE LA TABLA
     total_neto_sistemas = 0.0
     filas_tabla = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_sistemas_html, re.DOTALL | re.IGNORECASE)
     for fila in filas_tabla:
@@ -563,6 +559,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
+    # 3. SALDO EXACTO: NETO SISTEMAS - ABONOS + ADELANTOS - CASHEA + AJUSTES
     monto_final = total_neto_sistemas - total_pagos_taquilla + total_adelantos - total_cashea + total_ajustes_pendientes
 
     bloque_pagos_banca = f'''
@@ -639,7 +636,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     cursor.execute("UPDATE reportes SET monto = %s, detalle_html = %s WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (monto_final, detalle_actualizado, agencia_norm, fecha_reporte))
     conn.commit()
     conn.close()
-
 @app.post("/admin/guardar-ajustes-banquero-global")
 def post_guardar_ajustes_banquero_global(
     banquero: str = Form(...),
