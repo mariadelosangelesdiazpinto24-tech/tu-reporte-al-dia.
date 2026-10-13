@@ -37,30 +37,12 @@ SISTEMAS_OFICIALES = [
     "WINBIG POLLAS", "MATRIX", "PARLEY", "CALAMAR", "GUACA"
 ]
 
-ALIAS_AGENCIAS = {
-    "RUTA MILLONARIA": "ANA MARIA",
-    "DESTINO FORTUNA": "DESTINO SUERTE",
-    "LA SUERTE DE JANN": "NABEL",
-    "DATOS VIP 23": "VIP23",
-    "CAMINO DE LA SUERTE": "FERNANDO",
-    "LADD LA CONEJITA": "MILA",
-    "LA CONEJITA": "MILA",
-    "CONEJITA": "MILA",
-    "EMILY LARA": "MILA",
-    "EMILY": "MILA",
-    "MILA SPORT": "MILA",
-    "AGENCIA VALLEMIL": "VALLEMIL",
-    "AGENCIA ORQUIDEA 2": "ORQUIDEA",
-    "AGENCIA ORQUÍDEA 2": "ORQUIDEA"
-}
-
 def normalizar(texto: str) -> str:
     if not texto:
         return ""
     texto = unicodedata.normalize('NFD', texto)
     texto = ''.join(c for c in texto if unicodedata.category(c) != 'Mn')
-    texto_limpio = texto.strip().upper()
-    return ALIAS_AGENCIAS.get(texto_limpio, texto_limpio)
+    return texto.strip().upper()
 
 def normalizar_sistema(sistema: str) -> str:
     if not sistema:
@@ -211,51 +193,17 @@ def init_db():
         )
     ''')
 
+    # Garantizar que MILA y ANA MARIA existan como usuarios si no fueron creadas aún
     try:
-        cursor.execute("UPDATE pagos SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
-        cursor.execute("UPDATE reportes SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
-        cursor.execute("UPDATE lecturas_comunicados SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
-        
-        cursor.execute("""
-            UPDATE reportes 
-            SET agencia = 'MILA' 
-            WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA', 'EMILY LARA', 'EMILY', 'MILA SPORT')
-        """)
-        cursor.execute("""
-            UPDATE pagos 
-            SET agencia = 'MILA' 
-            WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA', 'EMILY LARA', 'EMILY', 'MILA SPORT')
-        """)
-        cursor.execute("""
-            UPDATE lecturas_comunicados 
-            SET agencia = 'MILA' 
-            WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA', 'EMILY LARA', 'EMILY', 'MILA SPORT')
-        """)
-        
-        cursor.execute("""
-            INSERT INTO usuarios (agencia, clave, genero, rol)
-            VALUES ('MILA', '123456', 'FEMENINO', 'TAQUILLA')
-            ON CONFLICT (agencia) DO NOTHING
-        """)
-    except Exception as e_res:
-        print("Aviso inicialización:", e_res)
+        cursor.execute("INSERT INTO usuarios (agencia, clave, genero, rol) VALUES ('MILA', '123456', 'FEMENINO', 'TAQUILLA') ON CONFLICT (agencia) DO NOTHING")
+        cursor.execute("INSERT INTO usuarios (agencia, clave, genero, rol) VALUES ('ANA MARIA', '123456', 'FEMENINO', 'TAQUILLA') ON CONFLICT (agencia) DO NOTHING")
+    except Exception as e:
+        print("Aviso inicialización:", e)
 
     conn.commit()
     conn.close()
 
 init_db()
-
-@app.get("/api/debug-agencias")
-def debug_agencias(fecha: Optional[str] = None):
-    conn = get_db()
-    cursor = conn.cursor()
-    if fecha:
-        cursor.execute("SELECT id, agencia, fecha, monto, ventas, premios FROM reportes WHERE fecha = %s ORDER BY id DESC", (fecha,))
-    else:
-        cursor.execute("SELECT DISTINCT agencia, count(*) as total_reportes, max(fecha) as ultima_fecha FROM reportes GROUP BY agencia ORDER BY agencia")
-    filas = [dict(r) for r in cursor.fetchall()]
-    conn.close()
-    return JSONResponse(content={"reportes": filas})
 
 def obtener_estructura_banqueros_bd():
     conn = get_db()
@@ -285,12 +233,10 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
     conn = get_db()
     cursor = conn.cursor()
 
-    if agencia_filtro:
-        ag_norm = normalizar(agencia_filtro)
-        cursor.execute(
-            "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s", 
-            (ag_norm, f_desde, f_hasta)
-        )
+    ag_filtro_norm = normalizar(agencia_filtro) if agencia_filtro else ""
+
+    if ag_filtro_norm:
+        cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s", (ag_filtro_norm, f_desde, f_hasta))
     else:
         cursor.execute("SELECT * FROM reportes WHERE fecha >= %s AND fecha <= %s", (f_desde, f_hasta))
     
@@ -302,6 +248,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
 
     for rep_db in reps_db:
         ag_origen = normalizar(rep_db['agencia'])
+
         if rep_db and rep_db['detalle_html']:
             tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', rep_db['detalle_html'], re.DOTALL | re.IGNORECASE)
             if tabla_match:
@@ -346,12 +293,8 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
                         totales_generales["premio"] += p
                         totales_generales["neto"] += t
 
-    if agencia_filtro:
-        ag_norm = normalizar(agencia_filtro)
-        cursor.execute(
-            "SELECT tipo, monto FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'", 
-            (ag_norm, f_desde, f_hasta)
-        )
+    if ag_filtro_norm:
+        cursor.execute("SELECT tipo, monto FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'", (ag_filtro_norm, f_desde, f_hasta))
     else:
         cursor.execute("SELECT tipo, monto FROM pagos WHERE fecha >= %s AND fecha <= %s AND estado = 'APROBADO'", (f_desde, f_hasta))
     
@@ -474,19 +417,6 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
         "total_mi_ganancia_global": total_mi_ganancia_global,
         "suma_cuadros_banqueros": suma_cuadros_banqueros
     }
-
-def actualizar_ultima_conexion(agencia: str):
-    agencia_norm = normalizar(agencia)
-    if agencia_norm and agencia_norm != "ADMIN":
-        try:
-            now_str = obtener_fechahora_venezuela()
-            conn = get_db()
-            cursor = conn.cursor()
-            cursor.execute("UPDATE usuarios SET ultima_conexion = %s WHERE UPPER(TRIM(agencia)) = %s", (now_str, agencia_norm))
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            print("Error actualizando conexion:", e)
 
 def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     agencia_norm = normalizar(agencia)
@@ -721,14 +651,21 @@ async def guardar_reporte_colab(request: Request):
     cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia, fecha))
     rep = cursor.fetchone()
 
+    # Si se actualiza un día anterior, registrar el diferencial
     if rep and fecha < hoy_str:
-        monto_anterior = rep['monto'] or 0.0
+        monto_anterior = float(rep['monto'] or 0.0)
         diferencial = monto - monto_anterior
-        if diferencial != 0.0:
+        if abs(diferencial) > 0.01:
             cursor.execute(
-                "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, %s, %s, 'AJUSTE_PENDIENTE', 'APROBADO')",
-                (agencia, hoy_str, diferencial, f"Ajuste reporte del {fecha}", f"Excedente/Diferencial día anterior del {fecha}")
+                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) 
+                   VALUES (%s, %s, %s, %s, %s, 'AJUSTE_PENDIENTE', 'APROBADO')""",
+                (agencia, hoy_str, diferencial, f"Ajuste reporte del {fecha}", f"Diferencial del reporte del {fecha}: Bs. {diferencial:,.2f}")
             )
+            try:
+                cursor.execute("INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, 'TODAS')", 
+                               (f"🔔 Ajuste automático en {agencia}: Modificado reporte del {fecha} por diferencial de Bs. {diferencial:,.2f}",))
+            except Exception:
+                pass
 
     if rep:
         cursor.execute(
@@ -777,7 +714,9 @@ async def guardar_reporte_colab(request: Request):
     conn.close()
 
     recalcular_y_actualizar_reporte(agencia, fecha)
-    recalcular_y_actualizar_reporte(agencia, hoy_str)
+    if fecha != hoy_str:
+        recalcular_y_actualizar_reporte(agencia, hoy_str)
+
     return {"status": "ok", "mensaje": "Reporte y ajustes actualizados con éxito"}
 
 @app.get("/", response_class=HTMLResponse)
@@ -1164,6 +1103,18 @@ def post_actualizar_reporte_sistema(
         </tr>'''
         html_modificado = re.sub(patron_totales, nueva_fila_totales, html_modificado, flags=re.DOTALL | re.IGNORECASE)
 
+        monto_anterior = float(rep['monto'] or 0.0)
+        diferencial = sum_t - monto_anterior
+        hoy_str = obtener_fecha_venezuela()
+
+        # Si modifica un día anterior, registrar el diferencial como ajuste pendiente para hoy
+        if fecha < hoy_str and abs(diferencial) > 0.01:
+            cursor.execute(
+                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) 
+                   VALUES (%s, %s, %s, %s, %s, 'AJUSTE_PENDIENTE', 'APROBADO')""",
+                (agencia_norm, hoy_str, diferencial, f"Modificación {sistema} del {fecha}", f"Diferencial: Bs. {diferencial:,.2f}")
+            )
+
         cursor.execute(
             "UPDATE reportes SET monto = %s, detalle_html = %s, ventas = %s, premios = %s WHERE id = %s",
             (sum_t, html_modificado, sum_v, sum_p, rep['id'])
@@ -1180,7 +1131,10 @@ def post_actualizar_reporte_sistema(
     conn.close()
 
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    recalcular_y_actualizar_reporte(agencia_norm, obtener_fecha_venezuela())
+    hoy_vzla = obtener_fecha_venezuela()
+    if fecha != hoy_vzla:
+        recalcular_y_actualizar_reporte(agencia_norm, hoy_vzla)
+        
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/eliminar-transaccion")
@@ -1479,34 +1433,35 @@ def get_admin(
         ultima_fila = cursor.fetchone()
         fecha_bd_reciente = ultima_fila['fecha'] if (ultima_fila and ultima_fila['fecha']) else hoy_vzla
 
-        if agencia and not desde_fecha and not hasta_fecha:
-            ag_norm = normalizar(agencia)
-            cursor.execute("SELECT fecha FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC LIMIT 1", (ag_norm,))
+        agencia_filtro = agencia if agencia else ""
+        ag_filtro_norm = normalizar(agencia_filtro) if agencia_filtro else ""
+
+        if ag_filtro_norm and not desde_fecha and not hasta_fecha:
+            cursor.execute("SELECT fecha FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC LIMIT 1", (ag_filtro_norm,))
             fila_ag = cursor.fetchone()
             if fila_ag and fila_ag['fecha']:
                 fecha_bd_reciente = fila_ag['fecha']
 
         f_desde = desde_fecha if desde_fecha else fecha_bd_reciente
         f_hasta = hasta_fecha if hasta_fecha else fecha_bd_reciente
-        agencia_filtro = agencia if agencia else ""
 
-        # Conteo seguro de pendientes
+        # Conteo seguro de solicitudes pendientes
         cursor.execute("SELECT COUNT(*) AS total_pendientes FROM pagos WHERE estado = 'PENDIENTE'")
         pend_row = cursor.fetchone()
         solicitudes_pendientes_count = pend_row['total_pendientes'] if pend_row else 0
 
-        if agencia_filtro:
-            ag_f_norm = normalizar(agencia_filtro)
-            cursor.execute(
-                "SELECT * FROM pagos WHERE tipo = 'CASHEA' AND UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", 
-                (ag_f_norm, f_desde, f_hasta)
-            )
-        else:
-            cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (f_desde, f_hasta))
+        # Cashea general
+        cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (f_desde, f_hasta))
+        todos_casheas = [dict(row) for row in cursor.fetchall()]
         
-        casheas_generales = [dict(row) for row in cursor.fetchall()]
+        casheas_generales = []
+        for c in todos_casheas:
+            c_norm = normalizar(c['agencia'])
+            if not ag_filtro_norm or c_norm == ag_filtro_norm:
+                casheas_generales.append(c)
         total_cashea_filtrado = sum(float(c.get('monto') or 0.0) for c in casheas_generales)
 
+        # Balances por agencia
         positivos = []
         negativos = []
         for ag in agencias:
@@ -1567,7 +1522,7 @@ def get_admin(
 
         conn.close()
 
-        res = calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro)
+        res = calcular_desglose_banqueros_datos(f_desde, f_hasta, ag_filtro_norm)
 
         return templates.TemplateResponse(request=request, name="admin.html", context={
             "reportes": reportes,
