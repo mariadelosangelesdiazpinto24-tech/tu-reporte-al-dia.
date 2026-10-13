@@ -102,7 +102,7 @@
                 <form action="/admin/crear-agencia" method="POST" class="row g-3">
                     <div class="col-md-3">
                         <label class="form-label fw-bold small">Nombre de la Agencia</label>
-                        <input type="text" name="agencia" class="form-control form-control-sm border-admin-theme" placeholder="Ej: ALEXA" required>
+                        <input type="text" name="agencia" class="form-control form-control-sm border-admin-theme" placeholder="Ej: MILA o ANA MARIA" required>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label fw-bold small">Contraseña</label>
@@ -287,7 +287,7 @@
                                             </td>
                                             <td>
                                                 {% if p.comprobante and (p.comprobante.endswith('.png') or p.comprobante.endswith('.jpg') or p.comprobante.endswith('.jpeg') or p.comprobante.endswith('.pdf')) %}
-                                                    <a href="/uploads/{{ p.comprobante }}" target="_blank" class="btn btn-sm btn-outline-primary py-0"><i class="fas fa-image me-1"></i>Ver Capture</a>
+                                                    <a href="/uploads/{ p.comprobante }" target="_blank" class="btn btn-sm btn-outline-primary py-0"><i class="fas fa-image me-1"></i>Ver Capture</a>
                                                 {% else %}
                                                     {{ p.factura or p.comprobante }}
                                                 {% endif %}
@@ -491,8 +491,12 @@
                                 <label class="form-label fw-bold small text-muted">Filtrar por Taquilla:</label>
                                 <select name="agencia" class="form-select form-select-sm border-info">
                                     <option value="">-- Todas las Taquillas --</option>
+                                    <option value="MILA" {% if agencia_filtro == 'MILA' %}selected{% endif %}>MILA</option>
+                                    <option value="ANA MARIA" {% if agencia_filtro == 'ANA MARIA' %}selected{% endif %}>ANA MARIA</option>
                                     {% for ag in agencias %}
+                                    {% if ag.agencia not in ['MILA', 'ANA MARIA'] %}
                                     <option value="{{ ag.agencia }}" {% if agencia_filtro == ag.agencia %}selected{% endif %}>{{ ag.agencia }}</option>
+                                    {% endif %}
                                     {% endfor %}
                                 </select>
                             </div>
@@ -574,8 +578,12 @@
                                 <div class="d-flex align-items-center gap-1">
                                     <select name="agencia" class="form-select form-select-sm" style="width: 160px; font-size: 11px;">
                                         <option value="">-- Todas las Taquillas --</option>
+                                        <option value="MILA" {% if agencia_filtro == 'MILA' %}selected{% endif %}>MILA</option>
+                                        <option value="ANA MARIA" {% if agencia_filtro == 'ANA MARIA' %}selected{% endif %}>ANA MARIA</option>
                                         {% for ag in agencias %}
+                                        {% if ag.agencia not in ['MILA', 'ANA MARIA'] %}
                                         <option value="{{ ag.agencia }}" {% if agencia_filtro == ag.agencia %}selected{% endif %}>{{ ag.agencia }}</option>
+                                        {% endif %}
                                         {% endfor %}
                                     </select>
                                 </div>
@@ -649,7 +657,7 @@
                                             <table class="table table-sm table-hover mb-0 bg-white border" style="font-size: 11px;">
                                                 <thead class="table-dark"><tr><th>Agencia</th><th class="text-end">Venta</th><th class="text-end">Premio</th><th class="text-end">Total</th></tr></thead>
                                                 <tbody>
-                                                    {% if sistemas_agencias_detalle.get(sys_nombre) %}
+                                                    {% if sistemas_agencias_detalle and sistemas_agencias_detalle.get(sys_nombre) %}
                                                         {% for ag_item in sistemas_agencias_detalle.get(sys_nombre) %}
                                                         <tr>
                                                             <td class="fw-bold">{{ ag_item.agencia }}</td>
@@ -840,7 +848,7 @@
                                                     </tr>
                                                     {% endif %}
 
-                                                    {% if data.adelantos_banquero != 0 %}
+                                                    {% if data.adelantos_banquero is defined and data.adelantos_banquero != 0 %}
                                                     <tr class="table-danger fila-adelanto">
                                                         <td class="fw-bold" colspan="6"><i class="fas fa-hand-holding-usd"></i> ADELANTO (Dinero recibido de banca)</td>
                                                         <td class="text-end fw-bold text-danger">+ Bs. {{ data.adelantos_banquero | dinero }}</td>
@@ -848,7 +856,7 @@
                                                     </tr>
                                                     {% endif %}
 
-                                                    {% if data.pendientes_banquero != 0 %}
+                                                    {% if data.pendientes_banquero is defined and data.pendientes_banquero != 0 %}
                                                     <tr class="table-warning fila-pendiente">
                                                         <td class="fw-bold" colspan="6"><i class="fas fa-clock"></i> PENDIENTE ANTERIOR (Deuda de otra semana)</td>
                                                         <td class="text-end fw-bold text-warning" style="color: #e65100 !important;">+ Bs. {{ data.pendientes_banquero | dinero }}</td>
