@@ -47,6 +47,7 @@ ALIAS_AGENCIAS = {
     "CONEJITA": "MILA",
     "EMILY LARA": "MILA",
     "EMILY": "MILA",
+    "MILA SPORT": "MILA",
     "AGENCIA VALLEMIL": "VALLEMIL",
     "AGENCIA ORQUIDEA 2": "ORQUIDEA",
     "AGENCIA ORQUÍDEA 2": "ORQUIDEA"
@@ -209,18 +210,29 @@ def init_db():
         )
     ''')
 
+    # RESCATE Y ASIGNACIÓN AUTOMÁTICA DE TODOS LOS REPORTES Y PAGOS DE MILA
     try:
-        cursor.execute("UPDATE pagos SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
-        cursor.execute("UPDATE reportes SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
-        cursor.execute("UPDATE lecturas_comunicados SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
-        
-        cursor.execute("UPDATE pagos SET agencia = 'MILA' WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA', 'EMILY LARA', 'EMILY')")
-        cursor.execute("UPDATE reportes SET agencia = 'MILA' WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA', 'EMILY LARA', 'EMILY')")
-        cursor.execute("UPDATE lecturas_comunicados SET agencia = 'MILA' WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA', 'EMILY LARA', 'EMILY')")
-        
-        cursor.execute("DELETE FROM usuarios WHERE UPPER(TRIM(agencia)) IN ('RUTA MILLONARIA', 'LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA', 'EMILY LARA', 'EMILY')")
-    except Exception as e_mig:
-        print("Aviso en unificación:", e_mig)
+        cursor.execute("""
+            UPDATE reportes 
+            SET agencia = 'MILA' 
+            WHERE UPPER(TRIM(agencia)) LIKE '%CONEJITA%' 
+               OR UPPER(TRIM(agencia)) LIKE '%EMILY%' 
+               OR UPPER(TRIM(agencia)) = 'LADD LA CONEJITA'
+        """)
+        cursor.execute("""
+            UPDATE pagos 
+            SET agencia = 'MILA' 
+            WHERE UPPER(TRIM(agencia)) LIKE '%CONEJITA%' 
+               OR UPPER(TRIM(agencia)) LIKE '%EMILY%' 
+               OR UPPER(TRIM(agencia)) = 'LADD LA CONEJITA'
+        """)
+        cursor.execute("""
+            INSERT INTO usuarios (agencia, clave, genero, rol)
+            VALUES ('MILA', '123456', 'FEMENINO', 'TAQUILLA')
+            ON CONFLICT (agencia) DO NOTHING
+        """)
+    except Exception as e_res:
+        print("Aviso rescate MILA:", e_res)
 
     conn.commit()
     conn.close()
@@ -232,12 +244,12 @@ def debug_agencias(fecha: Optional[str] = None):
     conn = get_db()
     cursor = conn.cursor()
     if fecha:
-        cursor.execute("SELECT DISTINCT agencia, fecha FROM reportes WHERE fecha = %s ORDER BY agencia", (fecha,))
+        cursor.execute("SELECT id, agencia, fecha, monto, ventas, premios FROM reportes WHERE fecha = %s ORDER BY id DESC", (fecha,))
     else:
-        cursor.execute("SELECT DISTINCT agencia, count(*) as total_reportes FROM reportes GROUP BY agencia ORDER BY agencia")
+        cursor.execute("SELECT DISTINCT agencia, count(*) as total_reportes, max(fecha) as ultima_fecha FROM reportes GROUP BY agencia ORDER BY agencia")
     filas = [dict(r) for r in cursor.fetchall()]
     conn.close()
-    return JSONResponse(content={"reportes_encontrados": filas})
+    return JSONResponse(content={"reportes": filas})
 
 def obtener_estructura_banqueros_bd():
     conn = get_db()
@@ -272,7 +284,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
         if ag_norm == "MILA":
             cursor.execute(
                 """SELECT * FROM reportes 
-                   WHERE (UPPER(TRIM(agencia)) ILIKE '%%MILA%%' OR UPPER(TRIM(agencia)) ILIKE '%%CONEJITA%%' OR UPPER(TRIM(agencia)) ILIKE '%%EMILY%%') 
+                   WHERE (UPPER(TRIM(agencia)) = 'MILA' OR UPPER(TRIM(agencia)) LIKE '%CONEJITA%' OR UPPER(TRIM(agencia)) LIKE '%EMILY%') 
                      AND fecha >= %s AND fecha <= %s""", 
                 (f_desde, f_hasta)
             )
@@ -341,7 +353,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
         if ag_norm == "MILA":
             cursor.execute(
                 """SELECT tipo, monto FROM pagos 
-                   WHERE (UPPER(TRIM(agencia)) ILIKE '%%MILA%%' OR UPPER(TRIM(agencia)) ILIKE '%%CONEJITA%%' OR UPPER(TRIM(agencia)) ILIKE '%%EMILY%%') 
+                   WHERE (UPPER(TRIM(agencia)) = 'MILA' OR UPPER(TRIM(agencia)) LIKE '%CONEJITA%' OR UPPER(TRIM(agencia)) LIKE '%EMILY%') 
                      AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'""", 
                 (f_desde, f_hasta)
             )
@@ -480,7 +492,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     
     cursor.execute(
         """SELECT * FROM reportes 
-           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA', 'EMILY LARA', 'EMILY')) 
+           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) = 'MILA' OR UPPER(TRIM(agencia)) LIKE '%CONEJITA%') 
              AND fecha = %s""", 
         (agencia_norm, fecha_reporte)
     )
@@ -492,7 +504,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     cursor.execute(
         """SELECT * FROM pagos 
-           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA', 'EMILY LARA', 'EMILY')) 
+           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) = 'MILA' OR UPPER(TRIM(agencia)) LIKE '%CONEJITA%') 
              AND fecha = %s AND estado = 'APROBADO'""", 
         (agencia_norm, fecha_reporte)
     )
@@ -500,7 +512,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     
     cursor.execute(
         """SELECT * FROM pagos 
-           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA', 'EMILY LARA', 'EMILY')) 
+           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) = 'MILA' OR UPPER(TRIM(agencia)) LIKE '%CONEJITA%') 
              AND tipo = 'AJUSTE_PENDIENTE' AND estado = 'APROBADO'""", 
         (agencia_norm,)
     )
@@ -633,7 +645,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     cursor = conn.cursor()
     cursor.execute(
         """UPDATE reportes SET monto = %s, detalle_html = %s 
-           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA', 'EMILY LARA', 'EMILY')) 
+           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) = 'MILA' OR UPPER(TRIM(agencia)) LIKE '%CONEJITA%') 
              AND fecha = %s""", 
         (monto_final, detalle_actualizado, agencia_norm, fecha_reporte)
     )
@@ -704,7 +716,8 @@ async def cargar_totales_lider_nys(request: Request):
 @app.post("/api/guardar-reporte-colab")
 async def guardar_reporte_colab(request: Request):
     data = await request.form()
-    agencia = normalizar(data.get("agencia", ""))
+    agencia_raw = data.get("agencia", "")
+    agencia = normalizar(agencia_raw)
     fecha = data.get("fecha", "")
     monto = float(data.get("monto", 0.0))
     ventas = float(data.get("ventas", 0.0))
@@ -724,7 +737,7 @@ async def guardar_reporte_colab(request: Request):
 
     cursor.execute(
         """SELECT * FROM reportes 
-           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA', 'EMILY LARA', 'EMILY')) 
+           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) = 'MILA' OR UPPER(TRIM(agencia)) LIKE '%CONEJITA%') 
              AND fecha = %s""", 
         (agencia, fecha)
     )
@@ -753,7 +766,7 @@ async def guardar_reporte_colab(request: Request):
     if cashea_monto > 0:
         cursor.execute(
             """SELECT id FROM pagos 
-               WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA', 'EMILY LARA', 'EMILY')) 
+               WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) = 'MILA' OR UPPER(TRIM(agencia)) LIKE '%CONEJITA%') 
                  AND fecha = %s AND tipo = 'CASHEA'""", 
             (agencia, fecha)
         )
@@ -812,7 +825,12 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM usuarios WHERE UPPER(TRIM(agencia)) = %s", (usuario_norm,))
+    cursor.execute(
+        """SELECT * FROM usuarios 
+           WHERE UPPER(TRIM(agencia)) = %s 
+              OR (UPPER(TRIM(agencia)) = 'MILA' AND %s = 'MILA')""", 
+        (usuario_norm, usuario_norm)
+    )
     user_data = cursor.fetchone()
     conn.close()
 
