@@ -454,7 +454,7 @@ def actualizar_ultima_conexion(agencia: str):
         except Exception as e:
             print("Error actualizando conexion:", e)
 
-# RECALCULAR Y ACTUALIZAR REPORTE SIN DESTRUIR EL DETALLE_HTML DE COLAB
+# RECALCULAR Y ACTUALIZAR REPORTE PRECISO (SIN INVENTAR PENDIENTES)
 def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     agencia_norm = normalizar(agencia)
     conn = get_db()
@@ -467,10 +467,18 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         conn.close()
         return
 
-    cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND estado = 'APROBADO'", (agencia_norm, fecha_reporte))
+    # Pagos regulares aprobados de este día
+    cursor.execute(
+        "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND estado = 'APROBADO' AND tipo != 'AJUSTE_PENDIENTE'", 
+        (agencia_norm, fecha_reporte)
+    )
     todos_pagos = cursor.fetchall()
     
-    cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_PENDIENTE' AND estado = 'APROBADO'", (agencia_norm,))
+    # ÚNICAMENTE los ajustes pendientes legítimos que apliquen a este día
+    cursor.execute(
+        "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo = 'AJUSTE_PENDIENTE' AND estado = 'APROBADO'", 
+        (agencia_norm, fecha_reporte)
+    )
     ajustes_anteriores = cursor.fetchall()
 
     conn.close()
@@ -534,17 +542,15 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     detalle_original = rep['detalle_html'] or ""
 
-    # 1. AISLAR LA TABLA LIMPIA Y ELIMINAR TODO BLOQUE DUPLICADO
+    # Extraer la tabla pura de sistemas sin duplicar nada
     if '<!-- BLOQUES_EXTRAS -->' in detalle_original:
         tabla_sistemas_html = detalle_original.split('<!-- BLOQUES_EXTRAS -->')[0].strip()
     elif 'PAGOS / ABONOS A LA BANCA' in detalle_original:
-        # Cortar antes de cualquier inyección previa de pagos
         pos_corte = detalle_original.find('<div class="mb-3"')
         tabla_sistemas_html = detalle_original[:pos_corte].strip() if pos_corte != -1 else detalle_original
     else:
         tabla_sistemas_html = detalle_original.strip()
 
-    # 2. CALCULAR TOTAL NETO DIRECTO DE LA TABLA
     total_neto_sistemas = 0.0
     filas_tabla = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_sistemas_html, re.DOTALL | re.IGNORECASE)
     for fila in filas_tabla:
@@ -559,7 +565,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
-    # 3. SALDO EXACTO: NETO SISTEMAS - ABONOS + ADELANTOS - CASHEA + AJUSTES
+    # Cálculo exacto sin inventar nada
     monto_final = total_neto_sistemas - total_pagos_taquilla + total_adelantos - total_cashea + total_ajustes_pendientes
 
     bloque_pagos_banca = f'''
@@ -590,19 +596,22 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     </div>
     '''
 
-    bloque_ajustes = f'''
-    <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ff9800;">
-        <h5 style="color: #ff9800; font-weight: bold; border-bottom: 2px solid #ff9800; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-exclamation-triangle"></i> PENDIENTES / AJUSTES DE DÍAS ANTERIORES</h5>
-        <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #fff3e0; color: #e65100; font-size: 13px;">
-                <th style="padding: 10px;">FECHA DÍA ANTERIOR</th>
-                <th style="padding: 10px;">DETALLE AJUSTE</th>
-                <th style="padding: 10px; text-align: right;">DIFERENCIAL ACUMULADO</th>
-            </tr>
-            {ajustes_rows_html if ajustes_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Sin ajustes pendientes acumulados.</td></tr>'}
-        </table>
-    </div>
-    '''
+    # Solo mostrar el bloque de pendientes si realmente EXISTE un ajuste para esa fecha
+    bloque_ajustes = ""
+    if ajustes_rows_html:
+        bloque_ajustes = f'''
+        <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ff9800;">
+            <h5 style="color: #ff9800; font-weight: bold; border-bottom: 2px solid #ff9800; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-exclamation-triangle"></i> PENDIENTES / AJUSTES DE DÍAS ANTERIORES</h5>
+            <table class="table table-sm align-middle mb-0" style="width: 100%;">
+                <tr style="background-color: #fff3e0; color: #e65100; font-size: 13px;">
+                    <th style="padding: 10px;">FECHA</th>
+                    <th style="padding: 10px;">DETALLE AJUSTE</th>
+                    <th style="padding: 10px; text-align: right;">DIFERENCIAL ACUMULADO</th>
+                </tr>
+                {ajustes_rows_html}
+            </table>
+        </div>
+        '''
 
     bloque_adelantos = f'''
     <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #e91e63;">
@@ -618,7 +627,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     </div>
     '''
 
-    bloque_pendientes = f'''
+    bloque_final = f'''
     <div class="mb-2" style="background: #ffffff; border-radius: 12px; padding: 20px; color: #1a252c; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 6px solid #e91e63; border: 1px solid #e0e0e0;">
         <h5 style="color: #e91e63; font-weight: bold; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; margin-bottom: 12px;"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h5>
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -629,13 +638,14 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     </div>
     '''
 
-    detalle_actualizado = tabla_sistemas_html + "\n<!-- BLOQUES_EXTRAS -->\n" + bloque_pagos_banca + bloque_cashea + bloque_ajustes + bloque_adelantos + bloque_pendientes
+    detalle_actualizado = tabla_sistemas_html + "\n<!-- BLOQUES_EXTRAS -->\n" + bloque_pagos_banca + bloque_cashea + bloque_ajustes + bloque_adelantos + bloque_final
 
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("UPDATE reportes SET monto = %s, detalle_html = %s WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (monto_final, detalle_actualizado, agencia_norm, fecha_reporte))
     conn.commit()
     conn.close()
+
 @app.post("/admin/guardar-ajustes-banquero-global")
 def post_guardar_ajustes_banquero_global(
     banquero: str = Form(...),
@@ -719,11 +729,7 @@ async def guardar_reporte_colab(request: Request):
     cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia, fecha))
     rep = cursor.fetchone()
 
-# Solo registrar diferencial si NO es una resincronización masiva de Colab
-    # (Evita arrastrar valores distorsionados si se repara un reporte)
-    if rep and fecha < hoy_str:
-        pass
-
+    # Actualizamos el reporte limpiamente SIN inventar diferenciales automáticos
     if rep:
         cursor.execute(
             "UPDATE reportes SET agencia = %s, monto = %s, ventas = %s, premios = %s, detalle_html = %s WHERE id = %s",
@@ -753,10 +759,8 @@ async def guardar_reporte_colab(request: Request):
     conn.close()
 
     recalcular_y_actualizar_reporte(agencia, fecha)
-    if fecha != hoy_str:
-        recalcular_y_actualizar_reporte(agencia, hoy_str)
         
-    return {"status": "ok", "mensaje": "Reporte y ajustes actualizados con éxito"}
+    return {"status": "ok", "mensaje": "Reporte actualizado con éxito"}
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/login", response_class=HTMLResponse)
@@ -965,6 +969,7 @@ def get_agencia(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
     
+    # Saldo acumulado real de la agencia
     cursor.execute("SELECT SUM(monto) AS total_rep FROM reportes WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
     row_rep = cursor.fetchone()
     saldo_acumulado = float(row_rep['total_rep'] or 0.0) if row_rep else 0.0
@@ -1161,13 +1166,14 @@ def post_actualizar_reporte_sistema(
         )
         conn.commit()
 
+        # Solo si fue un cambio a un día anterior, registrar el ajuste pendiente exacto en la fecha de hoy
         if fecha < hoy_vzla:
             diferencial = sum_t - float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
             if abs(diferencial) > 0.01:
                 cursor.execute(
                     """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) 
                        VALUES (%s, %s, %s, %s, %s, 'AJUSTE_PENDIENTE', 'APROBADO')""",
-                    (agencia_norm, hoy_vzla, diferencial, f"Ajuste {sistema} del día {fecha}", f"Diferencial acumulado: Bs. {diferencial:,.2f}")
+                    (agencia_norm, hoy_vzla, diferencial, f"Modificación {sistema} del {fecha}", f"Diferencial acumulado: Bs. {diferencial:,.2f}")
                 )
                 conn.commit()
 
@@ -1442,6 +1448,7 @@ def post_eliminar_agencia(agencia_id: int = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
 
+# RUTAS PARA EL LÁPIZ Y LA PAPELERA DEL ADMIN (BALANCES)
 @app.post("/admin/editar-monto-reporte")
 def post_editar_monto_reporte(
     agencia: str = Form(...),
@@ -1475,6 +1482,7 @@ def post_eliminar_ajustes_agencia(
     conn.close()
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
+
 @app.get("/admin", response_class=HTMLResponse)
 def get_admin(
     request: Request, 
