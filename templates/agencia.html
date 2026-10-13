@@ -32,40 +32,50 @@
             color: white !important; 
         }
 
-        /* ESTILOS LIMPIOS Y ESPACIOSOS PARA EL CUADRO DE SISTEMAS EN EL MODAL */
+        /* DISEÑO DE TABLA MEJORADA EN EL MODAL */
+        .modal-cuerpo-reporte {
+            background-color: #f8fafc;
+            padding: 1.25rem;
+        }
         .modal-cuerpo-reporte .table-responsive {
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.04);
             background: #ffffff;
-            margin-bottom: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            overflow-x: auto;
         }
         .modal-cuerpo-reporte table {
             width: 100% !important;
             margin-bottom: 0 !important;
             border-collapse: collapse !important;
+            min-width: 330px;
         }
         .modal-cuerpo-reporte th {
-            background-color: #212529 !important;
-            color: #ffffff !important;
-            padding: 8px 10px !important;
-            font-size: 11.5px !important;
+            background-color: #1e293b !important;
+            color: #f8fafc !important;
+            padding: 9px 8px !important;
+            font-size: 11px !important;
+            font-weight: 700 !important;
             text-align: right !important;
             white-space: nowrap !important;
         }
         .modal-cuerpo-reporte th:first-child {
             text-align: left !important;
+            padding-left: 12px !important;
         }
         .modal-cuerpo-reporte td {
-            padding: 7px 10px !important;
+            padding: 8px 8px !important;
             font-size: 12px !important;
-            border-bottom: 1px solid #eef2f5 !important;
+            border-bottom: 1px solid #f1f5f9 !important;
             text-align: right !important;
             white-space: nowrap !important;
+            color: #1e293b;
         }
         .modal-cuerpo-reporte td:first-child {
             text-align: left !important;
+            padding-left: 12px !important;
             font-weight: 700 !important;
-            color: #37474f !important;
+            color: #0f172a !important;
         }
         .modal-cuerpo-reporte tr:hover td {
             background-color: #f8fafc !important;
@@ -140,20 +150,20 @@
 
         <!-- PESTAÑAS -->
         <ul class="nav nav-tabs mb-4 fw-bold border-0" id="agenciaTab" role="tablist">
-            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#reportes"><i class="fas fa-chart-line me-1"></i> Mis Reportes</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#auditoria"><i class="fas fa-search-dollar me-1"></i> Auditoría por Sistemas</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#transacciones"><i class="fas fa-exchange-alt me-1"></i> Transacciones</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#adelantos"><i class="fas fa-hand-holding-usd me-1"></i> Adelantos</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cashea"><i class="fas fa-shopping-cart me-1"></i> Cashea</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#modificaciones"><i class="fas fa-edit me-1"></i> Modificaciones</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pendiente"><i class="fas fa-clock me-1"></i> Pendiente</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#usuario"><i class="fas fa-user-cog me-1"></i> Mi Cuenta</button></li>
+            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#reportes" type="button"><i class="fas fa-chart-line me-1"></i> Mis Reportes</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#auditoria" type="button"><i class="fas fa-search-dollar me-1"></i> Auditoría por Sistemas 📊</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#transacciones" type="button"><i class="fas fa-exchange-alt me-1"></i> Transacciones</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#adelantos" type="button"><i class="fas fa-hand-holding-usd me-1"></i> Adelantos</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cashea" type="button"><i class="fas fa-shopping-cart me-1"></i> Cashea</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#modificaciones" type="button"><i class="fas fa-edit me-1"></i> Modificaciones</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pendiente" type="button"><i class="fas fa-clock me-1"></i> Pendiente</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#usuario" type="button"><i class="fas fa-user-cog me-1"></i> Mi Cuenta</button></li>
         </ul>
 
         <div class="tab-content" id="agenciaTabContent">
             
             <!-- 1. MIS REPORTES -->
-            <div class="tab-pane fade show active" id="reportes">
+            <div class="tab-pane fade show active" id="reportes" role="tabpanel">
                 <div class="card card-custom p-4">
                     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                         <h4 class="fw-bold m-0" style="color: {% if agencia and agencia.genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};"><i class="fas fa-chart-line text-warning me-2"></i>Historial de Reportes Financieros</h4>
@@ -201,16 +211,13 @@
                 </div>
             </div>
 
-            <!-- NUEVA PESTAÑA: AUDITORÍA POR SISTEMAS CON RANGO DE FECHAS -->
-            <div class="tab-pane fade" id="auditoria">
+            <!-- AUDITORÍA POR SISTEMAS -->
+            <div class="tab-pane fade" id="auditoria" role="tabpanel">
                 <div class="card card-custom p-4">
-                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                        <h4 class="fw-bold m-0" style="color: {% if agencia and agencia.genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};">
-                            <i class="fas fa-search-dollar text-warning me-2"></i>Auditoría de Sistemas (Ventas, Comisiones y Premios)
-                        </h4>
-                    </div>
+                    <h4 class="fw-bold mb-3" style="color: {% if agencia and agencia.genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};">
+                        <i class="fas fa-search-dollar text-warning me-2"></i>Auditoría por Sistemas
+                    </h4>
 
-                    <!-- FILTRO POR RANGO DE FECHAS -->
                     <form method="GET" action="/agencia" class="row g-2 align-items-end p-3 bg-light rounded border mb-4">
                         <input type="hidden" name="nombre" value="{{ nombre_agencia }}">
                         <div class="col-md-4">
@@ -223,12 +230,11 @@
                         </div>
                         <div class="col-md-4">
                             <button type="submit" class="btn btn-custom btn-sm w-100 fw-bold py-2">
-                                <i class="fas fa-filter me-1"></i> Filtrar Auditoría
+                                <i class="fas fa-filter me-1"></i> Filtrar Período
                             </button>
                         </div>
                     </form>
 
-                    <!-- TABLA AUDITORÍA CON NOMBRES ABREVIADOS Y NÚMEROS LEGIBLES -->
                     <div class="table-responsive">
                         <table class="table table-sm table-bordered table-hover align-middle mb-0" style="font-size: 13px;">
                             <thead class="table-dark">
@@ -274,7 +280,7 @@
             </div>
 
             <!-- 2. TRANSACCIONES -->
-            <div class="tab-pane fade" id="transacciones">
+            <div class="tab-pane fade" id="transacciones" role="tabpanel">
                 <div class="card card-custom p-4">
                     <h4 class="fw-bold mb-3" style="color: {% if agencia and agencia.genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};"><i class="fas fa-exchange-alt me-2"></i>Historial de Transacciones, Modificaciones y Pagos</h4>
                     <div class="table-responsive">
@@ -342,7 +348,7 @@
             </div>
 
             <!-- 3. ADELANTOS -->
-            <div class="tab-pane fade" id="adelantos">
+            <div class="tab-pane fade" id="adelantos" role="tabpanel">
                 <div class="card card-custom p-4">
                     <h4 class="fw-bold mb-3 text-danger"><i class="fas fa-hand-holding-usd me-2"></i>Registrar Adelanto Entregado</h4>
                     <form action="/solicitar-adelanto" method="POST" class="row g-3 align-items-end mb-4 p-3 border rounded bg-light">
@@ -367,7 +373,7 @@
             </div>
 
             <!-- 4. CASHEA -->
-            <div class="tab-pane fade" id="cashea">
+            <div class="tab-pane fade" id="cashea" role="tabpanel">
                 <div class="card card-custom p-4">
                     <h4 class="fw-bold mb-3 text-info"><i class="fas fa-shopping-cart me-2"></i>Registros Cashea Absorbidos</h4>
                     <div class="table-responsive">
@@ -400,7 +406,7 @@
             </div>
 
             <!-- 5. MODIFICACIONES DE SISTEMA -->
-            <div class="tab-pane fade" id="modificaciones">
+            <div class="tab-pane fade" id="modificaciones" role="tabpanel">
                 <div class="card card-custom p-4">
                     <h4 class="fw-bold mb-3" style="color: {% if agencia and agencia.genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};"><i class="fas fa-edit me-2"></i>Modificar Venta o Premio por Sistema</h4>
                     <form action="/actualizar-reporte-sistema" method="POST" class="row g-3 align-items-end p-3 border rounded bg-light">
@@ -433,7 +439,7 @@
             </div>
 
             <!-- 6. PENDIENTE -->
-            <div class="tab-pane fade" id="pendiente">
+            <div class="tab-pane fade" id="pendiente" role="tabpanel">
                 <div class="card card-custom p-4 border-start border-4 {% if saldo_actual > 0 %}border-danger{% else %}border-success{% endif %}">
                     <h4 class="fw-bold mb-3 text-secondary"><i class="fas fa-clock me-2"></i>Estado de Cuenta Global Pendiente</h4>
                     
@@ -474,7 +480,7 @@
             </div>
 
             <!-- 7. GESTIÓN DE USUARIO -->
-            <div class="tab-pane fade" id="usuario">
+            <div class="tab-pane fade" id="usuario" role="tabpanel">
                 <div class="card card-custom p-4 border-start border-4 border-primary">
                     <h4 class="fw-bold mb-3" style="color: {% if agencia and agencia.genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};">
                         <i class="fas fa-key me-2"></i>Gestión de Seguridad - Cambiar Contraseña
@@ -522,4 +528,134 @@
 
     </div>
 
-    <!-- MODALES DE DETALLE REPORTE
+    <!-- MODALES DE DETALLE REPORTE -->
+    {% for r in reportes %}
+    <div class="modal fade" id="modalDetalle{{ r.id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 16px; overflow: hidden; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
+                <div class="modal-header text-white" style="background: {% if agencia and agencia.genero == 'MASCULINO' %}linear-gradient(135deg, #0d47a1, #1976d2){% else %}linear-gradient(135deg, #ad1457, #d81b60){% endif %};">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-file-invoice me-2"></i>Reporte Fecha: {{ r.fecha }} 🍀🌺</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body modal-cuerpo-reporte">
+                    {{ r.detalle_html | safe }}
+                </div>
+                <div class="modal-footer bg-white d-flex justify-content-between align-items-center">
+                    <div>
+                        {% if r.monto < 0 %}
+                        <form action="/solicitar-banca-directo" method="POST" style="display: inline;" onsubmit="return confirm('¿Deseas enviar la solicitud de pago por Bs. {{ (r.monto | abs) | dinero }} a la banca?');">
+                            <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
+                            <input type="hidden" name="fecha" value="{{ r.fecha }}">
+                            <input type="hidden" name="monto" value="{{ r.monto }}">
+                            <button type="submit" class="btn btn-success fw-bold rounded-pill px-3 shadow-sm">
+                                <i class="fas fa-university me-1"></i> Solicitar a la Banca (Bs. {{ (r.monto | abs) | dinero }})
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- BOOTSTRAP JS PRIMERO -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function filtrarReportesFecha() {
+            var fechaBusqueda = document.getElementById("buscarFechaReporte").value;
+            var filas = document.querySelectorAll("#tablaReportesAgencia tbody tr");
+            filas.forEach(function(fila) {
+                var fechaFila = fila.getAttribute("data-fecha");
+                if (fechaBusqueda === "" || fechaFila === fechaBusqueda) {
+                    fila.style.display = "";
+                } else {
+                    fila.style.display = "none";
+                }
+            });
+        }
+
+        function mostrarTodosReportes() {
+            var input = document.getElementById("buscarFechaReporte");
+            if (input) input.value = "";
+            var filas = document.querySelectorAll("#tablaReportesAgencia tbody tr");
+            filas.forEach(function(fila) {
+                fila.style.display = "";
+            });
+        }
+
+        const ABREVIATURAS = {
+            "LA IMAGINARIA": "IMAG",
+            "IMAGINARIA": "IMAG",
+            "WINBIG VENTAS": "WB VENT",
+            "WINBIG BINGO": "WB BINGO",
+            "WINBIG POLLAS": "WB POLLAS",
+            "WINBIG": "WIN",
+            "VENTA ACTIVA": "MATRIX",
+            "SRQ POLLA": "SRQ POL",
+            "LOTTOLUCKY": "LLUCKY",
+            "LOTTIPLAY": "LPLAY",
+            "PREMIER": "PREM",
+            "PARLEY": "PARL",
+            "CALAMAR": "CALAM",
+            "LOTIPOS": "LOTIPOS",
+            "MAXPLAY": "MAXPLAY",
+            "BETSOL": "BETSOL",
+            "POSNET": "POSNET",
+            "GUACA": "GUACA",
+            "POZO": "POZO",
+            "GATO": "GATO",
+            "SRQ": "SRQ",
+            "MATRIX": "MATRIX"
+        };
+
+        function abreviarTexto(texto) {
+            if (!texto) return "";
+            let limpio = texto.trim().toUpperCase();
+            return ABREVIATURAS[limpio] || texto;
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            // Abreviar nombres en la tabla de auditoría
+            document.querySelectorAll(".nombre-sistema-celda").forEach(function(el) {
+                el.innerText = abreviarTexto(el.innerText);
+            });
+
+            // Abreviar nombres y formatear en modales
+            document.querySelectorAll(".modal-cuerpo-reporte").forEach(function(modal) {
+                var tabla = modal.querySelector("table");
+                if (!tabla) return;
+                
+                var filas = tabla.querySelectorAll("tr");
+                var sumaComision = 0.0;
+                var celdaGuion = null;
+
+                filas.forEach(function(fila) {
+                    var celdas = fila.querySelectorAll("td");
+                    if (celdas.length >= 5) {
+                        var textoPrimero = celdas[0].innerText.toUpperCase().trim();
+                        if (textoPrimero.includes("TOTALES")) {
+                            if (celdas[2].innerText.trim() === "-") {
+                                celdaGuion = celdas[2];
+                            }
+                        } else if (!textoPrimero.includes("SISTEMA")) {
+                            celdas[0].innerText = abreviarTexto(celdas[0].innerText);
+                            var valorCom = parseFloat(celdas[2].innerText.replace(/,/g, '').trim());
+                            if (!isNaN(valorCom)) {
+                                sumaComision += valorCom;
+                            }
+                        }
+                    }
+                });
+
+                if (celdaGuion && sumaComision > 0) {
+                    celdaGuion.innerText = sumaComision.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    celdaGuion.style.fontWeight = "bold";
+                    celdaGuion.style.color = "#0d47a1";
+                }
+            });
+        });
+    </script>
+</body>
+</html>
