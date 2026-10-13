@@ -33,10 +33,10 @@ SISTEMAS_OFICIALES = [
     "LA IMAGINARIA", "BETSOL", "GATO", "LOTIPOS", "LOTTIPLAY", 
     "LOTTOLUCKY", "MAXPLAY", "SRQ", "POSNET", "POZO", 
     "PREMIER", "SRQ POLLA", "WINBIG VENTAS", "WINBIG BINGO", 
-    "WINBIG POLLAS", "VENTA ACTIVA", "PARLEY", "CALAMAR", "GUACA"
+    "WINBIG POLLAS", "MATRIX", "PARLEY", "CALAMAR", "GUACA"
 ]
 
-# HOMOLOGACIÓN DE ALIAS PARA EVITAR DUPLICACIONES
+# HOMOLOGACIÓN DE ALIAS DE AGENCIAS Y SISTEMAS
 ALIAS_AGENCIAS = {
     "RUTA MILLONARIA": "ANA MARIA",
     "DESTINO FORTUNA": "DESTINO SUERTE",
@@ -56,6 +56,14 @@ def normalizar(texto: str) -> str:
     texto = ''.join(c for c in texto if unicodedata.category(c) != 'Mn')
     texto_limpio = texto.strip().upper()
     return ALIAS_AGENCIAS.get(texto_limpio, texto_limpio)
+
+def normalizar_sistema(sistema: str) -> str:
+    if not sistema:
+        return ""
+    s_clean = normalizar(sistema)
+    if "VENTA ACTIVA" in s_clean:
+        return "MATRIX"
+    return s_clean
 
 def formatear_monto(valor):
     try:
@@ -193,14 +201,9 @@ def init_db():
     except Exception:
         pass
 
-    # ==============================================================
-    # MIGRACIÓN AUTOMÁTICA: UNIFICAR RUTA MILLONARIA CON ANA MARIA
-    # ==============================================================
     try:
         cursor.execute("UPDATE pagos SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
         cursor.execute("UPDATE lecturas_comunicados SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
-        
-        # Eliminar duplicados exactos en reportes para las mismas fechas
         cursor.execute("""
             DELETE FROM reportes r1
             WHERE UPPER(TRIM(r1.agencia)) = 'RUTA MILLONARIA'
@@ -210,11 +213,10 @@ def init_db():
                     AND r2.fecha = r1.fecha
               )
         """)
-        # Cambiar los que queden de RUTA MILLONARIA a ANA MARIA
         cursor.execute("UPDATE reportes SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
         cursor.execute("DELETE FROM usuarios WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
     except Exception as e_mig:
-        print("Aviso en migración unificación:", e_mig)
+        print("Aviso en unificación:", e_mig)
 
     cursor.execute("SELECT COUNT(*) AS total FROM configuracion_banqueros")
     cuenta = cursor.fetchone()
@@ -310,9 +312,12 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
                 for f in filas:
                     cols = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', f, re.DOTALL)
                     if len(cols) >= 5:
-                        sys_nombre = re.sub(r'<[^>]+>', '', cols[0]).strip()
-                        if not sys_nombre or "SISTEMA" in sys_nombre.upper() or "TOTALES" in sys_nombre.upper():
+                        sys_raw = re.sub(r'<[^>]+>', '', cols[0]).strip()
+                        if not sys_raw or "SISTEMA" in sys_raw.upper() or "TOTALES" in sys_raw.upper():
                             continue
+                        
+                        sys_nombre = normalizar_sistema(sys_raw)
+
                         try:
                             v = float(re.sub(r'[^\d.-]', '', cols[1]))
                             c = float(re.sub(r'[^\d.-]', '', cols[2]))
@@ -846,7 +851,6 @@ def get_agencia(
         r_dict['comision'] = comision_sum
         reportes_agencia.append(r_dict)
 
-    # AUDITORÍA DE SISTEMAS PROPIA DE ESTA AGENCIA POR RANGO DE FECHAS
     cursor.execute(
         "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s", 
         (agencia_norm, f_desde, f_hasta)
@@ -864,9 +868,12 @@ def get_agencia(
                 for fs in filas_s:
                     cols_s = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', fs, re.DOTALL)
                     if len(cols_s) >= 5:
-                        s_name = re.sub(r'<[^>]+>', '', cols_s[0]).strip()
-                        if not s_name or "SISTEMA" in s_name.upper() or "TOTALES" in s_name.upper():
+                        s_raw = re.sub(r'<[^>]+>', '', cols_s[0]).strip()
+                        if not s_raw or "SISTEMA" in s_raw.upper() or "TOTALES" in s_raw.upper():
                             continue
+                        
+                        s_name = normalizar_sistema(s_raw)
+
                         try:
                             sv = float(re.sub(r'[^\d.-]', '', cols_s[1]))
                             sc = float(re.sub(r'[^\d.-]', '', cols_s[2]))
@@ -1020,6 +1027,7 @@ def post_actualizar_reporte_sistema(
     premio: float = Form(...)
 ):
     agencia_norm = normalizar(agencia)
+    sistema_norm = normalizar_sistema(sistema)
     conn = get_db()
     cursor = conn.cursor()
     
@@ -1030,7 +1038,7 @@ def post_actualizar_reporte_sistema(
         html = rep['detalle_html']
         
         pct_com = 0.12
-        sys_u = sistema.upper()
+        sys_u = sistema_norm.upper()
         if "IMAGINARIA" in sys_u or "WINBIG" in sys_u:
             pct_com = 0.14
         elif "LOTTOLUCKY" in sys_u or "LOTIPOS" in sys_u or "GUACA" in sys_u:
@@ -1198,7 +1206,6 @@ def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# LIQUIDAR SALDO NEGATIVO CON SUBIDA DE CAPTURE DIRECTO
 @app.post("/admin/liquidar-saldo-negativo")
 async def post_liquidar_saldo_negativo(
     agencia: str = Form(...),
