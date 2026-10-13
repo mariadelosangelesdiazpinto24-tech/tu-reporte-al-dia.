@@ -15,7 +15,6 @@ from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
 
-# Zona horaria oficial de Venezuela (America/Caracas, UTC-4)
 TZ_VENEZUELA = ZoneInfo("America/Caracas")
 
 def obtener_fecha_venezuela() -> str:
@@ -174,6 +173,17 @@ def init_db():
         )
     ''')
 
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ajustes_globales_banqueros (
+            id SERIAL PRIMARY KEY,
+            banquero TEXT,
+            fecha TEXT,
+            adelantos DOUBLE PRECISION DEFAULT 0,
+            pendientes DOUBLE PRECISION DEFAULT 0,
+            UNIQUE(banquero, fecha)
+        )
+    ''')
+
     try:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS rol TEXT DEFAULT 'TAQUILLA'")
         cursor.execute("ALTER TABLE comunicados ADD COLUMN IF NOT EXISTS agencia_destino TEXT DEFAULT 'TODAS'")
@@ -222,6 +232,18 @@ def init_db():
                 (normalizar(usr), pwd)
             )
 
+    # Registrar agencias que tengan reportes en la tabla de usuarios para que aparezcan en el Admin
+    try:
+        cursor.execute("""
+            INSERT INTO usuarios (agencia, clave, genero, rol)
+            SELECT DISTINCT UPPER(TRIM(agencia)), '123456', 'FEMENINO', 'TAQUILLA'
+            FROM reportes
+            WHERE UPPER(TRIM(agencia)) IS NOT NULL AND UPPER(TRIM(agencia)) != ''
+            ON CONFLICT (agencia) DO NOTHING
+        """)
+    except Exception:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -262,9 +284,11 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
     reps_db = cursor.fetchall()
 
     sistemas_consolidados = {}
+    sistemas_agencias_detalle = {}
     totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
 
     for rep_db in reps_db:
+        ag_origen = normalizar(rep_db['agencia'])
         if rep_db and rep_db['detalle_html']:
             tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', rep_db['detalle_html'], re.DOTALL)
             if tabla_match:
@@ -285,11 +309,21 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
 
                         if sys_nombre not in sistemas_consolidados:
                             sistemas_consolidados[sys_nombre] = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
+                            sistemas_agencias_detalle[sys_nombre] = []
                         
                         sistemas_consolidados[sys_nombre]["venta"] += v
                         sistemas_consolidados[sys_nombre]["comision"] += c
                         sistemas_consolidados[sys_nombre]["premio"] += p
                         sistemas_consolidados[sys_nombre]["neto"] += t
+
+                        if v > 0 or p > 0 or t != 0:
+                            sistemas_agencias_detalle[sys_nombre].append({
+                                "agencia": ag_origen,
+                                "venta": v,
+                                "comision": c,
+                                "premio": p,
+                                "total": t
+                            })
 
                         totales_generales["venta"] += v
                         totales_generales["comision"] += c
@@ -320,9 +354,21 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
     suma_cuadros_banqueros = 0.0
 
     for b_nombre, cfg in ESTRUCTURA_BANQUEROS.items():
+        cursor.execute(
+            """SELECT SUM(adelantos) as sum_adelantos, SUM(pendientes) as sum_pendientes 
+               FROM ajustes_globales_banqueros 
+               WHERE banquero = %s AND fecha >= %s AND fecha <= %s""",
+            (b_nombre, f_desde, f_hasta)
+        )
+        row_ajustes_glob = cursor.fetchone()
+        adelantos_b_val = float(row_ajustes_glob['sum_adelantos'] or 0.0) if row_ajustes_glob else 0.0
+        pendientes_b_val = float(row_ajustes_glob['sum_pendientes'] or 0.0) if row_ajustes_glob else 0.0
+
         desglose_banqueros[b_nombre] = {
             "sistemas": [],
             "cashea_descontado": totales_auxiliares["cashea"] if cfg["absorbe_cashea"] else 0.0,
+            "adelantos_banquero": adelantos_b_val,
+            "pendientes_banquero": pendientes_b_val,
             "total_a_pagar_banquero": 0.0,
             "total_mi_ganancia_banca": 0.0,
             "total": 0.0
@@ -390,6 +436,8 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
         if cfg["absorbe_cashea"]:
             subtotal_banquero -= totales_auxiliares["cashea"]
 
+        subtotal_banquero = subtotal_banquero + adelantos_b_val + pendientes_b_val
+
         desglose_banqueros[b_nombre]["total_a_pagar_banquero"] = subtotal_banquero
         desglose_banqueros[b_nombre]["total"] = subtotal_banquero
         suma_cuadros_banqueros += subtotal_banquero
@@ -399,6 +447,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
 
     return (
         sistemas_consolidados,
+        sistemas_agencias_detalle,
         totales_generales,
         totales_auxiliares,
         desglose_banqueros,
@@ -595,6 +644,67 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     conn.commit()
     conn.close()
 
+@app.post("/admin/guardar-ajustes-banquero-global")
+def post_guardar_ajustes_banquero_global(
+    banquero: str = Form(...),
+    fecha: str = Form(...),
+    adelantos: float = Form(0.0),
+    pendientes: float = Form(0.0),
+    desde_fecha: Optional[str] = Form(None),
+    hasta_fecha: Optional[str] = Form(None)
+):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        """INSERT INTO ajustes_globales_banqueros (banquero, fecha, adelantos, pendientes)
+           VALUES (%s, %s, %s, %s)
+           ON CONFLICT (banquero, fecha)
+           DO UPDATE SET adelantos = EXCLUDED.adelantos, pendientes = EXCLUDED.pendientes""",
+        (banquero, fecha, adelantos, pendientes)
+    )
+    conn.commit()
+    conn.close()
+    url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
+    return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/api/cargar-totales-lider-nys")
+async def cargar_totales_lider_nys(request: Request):
+    data = await request.form()
+    fecha = data.get("fecha", obtener_fecha_venezuela())
+    
+    venta_lider = float(data.get("venta_lider", 0.0) or 0.0)
+    premios_lider = float(data.get("premios_lider", 0.0) or 0.0)
+    
+    venta_nys = float(data.get("venta_nys", 0.0) or 0.0)
+    premios_nys = float(data.get("premios_nys", 0.0) or 0.0)
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    if venta_lider > 0 or premios_lider > 0:
+        comis_lider = venta_lider * 0.17
+        cursor.execute(
+            """INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+               VALUES ('COMERCIALIZADORA LIDER', 'GUACA', %s, %s, %s, %s)
+               ON CONFLICT (banquero, sistema, fecha)
+               DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
+            (fecha, venta_lider, comis_lider, premios_lider)
+        )
+
+    if venta_nys > 0 or premios_nys > 0:
+        comis_nys = venta_nys * 0.18
+        cursor.execute(
+            """INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+               VALUES ('COMERCIALIZADORA NYS', 'CALAMAR', %s, %s, %s, %s)
+               ON CONFLICT (banquero, sistema, fecha)
+               DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
+            (fecha, venta_nys, comis_nys, premios_nys)
+        )
+
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "mensaje": "Guaca y Calamar cargados con éxito"}
+
 @app.post("/api/guardar-reporte-colab")
 async def guardar_reporte_colab(request: Request):
     data = await request.form()
@@ -611,13 +721,16 @@ async def guardar_reporte_colab(request: Request):
     conn = get_db()
     cursor = conn.cursor()
 
+    # Asegurar que la agencia exista en usuarios
+    cursor.execute("INSERT INTO usuarios (agencia, clave, genero, rol) VALUES (%s, '123456', 'FEMENINO', 'TAQUILLA') ON CONFLICT (agencia) DO NOTHING", (agencia,))
+
     cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia, fecha))
     rep = cursor.fetchone()
 
     if rep and fecha < hoy_str:
-        monto_anterior = rep['monto'] or 0.0
+        monto_anterior = float(rep['monto'] or 0.0)
         diferencial = monto - monto_anterior
-        if diferencial != 0.0:
+        if abs(diferencial) > 0.01:
             cursor.execute(
                 "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, %s, %s, 'AJUSTE_PENDIENTE', 'APROBADO')",
                 (agencia, hoy_str, diferencial, f"Ajuste reporte del {fecha}", f"Excedente/Diferencial día anterior del {fecha}")
@@ -652,7 +765,8 @@ async def guardar_reporte_colab(request: Request):
     conn.close()
 
     recalcular_y_actualizar_reporte(agencia, fecha)
-    recalcular_y_actualizar_reporte(agencia, hoy_str)
+    if fecha != hoy_str:
+        recalcular_y_actualizar_reporte(agencia, hoy_str)
     return {"status": "ok", "mensaje": "Reporte y ajustes actualizados con éxito"}
 
 @app.get("/", response_class=HTMLResponse)
@@ -716,6 +830,7 @@ def get_banquero(
 
     (
         sistemas_consolidados,
+        _,
         totales_generales,
         totales_auxiliares,
         desglose_banqueros,
@@ -738,6 +853,8 @@ def get_banquero(
     cuadro_banquero = desglose_banqueros.get(nombre_comercializadora, {
         "sistemas": [],
         "cashea_descontado": 0.0,
+        "adelantos_banquero": 0.0,
+        "pendientes_banquero": 0.0,
         "total_a_pagar_banquero": 0.0
     })
 
@@ -767,8 +884,6 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
     reportes_agencia = []
     for r in reportes_agencia_raw:
         r_dict = dict(r)
-        
-        # 1. Sumar la columna COM. de cada fila individual del reporte de sistemas
         comision_sum = 0.0
         if r_dict.get('detalle_html'):
             tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', r_dict['detalle_html'], re.DOTALL)
@@ -783,7 +898,6 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
                         except:
                             pass
         
-        # 2. Si no sumó, estimar Venta - Premios - Monto base
         if comision_sum == 0.0 and (float(r_dict.get('ventas') or 0) > 0):
             comision_sum = max(0.0, float(r_dict.get('ventas') or 0) - float(r_dict.get('premios') or 0) - float(r_dict.get('monto') or 0))
             
@@ -807,7 +921,6 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
     
-    # SALDO ACUMULADO REAL (suma de los saldos restantes vigentes de los reportes)
     cursor.execute("SELECT SUM(monto) AS total_rep FROM reportes WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
     row_rep = cursor.fetchone()
     saldo_acumulado = float(row_rep['total_rep'] or 0.0) if row_rep else 0.0
@@ -910,7 +1023,6 @@ def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), mo
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# ACTUALIZACIÓN EN VIVO DE SISTEMAS DESDE LA AGENCIA (ACTUALIZA DIRECTO EL MONTO)
 @app.post("/actualizar-reporte-sistema")
 def post_actualizar_reporte_sistema(
     agencia: str = Form(...),
@@ -978,6 +1090,17 @@ def post_actualizar_reporte_sistema(
         </tr>'''
         html_modificado = re.sub(patron_totales, nueva_fila_totales, html_modificado, flags=re.DOTALL | re.IGNORECASE)
 
+        monto_anterior = float(rep['monto'] or 0.0)
+        diferencial = sum_t - monto_anterior
+        hoy_str = obtener_fecha_venezuela()
+
+        if fecha < hoy_str and abs(diferencial) > 0.01:
+            cursor.execute(
+                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) 
+                   VALUES (%s, %s, %s, %s, %s, 'AJUSTE_PENDIENTE', 'APROBADO')""",
+                (agencia_norm, hoy_str, diferencial, f"Modificación {sistema} del {fecha}", f"Diferencial: Bs. {diferencial:,.2f}")
+            )
+
         cursor.execute(
             "UPDATE reportes SET monto = %s, detalle_html = %s, ventas = %s, premios = %s WHERE id = %s",
             (sum_t, html_modificado, sum_v, sum_p, rep['id'])
@@ -994,7 +1117,9 @@ def post_actualizar_reporte_sistema(
     conn.close()
 
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    recalcular_y_actualizar_reporte(agencia_norm, obtener_fecha_venezuela())
+    hoy_vzla = obtener_fecha_venezuela()
+    if fecha != hoy_vzla:
+        recalcular_y_actualizar_reporte(agencia_norm, hoy_vzla)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/eliminar-transaccion")
@@ -1098,7 +1223,6 @@ def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# LIQUIDAR SALDO NEGATIVO CON SUBIDA DE CAPTURE DIRECTO
 @app.post("/admin/liquidar-saldo-negativo")
 async def post_liquidar_saldo_negativo(
     agencia: str = Form(...),
@@ -1381,6 +1505,7 @@ def get_admin(
 
         (
             sistemas_consolidados,
+            sistemas_agencias_detalle,
             totales_generales,
             totales_auxiliares,
             desglose_banqueros,
@@ -1400,6 +1525,7 @@ def get_admin(
             "positivos": positivos,
             "negativos": negativos,
             "sistemas_consolidados": sistemas_consolidados,
+            "sistemas_agencias_detalle": sistemas_agencias_detalle,
             "totales_generales": totales_generales,
             "totales_auxiliares": totales_auxiliares,
             "desglose_banqueros": desglose_banqueros,
