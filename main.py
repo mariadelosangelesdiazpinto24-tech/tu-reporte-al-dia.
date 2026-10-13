@@ -36,12 +36,26 @@ SISTEMAS_OFICIALES = [
     "WINBIG POLLAS", "VENTA ACTIVA", "PARLEY", "CALAMAR", "GUACA"
 ]
 
+# HOMOLOGACIÓN DE ALIAS PARA EVITAR DUPLICACIONES
+ALIAS_AGENCIAS = {
+    "RUTA MILLONARIA": "ANA MARIA",
+    "DESTINO FORTUNA": "DESTINO SUERTE",
+    "LA SUERTE DE JANN": "NABEL",
+    "DATOS VIP 23": "VIP23",
+    "CAMINO DE LA SUERTE": "FERNANDO",
+    "LADD LA CONEJITA": "MILA",
+    "AGENCIA VALLEMIL": "VALLEMIL",
+    "AGENCIA ORQUIDEA 2": "ORQUIDEA",
+    "AGENCIA ORQUÍDEA 2": "ORQUIDEA"
+}
+
 def normalizar(texto: str) -> str:
     if not texto:
         return ""
     texto = unicodedata.normalize('NFD', texto)
     texto = ''.join(c for c in texto if unicodedata.category(c) != 'Mn')
-    return texto.strip().upper()
+    texto_limpio = texto.strip().upper()
+    return ALIAS_AGENCIAS.get(texto_limpio, texto_limpio)
 
 def formatear_monto(valor):
     try:
@@ -179,6 +193,29 @@ def init_db():
     except Exception:
         pass
 
+    # ==============================================================
+    # MIGRACIÓN AUTOMÁTICA: UNIFICAR RUTA MILLONARIA CON ANA MARIA
+    # ==============================================================
+    try:
+        cursor.execute("UPDATE pagos SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
+        cursor.execute("UPDATE lecturas_comunicados SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
+        
+        # Eliminar duplicados exactos en reportes para las mismas fechas
+        cursor.execute("""
+            DELETE FROM reportes r1
+            WHERE UPPER(TRIM(r1.agencia)) = 'RUTA MILLONARIA'
+              AND EXISTS (
+                  SELECT 1 FROM reportes r2 
+                  WHERE UPPER(TRIM(r2.agencia)) = 'ANA MARIA' 
+                    AND r2.fecha = r1.fecha
+              )
+        """)
+        # Cambiar los que queden de RUTA MILLONARIA a ANA MARIA
+        cursor.execute("UPDATE reportes SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
+        cursor.execute("DELETE FROM usuarios WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
+    except Exception as e_mig:
+        print("Aviso en migración unificación:", e_mig)
+
     cursor.execute("SELECT COUNT(*) AS total FROM configuracion_banqueros")
     cuenta = cursor.fetchone()
     if cuenta and cuenta['total'] == 0:
@@ -265,7 +302,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
     totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
 
     for rep_db in reps_db:
-        ag_origen = rep_db['agencia']
+        ag_origen = normalizar(rep_db['agencia'])
         if rep_db and rep_db['detalle_html']:
             tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', rep_db['detalle_html'], re.DOTALL)
             if tabla_match:
@@ -763,11 +800,20 @@ def get_banquero(
     })
 
 @app.get("/agencia", response_class=HTMLResponse)
-def get_agencia(request: Request, nombre: Optional[str] = None):
+def get_agencia(
+    request: Request, 
+    nombre: Optional[str] = None,
+    desde_fecha: Optional[str] = None,
+    hasta_fecha: Optional[str] = None
+):
     if not nombre:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
     
     agencia_norm = normalizar(nombre)
+    hoy_vzla = obtener_fecha_venezuela()
+    f_desde = desde_fecha if desde_fecha else hoy_vzla
+    f_hasta = hasta_fecha if hasta_fecha else hoy_vzla
+
     conn = get_db()
     cursor = conn.cursor()
     
@@ -780,7 +826,6 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
     reportes_agencia = []
     for r in reportes_agencia_raw:
         r_dict = dict(r)
-        
         comision_sum = 0.0
         if r_dict.get('detalle_html'):
             tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', r_dict['detalle_html'], re.DOTALL)
@@ -800,7 +845,49 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
             
         r_dict['comision'] = comision_sum
         reportes_agencia.append(r_dict)
+
+    # AUDITORÍA DE SISTEMAS PROPIA DE ESTA AGENCIA POR RANGO DE FECHAS
+    cursor.execute(
+        "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s", 
+        (agencia_norm, f_desde, f_hasta)
+    )
+    reps_rango = cursor.fetchall()
     
+    auditoria_sistemas_agencia = {}
+    totales_auditoria = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
+    
+    for rep_item in reps_rango:
+        if rep_item and rep_item['detalle_html']:
+            t_match = re.search(r'<table[^>]*>(.*?)<\/table>', rep_item['detalle_html'], re.DOTALL)
+            if t_match:
+                filas_s = re.findall(r'<tr[^>]*>(.*?)<\/tr>', t_match.group(1), re.DOTALL)
+                for fs in filas_s:
+                    cols_s = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', fs, re.DOTALL)
+                    if len(cols_s) >= 5:
+                        s_name = re.sub(r'<[^>]+>', '', cols_s[0]).strip()
+                        if not s_name or "SISTEMA" in s_name.upper() or "TOTALES" in s_name.upper():
+                            continue
+                        try:
+                            sv = float(re.sub(r'[^\d.-]', '', cols_s[1]))
+                            sc = float(re.sub(r'[^\d.-]', '', cols_s[2]))
+                            sp = float(re.sub(r'[^\d.-]', '', cols_s[3]))
+                            st = float(re.sub(r'[^\d.-]', '', cols_s[4]))
+                        except:
+                            sv, sc, sp, st = 0.0, 0.0, 0.0, 0.0
+                        
+                        if s_name not in auditoria_sistemas_agencia:
+                            auditoria_sistemas_agencia[s_name] = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
+                        
+                        auditoria_sistemas_agencia[s_name]["venta"] += sv
+                        auditoria_sistemas_agencia[s_name]["comision"] += sc
+                        auditoria_sistemas_agencia[s_name]["premio"] += sp
+                        auditoria_sistemas_agencia[s_name]["neto"] += st
+                        
+                        totales_auditoria["venta"] += sv
+                        totales_auditoria["comision"] += sc
+                        totales_auditoria["premio"] += sp
+                        totales_auditoria["neto"] += st
+
     cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
     pagos_agencia = [dict(row) for row in cursor.fetchall()]
     
@@ -831,7 +918,11 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
         "pagos": pagos_agencia,
         "comunicados": comunicados,
         "sistemas": SISTEMAS_OFICIALES,
-        "saldo_actual": saldo_acumulado
+        "saldo_actual": saldo_acumulado,
+        "auditoria_sistemas": auditoria_sistemas_agencia,
+        "totales_auditoria": totales_auditoria,
+        "desde_fecha": f_desde,
+        "hasta_fecha": f_hasta
     })
 
 @app.post("/agencia/cambiar-clave")
@@ -1107,6 +1198,7 @@ def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
+# LIQUIDAR SALDO NEGATIVO CON SUBIDA DE CAPTURE DIRECTO
 @app.post("/admin/liquidar-saldo-negativo")
 async def post_liquidar_saldo_negativo(
     agencia: str = Form(...),
