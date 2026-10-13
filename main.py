@@ -1442,6 +1442,39 @@ def post_eliminar_agencia(agencia_id: int = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
 
+@app.post("/admin/editar-monto-reporte")
+def post_editar_monto_reporte(
+    agencia: str = Form(...),
+    fecha: str = Form(...),
+    nuevo_monto: float = Form(...)
+):
+    agencia_norm = normalizar(agencia)
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE reportes SET monto = %s WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s",
+        (nuevo_monto, agencia_norm, fecha)
+    )
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/eliminar-ajustes-agencia")
+def post_eliminar_ajustes_agencia(
+    agencia: str = Form(...),
+    fecha: str = Form(...)
+):
+    agencia_norm = normalizar(agencia)
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_PENDIENTE'",
+        (agencia_norm,)
+    )
+    conn.commit()
+    conn.close()
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
+    return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 @app.get("/admin", response_class=HTMLResponse)
 def get_admin(
     request: Request, 
