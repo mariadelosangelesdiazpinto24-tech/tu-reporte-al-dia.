@@ -36,7 +36,6 @@ SISTEMAS_OFICIALES = [
     "WINBIG POLLAS", "MATRIX", "PARLEY", "CALAMAR", "GUACA"
 ]
 
-# HOMOLOGACIÓN DE ALIAS DE AGENCIAS (INCLUYENDO MILA / LADD LA CONEJITA)
 ALIAS_AGENCIAS = {
     "RUTA MILLONARIA": "ANA MARIA",
     "DESTINO FORTUNA": "DESTINO SUERTE",
@@ -207,7 +206,6 @@ def init_db():
         )
     ''')
 
-    # UNIFICACIÓN DE ALIAS DIRECTOS EN DB (ANA MARIA Y MILA)
     try:
         cursor.execute("UPDATE pagos SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
         cursor.execute("UPDATE reportes SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
@@ -727,7 +725,7 @@ async def guardar_reporte_colab(request: Request):
                VALUES ('COMERCIALIZADORA NYS', 'CALAMAR', %s, %s, %s, %s)
                ON CONFLICT (banquero, sistema, fecha)
                DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
-            (fecha, venta_nys, venta_nys * 0.18, premios_nys)
+            (fecha, venta_nys, comis_nys, premios_nys)
         )
 
     conn.commit()
@@ -851,7 +849,6 @@ def get_agencia(
     conn = get_db()
     cursor = conn.cursor()
     
-    # Búsqueda amplia para garantizar que MILA y alias se encuentren siempre
     cursor.execute("SELECT * FROM usuarios WHERE UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) = 'MILA'", (agencia_norm,))
     agencia_info = cursor.fetchone()
     
@@ -1317,7 +1314,6 @@ def post_actualizar_regla_banquero(
     url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
-# NOMBRE CORREGIDO CON GUIONES BAJOS PARA EVITAR SYNTAXERROR
 @app.post("/admin/guardar-ajuste-banquero-sistema")
 def post_guardar_ajuste_banquero_sistema(
     banquero: str = Form(...),
