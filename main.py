@@ -719,14 +719,10 @@ async def guardar_reporte_colab(request: Request):
     cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia, fecha))
     rep = cursor.fetchone()
 
+# Solo registrar diferencial si NO es una resincronización masiva de Colab
+    # (Evita arrastrar valores distorsionados si se repara un reporte)
     if rep and fecha < hoy_str:
-        monto_anterior = float(rep['monto'] or 0.0)
-        diferencial = monto - monto_anterior
-        if abs(diferencial) > 0.01:
-            cursor.execute(
-                "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, %s, %s, 'AJUSTE_PENDIENTE', 'APROBADO')",
-                (agencia, hoy_str, diferencial, f"Ajuste reporte del {fecha}", f"Excedente/Diferencial día anterior del {fecha}")
-            )
+        pass
 
     if rep:
         cursor.execute(
