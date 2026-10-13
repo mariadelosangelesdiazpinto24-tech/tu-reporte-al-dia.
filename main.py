@@ -5,6 +5,7 @@ import psycopg2.extras
 import unicodedata
 import re
 import shutil
+import traceback
 from zoneinfo import ZoneInfo
 from typing import Optional
 from datetime import datetime
@@ -210,29 +211,34 @@ def init_db():
         )
     ''')
 
-    # RESCATE Y ASIGNACIÓN AUTOMÁTICA DE TODOS LOS REPORTES Y PAGOS DE MILA
     try:
+        cursor.execute("UPDATE pagos SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
+        cursor.execute("UPDATE reportes SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
+        cursor.execute("UPDATE lecturas_comunicados SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
+        
         cursor.execute("""
             UPDATE reportes 
             SET agencia = 'MILA' 
-            WHERE UPPER(TRIM(agencia)) LIKE '%CONEJITA%' 
-               OR UPPER(TRIM(agencia)) LIKE '%EMILY%' 
-               OR UPPER(TRIM(agencia)) = 'LADD LA CONEJITA'
+            WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA', 'EMILY LARA', 'EMILY', 'MILA SPORT')
         """)
         cursor.execute("""
             UPDATE pagos 
             SET agencia = 'MILA' 
-            WHERE UPPER(TRIM(agencia)) LIKE '%CONEJITA%' 
-               OR UPPER(TRIM(agencia)) LIKE '%EMILY%' 
-               OR UPPER(TRIM(agencia)) = 'LADD LA CONEJITA'
+            WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA', 'EMILY LARA', 'EMILY', 'MILA SPORT')
         """)
+        cursor.execute("""
+            UPDATE lecturas_comunicados 
+            SET agencia = 'MILA' 
+            WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA', 'EMILY LARA', 'EMILY', 'MILA SPORT')
+        """)
+        
         cursor.execute("""
             INSERT INTO usuarios (agencia, clave, genero, rol)
             VALUES ('MILA', '123456', 'FEMENINO', 'TAQUILLA')
             ON CONFLICT (agencia) DO NOTHING
         """)
     except Exception as e_res:
-        print("Aviso rescate MILA:", e_res)
+        print("Aviso inicialización:", e_res)
 
     conn.commit()
     conn.close()
@@ -281,18 +287,10 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
 
     if agencia_filtro:
         ag_norm = normalizar(agencia_filtro)
-        if ag_norm == "MILA":
-            cursor.execute(
-                """SELECT * FROM reportes 
-                   WHERE (UPPER(TRIM(agencia)) = 'MILA' OR UPPER(TRIM(agencia)) LIKE '%CONEJITA%' OR UPPER(TRIM(agencia)) LIKE '%EMILY%') 
-                     AND fecha >= %s AND fecha <= %s""", 
-                (f_desde, f_hasta)
-            )
-        else:
-            cursor.execute(
-                "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s", 
-                (ag_norm, f_desde, f_hasta)
-            )
+        cursor.execute(
+            "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s", 
+            (ag_norm, f_desde, f_hasta)
+        )
     else:
         cursor.execute("SELECT * FROM reportes WHERE fecha >= %s AND fecha <= %s", (f_desde, f_hasta))
     
@@ -350,18 +348,10 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
 
     if agencia_filtro:
         ag_norm = normalizar(agencia_filtro)
-        if ag_norm == "MILA":
-            cursor.execute(
-                """SELECT tipo, monto FROM pagos 
-                   WHERE (UPPER(TRIM(agencia)) = 'MILA' OR UPPER(TRIM(agencia)) LIKE '%CONEJITA%' OR UPPER(TRIM(agencia)) LIKE '%EMILY%') 
-                     AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'""", 
-                (f_desde, f_hasta)
-            )
-        else:
-            cursor.execute(
-                "SELECT tipo, monto FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'", 
-                (ag_norm, f_desde, f_hasta)
-            )
+        cursor.execute(
+            "SELECT tipo, monto FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'", 
+            (ag_norm, f_desde, f_hasta)
+        )
     else:
         cursor.execute("SELECT tipo, monto FROM pagos WHERE fecha >= %s AND fecha <= %s AND estado = 'APROBADO'", (f_desde, f_hasta))
     
@@ -485,37 +475,35 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
         "suma_cuadros_banqueros": suma_cuadros_banqueros
     }
 
+def actualizar_ultima_conexion(agencia: str):
+    agencia_norm = normalizar(agencia)
+    if agencia_norm and agencia_norm != "ADMIN":
+        try:
+            now_str = obtener_fechahora_venezuela()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE usuarios SET ultima_conexion = %s WHERE UPPER(TRIM(agencia)) = %s", (now_str, agencia_norm))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print("Error actualizando conexion:", e)
+
 def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     agencia_norm = normalizar(agencia)
     conn = get_db()
     cursor = conn.cursor()
     
-    cursor.execute(
-        """SELECT * FROM reportes 
-           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) = 'MILA' OR UPPER(TRIM(agencia)) LIKE '%CONEJITA%') 
-             AND fecha = %s""", 
-        (agencia_norm, fecha_reporte)
-    )
+    cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha_reporte))
     rep = cursor.fetchone()
     
     if not rep:
         conn.close()
         return
 
-    cursor.execute(
-        """SELECT * FROM pagos 
-           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) = 'MILA' OR UPPER(TRIM(agencia)) LIKE '%CONEJITA%') 
-             AND fecha = %s AND estado = 'APROBADO'""", 
-        (agencia_norm, fecha_reporte)
-    )
+    cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND estado = 'APROBADO'", (agencia_norm, fecha_reporte))
     todos_pagos = cursor.fetchall()
     
-    cursor.execute(
-        """SELECT * FROM pagos 
-           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) = 'MILA' OR UPPER(TRIM(agencia)) LIKE '%CONEJITA%') 
-             AND tipo = 'AJUSTE_PENDIENTE' AND estado = 'APROBADO'""", 
-        (agencia_norm,)
-    )
+    cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_PENDIENTE' AND estado = 'APROBADO'", (agencia_norm,))
     ajustes_anteriores = cursor.fetchall()
 
     conn.close()
@@ -643,12 +631,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute(
-        """UPDATE reportes SET monto = %s, detalle_html = %s 
-           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) = 'MILA' OR UPPER(TRIM(agencia)) LIKE '%CONEJITA%') 
-             AND fecha = %s""", 
-        (monto_final, detalle_actualizado, agencia_norm, fecha_reporte)
-    )
+    cursor.execute("UPDATE reportes SET monto = %s, detalle_html = %s WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (monto_final, detalle_actualizado, agencia_norm, fecha_reporte))
     conn.commit()
     conn.close()
 
@@ -735,12 +718,7 @@ async def guardar_reporte_colab(request: Request):
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute(
-        """SELECT * FROM reportes 
-           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) = 'MILA' OR UPPER(TRIM(agencia)) LIKE '%CONEJITA%') 
-             AND fecha = %s""", 
-        (agencia, fecha)
-    )
+    cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia, fecha))
     rep = cursor.fetchone()
 
     if rep and fecha < hoy_str:
@@ -764,12 +742,7 @@ async def guardar_reporte_colab(request: Request):
         )
 
     if cashea_monto > 0:
-        cursor.execute(
-            """SELECT id FROM pagos 
-               WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) = 'MILA' OR UPPER(TRIM(agencia)) LIKE '%CONEJITA%') 
-                 AND fecha = %s AND tipo = 'CASHEA'""", 
-            (agencia, fecha)
-        )
+        cursor.execute("SELECT id FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo = 'CASHEA'", (agencia, fecha))
         cashea_db = cursor.fetchone()
         if cashea_db:
             cursor.execute(
@@ -825,12 +798,7 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute(
-        """SELECT * FROM usuarios 
-           WHERE UPPER(TRIM(agencia)) = %s 
-              OR (UPPER(TRIM(agencia)) = 'MILA' AND %s = 'MILA')""", 
-        (usuario_norm, usuario_norm)
-    )
+    cursor.execute("SELECT * FROM usuarios WHERE UPPER(TRIM(agencia)) = %s", (usuario_norm,))
     user_data = cursor.fetchone()
     conn.close()
 
@@ -1522,7 +1490,8 @@ def get_admin(
         f_hasta = hasta_fecha if hasta_fecha else fecha_bd_reciente
         agencia_filtro = agencia if agencia else ""
 
-        cursor.execute("SELECT COUNT(*) AS total_pendientes FROM pagos WHERE estado ILIKE '%%PENDIENTE%%'")
+        # Conteo seguro de pendientes
+        cursor.execute("SELECT COUNT(*) AS total_pendientes FROM pagos WHERE estado = 'PENDIENTE'")
         pend_row = cursor.fetchone()
         solicitudes_pendientes_count = pend_row['total_pendientes'] if pend_row else 0
 
@@ -1627,5 +1596,5 @@ def get_admin(
         })
 
     except Exception as e:
-        print("Error en admin:", e)
+        traceback.print_exc()
         return HTMLResponse(content=f"Error interno en admin: {e}", status_code=500)
