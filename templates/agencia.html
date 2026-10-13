@@ -31,6 +31,42 @@
             background: {% if agencia and agencia.genero == 'MASCULINO' %}linear-gradient(135deg, #0d47a1, #1976d2){% else %}linear-gradient(135deg, #ad1457, #d81b60){% endif %} !important; 
             color: white !important; 
         }
+
+        /* ESTILOS DE TABLA MEJORADA PARA MODAL DE REPORTE */
+        .modal-cuerpo-reporte table {
+            width: 100% !important;
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
+            border: 1px solid #dee2e6 !important;
+            border-radius: 10px !important;
+            overflow: hidden !important;
+            background-color: #ffffff !important;
+        }
+        .modal-cuerpo-reporte th {
+            background-color: #212529 !important;
+            color: #ffffff !important;
+            padding: 10px 14px !important;
+            font-size: 13px !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+            white-space: nowrap !important;
+        }
+        .modal-cuerpo-reporte td {
+            padding: 10px 14px !important;
+            font-size: 13.5px !important;
+            border-bottom: 1px solid #eceff1 !important;
+            white-space: nowrap !important;
+            font-weight: 500 !important;
+        }
+        .modal-cuerpo-reporte tr:hover {
+            background-color: #f1f8e9 !important;
+        }
+        .modal-cuerpo-reporte tr:last-child td {
+            border-bottom: none !important;
+            background-color: #e8f5e9 !important;
+            font-weight: bold !important;
+            font-size: 14px !important;
+        }
     </style>
 </head>
 <body>
@@ -407,13 +443,13 @@
     <!-- MODALES DE DETALLE REPORTE CON BOTÓN "SOLICITAR A LA BANCA" -->
     {% for r in reportes %}
     <div class="modal fade" id="modalDetalle{{ r.id }}" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content" style="border-radius: 16px;">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 16px; overflow: hidden;">
                 <div class="modal-header text-white" style="background: {% if agencia and agencia.genero == 'MASCULINO' %}linear-gradient(135deg, #0d47a1, #1976d2){% else %}linear-gradient(135deg, #ad1457, #d81b60){% endif %};">
                     <h5 class="modal-title fw-bold"><i class="fas fa-file-invoice me-2"></i>Reporte Fecha: {{ r.fecha }} 🍀🌺</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body bg-light modal-cuerpo-reporte">
+                <div class="modal-body bg-light p-3 modal-cuerpo-reporte" style="overflow-x: auto;">
                     {{ r.detalle_html | safe }}
                 </div>
                 <div class="modal-footer bg-white d-flex justify-content-between align-items-center">
