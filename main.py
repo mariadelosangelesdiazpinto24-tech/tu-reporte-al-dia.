@@ -36,7 +36,6 @@ SISTEMAS_OFICIALES = [
     "WINBIG POLLAS", "MATRIX", "PARLEY", "CALAMAR", "GUACA"
 ]
 
-# HOMOLOGACIÓN DE ALIAS DE AGENCIAS
 ALIAS_AGENCIAS = {
     "RUTA MILLONARIA": "ANA MARIA",
     "DESTINO FORTUNA": "DESTINO SUERTE",
@@ -208,17 +207,13 @@ def init_db():
         )
     ''')
 
-    # UNIFICACIÓN INMEDIATA EN BASE DE DATOS (MILA Y ANA MARIA)
     try:
         cursor.execute("UPDATE pagos SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
         cursor.execute("UPDATE reportes SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
         cursor.execute("UPDATE lecturas_comunicados SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
-        
-        # Unificar toda variante de la Conejita a MILA
         cursor.execute("UPDATE pagos SET agencia = 'MILA' WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA')")
         cursor.execute("UPDATE reportes SET agencia = 'MILA' WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA')")
         cursor.execute("UPDATE lecturas_comunicados SET agencia = 'MILA' WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA')")
-        
         cursor.execute("DELETE FROM usuarios WHERE UPPER(TRIM(agencia)) IN ('RUTA MILLONARIA', 'LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA')")
     except Exception as e_mig:
         print("Aviso en unificación:", e_mig)
@@ -256,7 +251,6 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
     conn = get_db()
     cursor = conn.cursor()
 
-    # Búsqueda tolerante que contempla a MILA y sus alias
     if agencia_filtro:
         ag_norm = normalizar(agencia_filtro)
         if ag_norm == "MILA":
@@ -484,7 +478,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     conn = get_db()
     cursor = conn.cursor()
     
-    # Búsqueda tolerante en reportes
     cursor.execute(
         """SELECT * FROM reportes 
            WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA')) 
@@ -920,7 +913,6 @@ def get_agencia(
     conn = get_db()
     cursor = conn.cursor()
     
-    # Búsqueda tolerante que cubre a MILA bajo todas sus denominaciones
     cursor.execute(
         """SELECT * FROM usuarios 
            WHERE UPPER(TRIM(agencia)) = %s 
@@ -1676,17 +1668,17 @@ def get_admin(
 
         conn.close()
 
-        (
-            sistemas_consolidados,
-            sistemas_agencias_detalle,
-            totales_generales,
-            totales_auxiliares,
-            desglose_banqueros,
-            total_ganancia_excedente,
-            total_ganancia_participacion,
-            total_mi_ganancia_global,
-            suma_cuadros_banqueros
-        ) = calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro)
+        # Retorno de 9 valores garantizado
+        resultado_banqueros = calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro)
+        sistemas_consolidados = resultado_banqueros[0]
+        sistemas_agencias_detalle = resultado_banqueros[1]
+        totales_generales = resultado_banqueros[2]
+        totales_auxiliares = resultado_banqueros[3]
+        desglose_banqueros = resultado_banqueros[4]
+        total_ganancia_excedente = resultado_banqueros[5]
+        total_ganancia_participacion = resultado_banqueros[6]
+        total_mi_ganancia_global = resultado_banqueros[7]
+        suma_cuadros_banqueros = resultado_banqueros[8]
 
         return templates.TemplateResponse(request=request, name="admin.html", context={
             "reportes": reportes,
