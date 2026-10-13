@@ -287,7 +287,7 @@
                                             </td>
                                             <td>
                                                 {% if p.comprobante and (p.comprobante.endswith('.png') or p.comprobante.endswith('.jpg') or p.comprobante.endswith('.jpeg') or p.comprobante.endswith('.pdf')) %}
-                                                    <a href="/uploads/{ p.comprobante }" target="_blank" class="btn btn-sm btn-outline-primary py-0"><i class="fas fa-image me-1"></i>Ver Capture</a>
+                                                    <a href="/uploads/{{ p.comprobante }}" target="_blank" class="btn btn-sm btn-outline-primary py-0"><i class="fas fa-image me-1"></i>Ver Capture</a>
                                                 {% else %}
                                                     {{ p.factura or p.comprobante }}
                                                 {% endif %}
@@ -352,7 +352,7 @@
                 </div>
             </div>
 
-            <!-- 4. BALANCES -->
+            <!-- 4. BALANCES (CON LÁPIZ Y PAPELERA INTEGRADOS) -->
             <div class="tab-pane fade {% if tab == 'balances' or tab_activa == 'balances' %}show active{% endif %}" id="balances" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4 p-3 bg-light rounded">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
@@ -379,13 +379,14 @@
                 </div>
 
                 <div class="row">
+                    <!-- DEBEN A LA BANCA (+) -->
                     <div class="col-md-6 mb-4">
                         <div class="card shadow-sm border-0" style="border-top: 4px solid #198754; border-radius: 12px;">
                             <div class="card-body">
                                 <h5 class="fw-bold text-success mb-2">Deben a la Banca (+)</h5>
                                 <div class="table-responsive">
                                     <table class="table table-hover align-middle mb-0" id="tablaBalancesDeben">
-                                        <thead class="table-light small"><tr><th>AGENCIA</th><th>FECHA</th><th class="text-end">DEUDA</th></tr></thead>
+                                        <thead class="table-light small"><tr><th>AGENCIA</th><th>FECHA</th><th class="text-end">DEUDA</th><th class="text-center">ACCIONES</th></tr></thead>
                                         <tbody>
                                             {% if positivos %}
                                                 {% for pos in positivos %}
@@ -393,18 +394,58 @@
                                                     <td class="fw-bold text-uppercase">{{ pos.agencia }}</td>
                                                     <td><small class="text-muted">{{ pos.fecha }}</small></td>
                                                     <td class="text-end text-success fw-bold">Bs. {{ pos.monto | dinero }}</td>
+                                                    <td class="text-center" onclick="event.stopPropagation();">
+                                                        <div class="d-inline-flex gap-1 align-items-center">
+                                                            <!-- Lápiz para corregir saldo positivo -->
+                                                            <button type="button" class="btn btn-outline-primary btn-sm rounded-circle shadow-sm" data-bs-toggle="modal" data-bs-target="#modalEditarPos{{ loop.index }}" title="Corregir saldo a mano">
+                                                                <i class="fas fa-pencil-alt"></i>
+                                                            </button>
+                                                            <!-- Papelera para borrar ajustes automáticos -->
+                                                            <form action="/admin/eliminar-ajustes-agencia" method="POST" style="display:inline;" onsubmit="return confirm('¿Deseas eliminar los diferenciales automáticos de {{ pos.agencia }} y recalcular?');">
+                                                                <input type="hidden" name="agencia" value="{{ pos.agencia }}">
+                                                                <input type="hidden" name="fecha" value="{{ pos.fecha }}">
+                                                                <button type="submit" class="btn btn-outline-danger btn-sm rounded-circle shadow-sm" title="Eliminar ajustes residuales y resetear">
+                                                                    <i class="fas fa-trash-alt"></i>
+                                                                </button>
+                                                            </form>
+                                                        </div>
+                                                    </td>
                                                 </tr>
                                                 <tr class="collapse bg-light" id="desglosePos{{ loop.index }}">
-                                                    <td colspan="3" class="p-3">
+                                                    <td colspan="4" class="p-3">
                                                         <div class="p-2 border rounded bg-white shadow-sm small">
                                                             <div>Venta: <strong>Bs. {{ pos.ventas | dinero }}</strong> | Premios: <strong class="text-danger">Bs. {{ pos.premios | dinero }}</strong></div>
                                                             <div>Cashea: <strong>Bs. {{ pos.cashea | dinero }}</strong> | Abonos: <strong>Bs. {{ pos.abonos | dinero }}</strong> | Adelantos: <strong>Bs. {{ pos.adelantos | dinero }}</strong></div>
                                                         </div>
                                                     </td>
                                                 </tr>
+
+                                                <!-- MODAL EDITAR POSITIVO -->
+                                                <div class="modal fade" id="modalEditarPos{{ loop.index }}" tabindex="-1" aria-hidden="true">
+                                                    <div class="modal-dialog modal-dialog-centered modal-sm">
+                                                        <div class="modal-content" style="border-radius: 12px; overflow: hidden;">
+                                                            <div class="modal-header bg-dark text-white py-2">
+                                                                <h6 class="modal-title fw-bold m-0"><i class="fas fa-pencil-alt me-2"></i>Corregir: {{ pos.agencia }}</h6>
+                                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                            </div>
+                                                            <form action="/admin/editar-monto-reporte" method="POST">
+                                                                <div class="modal-body">
+                                                                    <input type="hidden" name="agencia" value="{{ pos.agencia }}">
+                                                                    <input type="hidden" name="fecha" value="{{ pos.fecha }}">
+                                                                    <label class="form-label small fw-bold text-dark">Saldo Restante Real (Bs.):</label>
+                                                                    <input type="number" step="0.01" class="form-control" name="nuevo_monto" value="0.00" required>
+                                                                    <small class="text-muted d-block mt-1">Coloca <strong>0.00</strong> si la cuenta ya está saldada.</small>
+                                                                </div>
+                                                                <div class="modal-footer py-2">
+                                                                    <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill">Guardar Saldo</button>
+                                                                </div>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                                 {% endfor %}
                                             {% else %}
-                                                <tr><td colspan="3" class="text-muted text-center py-3">Sin deudores.</td></tr>
+                                                <tr><td colspan="4" class="text-muted text-center py-3">Sin deudores.</td></tr>
                                             {% endif %}
                                         </tbody>
                                     </table>
@@ -413,13 +454,14 @@
                         </div>
                     </div>
 
+                    <!-- A PAGARLES (-) -->
                     <div class="col-md-6 mb-4">
                         <div class="card shadow-sm border-0" style="border-top: 4px solid #dc3545; border-radius: 12px;">
                             <div class="card-body">
                                 <h5 class="fw-bold text-danger mb-2">A Pagarles (-)</h5>
                                 <div class="table-responsive">
                                     <table class="table table-hover align-middle mb-0" id="tablaBalancesFavor">
-                                        <thead class="table-light small"><tr><th>AGENCIA</th><th>FECHA</th><th class="text-end">MONTO</th></tr></thead>
+                                        <thead class="table-light small"><tr><th>AGENCIA</th><th>FECHA</th><th class="text-end">MONTO</th><th class="text-center">ACCIONES</th></tr></thead>
                                         <tbody>
                                             {% if negativos %}
                                                 {% for neg in negativos %}
@@ -428,19 +470,60 @@
                                                     <td class="fw-bold text-uppercase">{{ neg.agencia }}</td>
                                                     <td><small class="text-muted">{{ neg.fecha }}</small></td>
                                                     <td class="text-end text-danger fw-bold">Bs. {{ neg.monto | dinero }}</td>
+                                                    <td class="text-center" onclick="event.stopPropagation();">
+                                                        <div class="d-inline-flex gap-1 align-items-center">
+                                                            <!-- Lápiz para corregir saldo a mano -->
+                                                            <button type="button" class="btn btn-outline-primary btn-sm rounded-circle shadow-sm" data-bs-toggle="modal" data-bs-target="#modalEditarNeg{{ neg_idx }}" title="Corregir saldo a mano">
+                                                                <i class="fas fa-pencil-alt"></i>
+                                                            </button>
+                                                            <!-- Papelera para borrar diferencial erróneo -->
+                                                            <form action="/admin/eliminar-ajustes-agencia" method="POST" style="display:inline;" onsubmit="return confirm('¿Seguro deseas eliminar los diferenciales automáticos de {{ neg.agencia }} y recalcular?');">
+                                                                <input type="hidden" name="agencia" value="{{ neg.agencia }}">
+                                                                <input type="hidden" name="fecha" value="{{ neg.fecha }}">
+                                                                <button type="submit" class="btn btn-outline-danger btn-sm rounded-circle shadow-sm" title="Eliminar diferencial residual y resetear">
+                                                                    <i class="fas fa-trash-alt"></i>
+                                                                </button>
+                                                            </form>
+                                                        </div>
+                                                    </td>
                                                 </tr>
                                                 <tr class="collapse bg-light" id="desgloseNeg{{ neg_idx }}">
-                                                    <td colspan="3" class="p-3">
+                                                    <td colspan="4" class="p-3">
                                                         <div class="p-2 border rounded bg-white shadow-sm small mb-2">
                                                             <div>Venta: <strong>Bs. {{ neg.ventas | dinero }}</strong> | Premios: <strong class="text-danger">Bs. {{ neg.premios | dinero }}</strong></div>
                                                             <div>Cashea: <strong>Bs. {{ neg.cashea | dinero }}</strong> | Abonos: <strong>Bs. {{ neg.abonos | dinero }}</strong> | Adelantos: <strong>Bs. {{ neg.adelantos | dinero }}</strong></div>
                                                         </div>
-                                                        <button class="btn btn-success btn-sm fw-bold w-100" data-bs-toggle="modal" data-bs-target="#modalPagarNeg{{ neg_idx }}">
+                                                        <button class="btn btn-success btn-sm fw-bold w-100 shadow-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#modalPagarNeg{{ neg_idx }}">
                                                             <i class="fas fa-money-bill-wave me-1"></i> Liquidar Saldo con Capture
                                                         </button>
 
+                                                        <!-- MODAL EDITAR NEGATIVO CON LÁPIZ -->
+                                                        <div class="modal fade" id="modalEditarNeg{{ neg_idx }}" tabindex="-1" aria-hidden="true">
+                                                            <div class="modal-dialog modal-dialog-centered modal-sm">
+                                                                <div class="modal-content" style="border-radius: 12px; overflow: hidden;">
+                                                                    <div class="modal-header bg-dark text-white py-2">
+                                                                        <h6 class="modal-title fw-bold m-0"><i class="fas fa-pencil-alt me-2"></i>Corregir: {{ neg.agencia }}</h6>
+                                                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                                    </div>
+                                                                    <form action="/admin/editar-monto-reporte" method="POST">
+                                                                        <div class="modal-body text-start">
+                                                                            <input type="hidden" name="agencia" value="{{ neg.agencia }}">
+                                                                            <input type="hidden" name="fecha" value="{{ neg.fecha }}">
+                                                                            <label class="form-label small fw-bold text-dark">Saldo Restante Real (Bs.):</label>
+                                                                            <input type="number" step="0.01" class="form-control" name="nuevo_monto" value="0.00" required>
+                                                                            <small class="text-muted d-block mt-1">Coloca <strong>0.00</strong> si la cuenta ya está saldada.</small>
+                                                                        </div>
+                                                                        <div class="modal-footer py-2">
+                                                                            <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill">Guardar Saldo</button>
+                                                                        </div>
+                                                                    </form>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- MODAL LIQUIDAR CON CAPTURE -->
                                                         <div class="modal fade" id="modalPagarNeg{{ neg_idx }}" tabindex="-1">
-                                                            <div class="modal-dialog">
+                                                            <div class="modal-dialog modal-dialog-centered">
                                                                 <div class="modal-content text-start">
                                                                     <div class="modal-header bg-success text-white py-2">
                                                                         <h6 class="modal-title fw-bold">Liquidar {{ neg.agencia }}</h6>
@@ -462,7 +545,7 @@
                                                 </tr>
                                                 {% endfor %}
                                             {% else %}
-                                                <tr><td colspan="3" class="text-muted text-center py-3">Sin saldos a favor pendientes.</td></tr>
+                                                <tr><td colspan="4" class="text-muted text-center py-3">Sin saldos a favor pendientes.</td></tr>
                                             {% endif %}
                                         </tbody>
                                     </table>
@@ -473,7 +556,7 @@
                 </div>
             </div>
 
-            <!-- 5. CASHEA GENERAL (CON BOTÓN COPIAR Y FILTRO POR RANGO Y TAQUILLA) -->
+            <!-- 5. CASHEA GENERAL -->
             <div class="tab-pane fade {% if tab == 'cashea' or tab_activa == 'cashea' %}show active{% endif %}" id="cashea" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #00bcd4; border-radius: 15px;">
                     <div class="card-body">
@@ -484,7 +567,6 @@
                             </button>
                         </div>
 
-                        <!-- BUSCADOR POR RANGO Y TAQUILLA -->
                         <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm">
                             <input type="hidden" name="tab" value="cashea">
                             <div class="col-md-4">
@@ -555,7 +637,7 @@
                 </div>
             </div>
 
-            <!-- 6. CONSOLIDADO POR SISTEMAS (CON FILTRO DE TODAS O CUALQUIER AGENCIA) -->
+            <!-- 6. CONSOLIDADO POR SISTEMAS -->
             <div class="tab-pane fade {% if tab == 'consolidado' or tab_activa == 'consolidado' %}show active{% endif %}" id="consolidado" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #e91e63;">
                     <div class="card-body p-3">
@@ -564,7 +646,6 @@
                                 <i class="fas fa-chart-pie me-1"></i> Consolidado por Sistemas
                             </h5>
                             
-                            <!-- SELECTOR DE TODAS O CUALQUIER AGENCIA Y RANGO DE FECHAS -->
                             <form method="GET" action="/admin" class="d-flex flex-wrap align-items-center gap-2">
                                 <input type="hidden" name="tab" value="consolidado">
                                 <div class="d-flex align-items-center gap-1">
@@ -681,7 +762,7 @@
                 </div>
             </div>
 
-            <!-- 8. TOTALIZADOR Y CUANTO DEBERÍA TENER EN LA CUENTA -->
+            <!-- 8. TOTALIZADOR -->
             <div class="tab-pane fade {% if tab == 'totalizador' or tab_activa == 'totalizador' %}show active{% endif %}" id="totalizador" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #0d47a1;">
                     <div class="card-body">
@@ -707,7 +788,6 @@
                             </div>
                         </div>
 
-                        <!-- CUADRO DE CUÁNTO DEBO TENER / COBRAR EN LA CUENTA -->
                         <div class="mt-4 p-3 bg-white border rounded-3 shadow-sm d-flex justify-content-between align-items-center flex-wrap gap-2" style="border-left: 6px solid #0d47a1 !important;">
                             <div>
                                 <h5 class="m-0 fw-bold text-dark"><i class="fas fa-university me-2 text-primary"></i>Cuenta Total con los Banqueros (Suma de Cuadros):</h5>
@@ -755,8 +835,6 @@
                                 </div>
                             </div>
                             <div class="card-body p-3">
-                                
-                                <!-- FORMULARIO: ADELANTOS Y PENDIENTES DEL BANQUERO -->
                                 <form action="/admin/guardar-ajustes-banquero-global" method="POST" class="row g-2 align-items-center mb-3 p-2 bg-light rounded border">
                                     <input type="hidden" name="banquero" value="{{ banquero }}">
                                     <input type="hidden" name="fecha" value="{{ hasta_fecha }}">
