@@ -207,13 +207,16 @@ def init_db():
         )
     ''')
 
+    # Unificación histórica directa en base de datos
     try:
         cursor.execute("UPDATE pagos SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
         cursor.execute("UPDATE reportes SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
         cursor.execute("UPDATE lecturas_comunicados SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
+        
         cursor.execute("UPDATE pagos SET agencia = 'MILA' WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA')")
         cursor.execute("UPDATE reportes SET agencia = 'MILA' WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA')")
         cursor.execute("UPDATE lecturas_comunicados SET agencia = 'MILA' WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA')")
+        
         cursor.execute("DELETE FROM usuarios WHERE UPPER(TRIM(agencia)) IN ('RUTA MILLONARIA', 'LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA')")
     except Exception as e_mig:
         print("Aviso en unificación:", e_mig)
@@ -253,18 +256,10 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
 
     if agencia_filtro:
         ag_norm = normalizar(agencia_filtro)
-        if ag_norm == "MILA":
-            cursor.execute(
-                """SELECT * FROM reportes 
-                   WHERE (UPPER(TRIM(agencia)) ILIKE '%MILA%' OR UPPER(TRIM(agencia)) ILIKE '%CONEJITA%') 
-                     AND fecha >= %s AND fecha <= %s""", 
-                (f_desde, f_hasta)
-            )
-        else:
-            cursor.execute(
-                "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) ILIKE %s AND fecha >= %s AND fecha <= %s", 
-                (f"%{ag_norm}%", f_desde, f_hasta)
-            )
+        cursor.execute(
+            "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s", 
+            (ag_norm, f_desde, f_hasta)
+        )
     else:
         cursor.execute("SELECT * FROM reportes WHERE fecha >= %s AND fecha <= %s", (f_desde, f_hasta))
     
@@ -322,18 +317,10 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
 
     if agencia_filtro:
         ag_norm = normalizar(agencia_filtro)
-        if ag_norm == "MILA":
-            cursor.execute(
-                """SELECT tipo, monto FROM pagos 
-                   WHERE (UPPER(TRIM(agencia)) ILIKE '%MILA%' OR UPPER(TRIM(agencia)) ILIKE '%CONEJITA%') 
-                     AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'""", 
-                (f_desde, f_hasta)
-            )
-        else:
-            cursor.execute(
-                "SELECT tipo, monto FROM pagos WHERE UPPER(TRIM(agencia)) ILIKE %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'", 
-                (f"%{ag_norm}%", f_desde, f_hasta)
-            )
+        cursor.execute(
+            "SELECT tipo, monto FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'", 
+            (ag_norm, f_desde, f_hasta)
+        )
     else:
         cursor.execute("SELECT tipo, monto FROM pagos WHERE fecha >= %s AND fecha <= %s AND estado = 'APROBADO'", (f_desde, f_hasta))
     
@@ -358,9 +345,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
 
     for b_nombre, cfg in ESTRUCTURA_BANQUEROS.items():
         cursor.execute(
-            """SELECT SUM(adelantos) as sum_adelantos, SUM(pendientes) as sum_pendientes 
-               FROM ajustes_globales_banqueros 
-               WHERE banquero = %s AND fecha >= %s AND fecha <= %s""",
+            "SELECT SUM(adelantos) as sum_adelantos, SUM(pendientes) as sum_pendientes FROM ajustes_globales_banqueros WHERE banquero = %s AND fecha >= %s AND fecha <= %s",
             (b_nombre, f_desde, f_hasta)
         )
         row_ajustes_glob = cursor.fetchone()
@@ -389,8 +374,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             pct_part = item["pct_participacion"]
 
             cursor.execute(
-                """SELECT venta, comision, premios FROM ajustes_banqueros_manuales 
-                   WHERE banquero = %s AND sistema = %s AND fecha >= %s AND fecha <= %s""",
+                "SELECT venta, comision, premios FROM ajustes_banqueros_manuales WHERE banquero = %s AND sistema = %s AND fecha >= %s AND fecha <= %s",
                 (b_nombre, s_name, f_desde, f_hasta)
             )
             ajuste_manual = cursor.fetchone()
@@ -478,32 +462,17 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     conn = get_db()
     cursor = conn.cursor()
     
-    cursor.execute(
-        """SELECT * FROM reportes 
-           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA')) 
-             AND fecha = %s""", 
-        (agencia_norm, fecha_reporte)
-    )
+    cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha_reporte))
     rep = cursor.fetchone()
     
     if not rep:
         conn.close()
         return
 
-    cursor.execute(
-        """SELECT * FROM pagos 
-           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA')) 
-             AND fecha = %s AND estado = 'APROBADO'""", 
-        (agencia_norm, fecha_reporte)
-    )
+    cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND estado = 'APROBADO'", (agencia_norm, fecha_reporte))
     todos_pagos = cursor.fetchall()
     
-    cursor.execute(
-        """SELECT * FROM pagos 
-           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA')) 
-             AND tipo = 'AJUSTE_PENDIENTE' AND estado = 'APROBADO'""", 
-        (agencia_norm,)
-    )
+    cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_PENDIENTE' AND estado = 'APROBADO'", (agencia_norm,))
     ajustes_anteriores = cursor.fetchall()
 
     conn.close()
@@ -631,12 +600,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute(
-        """UPDATE reportes SET monto = %s, detalle_html = %s 
-           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA')) 
-             AND fecha = %s""", 
-        (monto_final, detalle_actualizado, agencia_norm, fecha_reporte)
-    )
+    cursor.execute("UPDATE reportes SET monto = %s, detalle_html = %s WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (monto_final, detalle_actualizado, agencia_norm, fecha_reporte))
     conn.commit()
     conn.close()
 
@@ -722,12 +686,7 @@ async def guardar_reporte_colab(request: Request):
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute(
-        """SELECT * FROM reportes 
-           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA')) 
-             AND fecha = %s""", 
-        (agencia, fecha)
-    )
+    cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia, fecha))
     rep = cursor.fetchone()
 
     if rep and fecha < hoy_str:
@@ -741,8 +700,8 @@ async def guardar_reporte_colab(request: Request):
 
     if rep:
         cursor.execute(
-            "UPDATE reportes SET agencia = %s, monto = %s, ventas = %s, premios = %s, detalle_html = %s WHERE id = %s",
-            (agencia, monto, ventas, premios, detalle_html, rep['id'])
+            "UPDATE reportes SET monto = %s, ventas = %s, premios = %s, detalle_html = %s WHERE id = %s",
+            (monto, ventas, premios, detalle_html, rep['id'])
         )
     else:
         cursor.execute(
@@ -751,17 +710,12 @@ async def guardar_reporte_colab(request: Request):
         )
 
     if cashea_monto > 0:
-        cursor.execute(
-            """SELECT id FROM pagos 
-               WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA')) 
-                 AND fecha = %s AND tipo = 'CASHEA'""", 
-            (agencia, fecha)
-        )
+        cursor.execute("SELECT id FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo = 'CASHEA'", (agencia, fecha))
         cashea_db = cursor.fetchone()
         if cashea_db:
             cursor.execute(
-                "UPDATE pagos SET agencia = %s, monto = %s, factura = %s, comprobante = %s WHERE id = %s",
-                (agencia, cashea_monto, cashea_detalle, cashea_detalle, cashea_db['id'])
+                "UPDATE pagos SET monto = %s, factura = %s, comprobante = %s WHERE id = %s",
+                (cashea_monto, cashea_detalle, cashea_detalle, cashea_db['id'])
             )
         else:
             cursor.execute(
@@ -812,12 +766,7 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute(
-        """SELECT * FROM usuarios 
-           WHERE UPPER(TRIM(agencia)) = %s 
-              OR (UPPER(TRIM(agencia)) = 'MILA' AND %s IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA'))""", 
-        (usuario_norm, usuario_norm)
-    )
+    cursor.execute("SELECT * FROM usuarios WHERE UPPER(TRIM(agencia)) = %s", (usuario_norm,))
     user_data = cursor.fetchone()
     conn.close()
 
@@ -859,7 +808,6 @@ def get_banquero(
     f_hasta = hasta_fecha if hasta_fecha else fecha_bd_reciente
 
     res_banqueros = calcular_desglose_banqueros_datos(f_desde, f_hasta)
-
     desglose_banqueros = res_banqueros["desglose_banqueros"]
 
     nombre_comercializadora = ""
@@ -908,25 +856,10 @@ def get_agencia(
     conn = get_db()
     cursor = conn.cursor()
     
-    cursor.execute(
-        """SELECT * FROM usuarios 
-           WHERE UPPER(TRIM(agencia)) = %s 
-              OR (UPPER(TRIM(agencia)) = 'MILA' AND %s IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA'))""", 
-        (agencia_norm, agencia_norm)
-    )
+    cursor.execute("SELECT * FROM usuarios WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
     agencia_info = cursor.fetchone()
     
-    if agencia_norm == "MILA":
-        cursor.execute(
-            """SELECT * FROM reportes 
-               WHERE UPPER(TRIM(agencia)) ILIKE '%MILA%' OR UPPER(TRIM(agencia)) ILIKE '%CONEJITA%'
-               ORDER BY fecha DESC"""
-        )
-    else:
-        cursor.execute(
-            "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", 
-            (agencia_norm,)
-        )
+    cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
     reportes_agencia_raw = cursor.fetchall()
 
     fecha_minima = hoy_vzla
@@ -963,18 +896,10 @@ def get_agencia(
         r_dict['comision'] = comision_sum
         reportes_agencia.append(r_dict)
 
-    if agencia_norm == "MILA":
-        cursor.execute(
-            """SELECT * FROM reportes 
-               WHERE (UPPER(TRIM(agencia)) ILIKE '%MILA%' OR UPPER(TRIM(agencia)) ILIKE '%CONEJITA%') 
-                 AND fecha >= %s AND fecha <= %s ORDER BY fecha ASC""", 
-            (f_desde, f_hasta)
-        )
-    else:
-        cursor.execute(
-            "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha ASC", 
-            (agencia_norm, f_desde, f_hasta)
-        )
+    cursor.execute(
+        "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha ASC", 
+        (agencia_norm, f_desde, f_hasta)
+    )
     reps_rango = cursor.fetchall()
     
     auditoria_sistemas_agencia = {}
@@ -1015,14 +940,7 @@ def get_agencia(
                         totales_auditoria["premio"] += sp
                         totales_auditoria["neto"] += st
 
-    if agencia_norm == "MILA":
-        cursor.execute(
-            """SELECT * FROM pagos 
-               WHERE (UPPER(TRIM(agencia)) ILIKE '%MILA%' OR UPPER(TRIM(agencia)) ILIKE '%CONEJITA%') 
-               ORDER BY id DESC"""
-        )
-    else:
-        cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
+    cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
     pagos_agencia = [dict(row) for row in cursor.fetchall()]
     
     try:
@@ -1039,13 +957,7 @@ def get_agencia(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
     
-    if agencia_norm == "MILA":
-        cursor.execute(
-            """SELECT SUM(monto) AS total_rep FROM reportes 
-               WHERE UPPER(TRIM(agencia)) ILIKE '%MILA%' OR UPPER(TRIM(agencia)) ILIKE '%CONEJITA%'"""
-        )
-    else:
-        cursor.execute("SELECT SUM(monto) AS total_rep FROM reportes WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
+    cursor.execute("SELECT SUM(monto) AS total_rep FROM reportes WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
     row_rep = cursor.fetchone()
     saldo_acumulado = float(row_rep['total_rep'] or 0.0) if row_rep else 0.0
 
@@ -1074,12 +986,7 @@ def post_cambiar_clave(agencia: str = Form(...), nueva_clave: str = Form(...), c
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute(
-        """UPDATE usuarios SET clave = %s 
-           WHERE UPPER(TRIM(agencia)) = %s 
-              OR (UPPER(TRIM(agencia)) = 'MILA' AND %s IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA'))""", 
-        (nueva_clave.strip(), agencia_norm, agencia_norm)
-    )
+    cursor.execute("UPDATE usuarios SET clave = %s WHERE UPPER(TRIM(agencia)) = %s", (nueva_clave.strip(), agencia_norm))
     conn.commit()
     conn.close()
 
@@ -1170,12 +1077,7 @@ def post_actualizar_reporte_sistema(
     conn = get_db()
     cursor = conn.cursor()
     
-    cursor.execute(
-        """SELECT * FROM reportes 
-           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA')) 
-             AND fecha = %s""", 
-        (agencia_norm, fecha)
-    )
+    cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha))
     rep = cursor.fetchone()
     
     if rep and rep['detalle_html']:
@@ -1547,7 +1449,7 @@ def get_admin(
 
         if agencia and not desde_fecha and not hasta_fecha:
             ag_norm = normalizar(agencia)
-            cursor.execute("SELECT fecha FROM reportes WHERE UPPER(TRIM(agencia)) ILIKE %s ORDER BY id DESC LIMIT 1", (f"%{ag_norm}%",))
+            cursor.execute("SELECT fecha FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC LIMIT 1", (ag_norm,))
             fila_ag = cursor.fetchone()
             if fila_ag and fila_ag['fecha']:
                 fecha_bd_reciente = fila_ag['fecha']
@@ -1556,25 +1458,16 @@ def get_admin(
         f_hasta = hasta_fecha if hasta_fecha else fecha_bd_reciente
         agencia_filtro = agencia if agencia else ""
 
-        cursor.execute("SELECT COUNT(*) AS total_pendientes FROM pagos WHERE estado ILIKE '%PENDIENTE%'")
+        cursor.execute("SELECT COUNT(*) AS total_pendientes FROM pagos WHERE estado ILIKE '%%PENDIENTE%%'")
         pend_row = cursor.fetchone()
         solicitudes_pendientes_count = pend_row['total_pendientes'] if pend_row else 0
 
         if agencia_filtro:
             ag_f_norm = normalizar(agencia_filtro)
-            if ag_f_norm == "MILA":
-                cursor.execute(
-                    """SELECT * FROM pagos 
-                       WHERE tipo = 'CASHEA' 
-                         AND (UPPER(TRIM(agencia)) ILIKE '%MILA%' OR UPPER(TRIM(agencia)) ILIKE '%CONEJITA%') 
-                         AND fecha >= %s AND fecha <= %s ORDER BY id DESC""", 
-                    (f_desde, f_hasta)
-                )
-            else:
-                cursor.execute(
-                    "SELECT * FROM pagos WHERE tipo = 'CASHEA' AND UPPER(TRIM(agencia)) ILIKE %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", 
-                    (f"%{ag_f_norm}%", f_desde, f_hasta)
-                )
+            cursor.execute(
+                "SELECT * FROM pagos WHERE tipo = 'CASHEA' AND UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", 
+                (ag_f_norm, f_desde, f_hasta)
+            )
         else:
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (f_desde, f_hasta))
         
@@ -1589,39 +1482,17 @@ def get_admin(
             ag_nombre = ag['agencia']
             ag_n_norm = normalizar(ag_nombre)
             
-            if ag_n_norm == "MILA":
-                cursor.execute(
-                    """SELECT SUM(ventas) as total_ventas, SUM(premios) as total_premios, SUM(monto) as saldo_neto, MAX(fecha) as ultima_fecha
-                       FROM reportes 
-                       WHERE (UPPER(TRIM(agencia)) ILIKE '%MILA%' OR UPPER(TRIM(agencia)) ILIKE '%CONEJITA%') 
-                         AND fecha >= %s AND fecha <= %s""",
-                    (f_desde, f_hasta)
-                )
-                fila_rep = cursor.fetchone()
-                
-                cursor.execute(
-                    """SELECT tipo, SUM(monto) as total_monto FROM pagos 
-                       WHERE (UPPER(TRIM(agencia)) ILIKE '%MILA%' OR UPPER(TRIM(agencia)) ILIKE '%CONEJITA%') 
-                         AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'
-                       GROUP BY tipo""",
-                    (f_desde, f_hasta)
-                )
-                filas_pagos = cursor.fetchall()
-            else:
-                cursor.execute(
-                    """SELECT SUM(ventas) as total_ventas, SUM(premios) as total_premios, SUM(monto) as saldo_neto, MAX(fecha) as ultima_fecha
-                       FROM reportes WHERE UPPER(TRIM(agencia)) ILIKE %s AND fecha >= %s AND fecha <= %s""",
-                    (f"%{ag_n_norm}%", f_desde, f_hasta)
-                )
-                fila_rep = cursor.fetchone()
-                
-                cursor.execute(
-                    """SELECT tipo, SUM(monto) as total_monto FROM pagos 
-                       WHERE UPPER(TRIM(agencia)) ILIKE %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'
-                       GROUP BY tipo""",
-                    (f"%{ag_n_norm}%", f_desde, f_hasta)
-                )
-                filas_pagos = cursor.fetchall()
+            cursor.execute(
+                "SELECT SUM(ventas) as total_ventas, SUM(premios) as total_premios, SUM(monto) as saldo_neto, MAX(fecha) as ultima_fecha FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s",
+                (ag_n_norm, f_desde, f_hasta)
+            )
+            fila_rep = cursor.fetchone()
+            
+            cursor.execute(
+                "SELECT tipo, SUM(monto) as total_monto FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO' GROUP BY tipo",
+                (ag_n_norm, f_desde, f_hasta)
+            )
+            filas_pagos = cursor.fetchall()
             
             sum_abonos = 0.0
             sum_cashea = 0.0
@@ -1663,7 +1534,6 @@ def get_admin(
 
         conn.close()
 
-        # Acceso por claves de diccionario: sin riesgo de tuple index out of range
         res = calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro)
 
         return templates.TemplateResponse(request=request, name="admin.html", context={
