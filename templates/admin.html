@@ -13,7 +13,7 @@
         .btn-admin-theme:hover { background-color: #c2185b !important; color: white !important; }
         .border-admin-theme { border-color: #e91e63 !important; }
         .text-admin-theme { color: #e91e63 !important; }
-        body { background-color: #f8f9fa; }
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .nav-tabs .nav-link.active {
             background-color: #e91e63 !important;
             color: white !important;
@@ -76,13 +76,13 @@
 <body>
 
     <div class="container my-4">
-        <!-- HEADER CON CAMPANITA -->
+        <!-- HEADER -->
         <div class="card bg-admin-theme shadow-sm border-0 mb-4" style="border-radius: 15px;">
             <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h3 class="fw-bold m-0"><i class="fas fa-crown"></i> Administrador - Los Ángeles del Dinero 🍀🌺</h3>
                 
                 <div class="d-flex align-items-center gap-2">
-                    <a href="/admin?tab=transacciones" class="btn btn-campanita text-decoration-none" title="Solicitudes pendientes de las taquillas">
+                    <a href="/admin?tab=transacciones" class="btn btn-campanita text-decoration-none" title="Solicitudes pendientes">
                         <i class="fas fa-bell"></i>
                         <span>Solicitudes</span>
                         {% if solicitudes_pendientes_count > 0 %}
@@ -167,7 +167,7 @@
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="fw-bold text-success m-0"><i class="fas fa-users-cog"></i> Taquillas Creadas y Estado de Cuenta Pendiente</h5>
+                            <h5 class="fw-bold text-success m-0"><i class="fas fa-users-cog"></i> Taquillas Creadas</h5>
                             <span class="badge bg-success fs-6 p-2">Total Creadas: {{ agencias | length }}</span>
                         </div>
 
@@ -176,10 +176,10 @@
                                 <thead class="table-dark">
                                     <tr>
                                         <th>Nombre Agencia</th>
-                                        <th>Clave de Acceso</th>
+                                        <th>Clave</th>
                                         <th>Rol</th>
-                                        <th>Tema Visual</th>
-                                        <th class="text-end">Saldo Pendiente Hoy</th>
+                                        <th>Tema</th>
+                                        <th class="text-end">Saldo Pendiente</th>
                                         <th class="text-end">Acciones</th>
                                     </tr>
                                 </thead>
@@ -209,13 +209,13 @@
                                             <td class="text-end">
                                                 <form action="/admin/eliminar-agencia" method="POST" style="display:inline;" onsubmit="return confirm('¿Seguro deseas eliminar {{ ag.agencia }}?');">
                                                     <input type="hidden" name="agencia_id" value="{{ ag.id }}">
-                                                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash-alt"></i> Eliminar</button>
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash-alt"></i></button>
                                                 </form>
                                             </td>
                                         </tr>
                                         {% endfor %}
                                     {% else %}
-                                        <tr><td colspan="6" class="text-center text-muted py-4">No hay taquillas creadas actualmente.</td></tr>
+                                        <tr><td colspan="6" class="text-center text-muted py-4">No hay taquillas creadas.</td></tr>
                                     {% endif %}
                                 </tbody>
                             </table>
@@ -228,16 +228,16 @@
             <div class="tab-pane fade {% if tab == 'comunicados' or tab_activa == 'comunicados' %}show active{% endif %}" id="comunicados" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #ff9800 !important;">
                     <div class="card-body">
-                        <h5 class="fw-bold text-warning mb-3" style="color: #e65100 !important;"><i class="fas fa-bullhorn"></i> Enviar Notificación o Comunicado a las Taquillas</h5>
+                        <h5 class="fw-bold text-warning mb-3" style="color: #e65100 !important;"><i class="fas fa-bullhorn"></i> Enviar Notificación</h5>
                         <form action="/admin/crear-comunicado" method="POST" class="mb-4">
                             <div class="mb-3">
-                                <label class="form-label fw-bold small">Mensaje o Anuncio:</label>
-                                <textarea name="mensaje" class="form-control border-warning" rows="3" placeholder="Escribe aquí el comunicado oficial..." required></textarea>
+                                <label class="form-label fw-bold small">Mensaje:</label>
+                                <textarea name="mensaje" class="form-control border-warning" rows="3" placeholder="Escribe el comunicado..." required></textarea>
                             </div>
-                            <button type="submit" class="btn btn-warning fw-bold text-dark"><i class="fas fa-paper-plane me-1"></i> Publicar Comunicado</button>
+                            <button type="submit" class="btn btn-warning fw-bold text-dark"><i class="fas fa-paper-plane me-1"></i> Publicar</button>
                         </form>
 
-                        <h6 class="fw-bold text-dark border-bottom pb-2">Historial de Comunicados Publicados</h6>
+                        <h6 class="fw-bold text-dark border-bottom pb-2">Historial</h6>
                         <div class="table-responsive">
                             <table class="table table-hover align-middle" style="font-size: 13px;">
                                 <thead class="table-light"><tr><th>Fecha</th><th>Mensaje</th><th class="text-end">Acción</th></tr></thead>
@@ -256,7 +256,7 @@
                                         </tr>
                                         {% endfor %}
                                     {% else %}
-                                        <tr><td colspan="3" class="text-center text-muted py-3">No hay comunicados activos.</td></tr>
+                                        <tr><td colspan="3" class="text-center text-muted py-3">No hay comunicados.</td></tr>
                                     {% endif %}
                                 </tbody>
                             </table>
@@ -265,15 +265,15 @@
                 </div>
             </div>
 
-            <!-- 3. TRANSACCIONES Y SOLICITUDES -->
+            <!-- 3. TRANSACCIONES -->
             <div class="tab-pane fade {% if tab == 'transacciones' or tab_activa == 'transacciones' or not tab %}show active{% endif %}" id="transacciones" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
                     <div class="card-body">
-                        <h5 class="fw-bold text-admin-theme mb-3"><i class="fas fa-history"></i> Historial y Procesamiento de Solicitudes</h5>
+                        <h5 class="fw-bold text-admin-theme mb-3"><i class="fas fa-history"></i> Transacciones y Solicitudes</h5>
                         <div class="table-responsive">
                             <table class="table table-hover align-middle" style="font-size: 13px;">
                                 <thead class="table-dark">
-                                    <tr><th>Agencia</th><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Comprobante</th><th>Estado</th><th class="text-center">Acciones / Validar</th></tr>
+                                    <tr><th>Agencia</th><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Comprobante</th><th>Estado</th><th class="text-center">Acciones</th></tr>
                                 </thead>
                                 <tbody>
                                     {% if pagos %}
@@ -310,14 +310,13 @@
                                                         <input type="hidden" name="solicitud_id" value="{{ p.id }}">
                                                         <input type="hidden" name="agencia" value="{{ p.agencia }}">
                                                         <input type="hidden" name="fecha" value="{{ p.fecha }}">
-                                                        
                                                         <select name="accion" class="form-select form-select-sm" style="width: 140px;" onchange="toggleMontoAdmin(this)">
                                                             <option value="COMPLETO">Pago Completo</option>
                                                             <option value="ABONO">Abono</option>
                                                         </select>
                                                         <input type="number" step="0.01" name="monto_abono" class="form-control form-control-sm d-none input-abono" style="width: 85px;" placeholder="Monto">
-                                                        <input type="file" name="comprobante_file" class="form-control form-control-sm" style="width: 140px;" title="Capture de la transferencia" accept="image/*,.pdf" required>
-                                                        <button type="submit" class="btn btn-success btn-sm" title="Procesar y Descontar"><i class="fas fa-check"></i></button>
+                                                        <input type="file" name="comprobante_file" class="form-control form-control-sm" style="width: 140px;" accept="image/*,.pdf" required>
+                                                        <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-check"></i></button>
                                                     </form>
                                                     {% endif %}
 
@@ -325,19 +324,19 @@
                                                     <form action="/admin/validar-pago" method="POST" style="display:inline;">
                                                         <input type="hidden" name="solicitud_id" value="{{ p.id }}">
                                                         <input type="hidden" name="accion" value="APROBAR">
-                                                        <button type="submit" class="btn btn-success btn-sm" title="Aprobar Pago"><i class="fas fa-check"></i></button>
+                                                        <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-check"></i></button>
                                                     </form>
                                                     <form action="/admin/validar-pago" method="POST" style="display:inline;">
                                                         <input type="hidden" name="solicitud_id" value="{{ p.id }}">
                                                         <input type="hidden" name="accion" value="RECHAZAR">
-                                                        <button type="submit" class="btn btn-warning btn-sm text-dark" title="Rechazar Pago"><i class="fas fa-times"></i></button>
+                                                        <button type="submit" class="btn btn-warning btn-sm text-dark"><i class="fas fa-times"></i></button>
                                                     </form>
                                                     {% endif %}
                                                     
-                                                    <form action="/eliminar-transaccion" method="POST" style="display:inline;" onsubmit="return confirm('¿Seguro deseas eliminar esta transacción?');">
+                                                    <form action="/eliminar-transaccion" method="POST" style="display:inline;" onsubmit="return confirm('¿Eliminar transacción?');">
                                                         <input type="hidden" name="pago_id" value="{{ p.id }}">
                                                         <input type="hidden" name="redirect_to" value="/admin?tab=transacciones">
-                                                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar"><i class="fas fa-trash"></i></button>
+                                                        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash"></i></button>
                                                     </form>
                                                 </div>
                                             </td>
@@ -353,93 +352,59 @@
                 </div>
             </div>
 
-            <!-- 4. BALANCES GLOBALES (+ / -) CON BOTÓN DE LIQUIDAR DIRECTO -->
+            <!-- 4. BALANCES -->
             <div class="tab-pane fade {% if tab == 'balances' or tab_activa == 'balances' %}show active{% endif %}" id="balances" role="tabpanel">
-                
-                <div class="card shadow-sm border-0 mb-4 p-3 bg-light rounded" style="border-radius: 12px;">
+                <div class="card shadow-sm border-0 mb-4 p-3 bg-light rounded">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                        <h5 class="fw-bold text-dark m-0"><i class="fas fa-balance-scale me-2"></i>Estado de Balances Globales</h5>
+                        <h5 class="fw-bold text-dark m-0"><i class="fas fa-balance-scale me-2"></i>Balances Globales</h5>
                         <button onclick="copiarBalancesGlobales()" class="btn btn-success btn-sm fw-bold rounded-pill px-4 shadow-sm">
-                            <i class="fas fa-copy me-1"></i> Copiar Todos los Balances
+                            <i class="fas fa-copy me-1"></i> Copiar Balances
                         </button>
                     </div>
 
                     <form method="GET" action="/admin" class="row g-3 align-items-end">
                         <input type="hidden" name="tab" value="balances">
                         <div class="col-md-5">
-                            <label class="form-label fw-bold small text-muted">Desde Fecha:</label>
+                            <label class="form-label fw-bold small text-muted">Desde:</label>
                             <input type="date" name="desde_fecha" class="form-control form-control-sm border-secondary" value="{{ desde_fecha }}">
                         </div>
                         <div class="col-md-5">
-                            <label class="form-label fw-bold small text-muted">Hasta Fecha:</label>
+                            <label class="form-label fw-bold small text-muted">Hasta:</label>
                             <input type="date" name="hasta_fecha" class="form-control form-control-sm border-secondary" value="{{ hasta_fecha }}">
                         </div>
                         <div class="col-md-2">
-                            <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold shadow-sm py-2">
-                                <i class="fas fa-filter me-1"></i> Filtrar
-                            </button>
+                            <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold shadow-sm py-2">Filtrar</button>
                         </div>
                     </form>
                 </div>
 
                 <div class="row">
-                    <!-- AGENCIAS QUE DEBEN (VERDE) -->
                     <div class="col-md-6 mb-4">
                         <div class="card shadow-sm border-0" style="border-top: 4px solid #198754; border-radius: 12px;">
                             <div class="card-body">
-                                <h5 class="fw-bold text-success mb-2"><i class="fas fa-arrow-down me-2"></i>Agencias que Deben a la Banca (+)</h5>
-                                <small class="text-muted d-block mb-3">💡 Haz clic sobre una agencia para ver el desglose detallado con Cashea y Reporte.</small>
-                                
+                                <h5 class="fw-bold text-success mb-2">Deben a la Banca (+)</h5>
                                 <div class="table-responsive">
                                     <table class="table table-hover align-middle mb-0" id="tablaBalancesDeben">
-                                        <thead class="table-light small">
-                                            <tr>
-                                                <th>AGENCIA</th>
-                                                <th>ÚLTIMA FECHA</th>
-                                                <th class="text-end">DEUDA TOTAL</th>
-                                            </tr>
-                                        </thead>
+                                        <thead class="table-light small"><tr><th>AGENCIA</th><th>FECHA</th><th class="text-end">DEUDA</th></tr></thead>
                                         <tbody>
                                             {% if positivos %}
                                                 {% for pos in positivos %}
                                                 <tr class="fila-interactiva" data-bs-toggle="collapse" data-bs-target="#desglosePos{{ loop.index }}">
-                                                    <td class="fw-bold text-uppercase"><i class="fas fa-chevron-right text-muted me-1 small"></i> {{ pos.agencia }}</td>
+                                                    <td class="fw-bold text-uppercase">{{ pos.agencia }}</td>
                                                     <td><small class="text-muted">{{ pos.fecha }}</small></td>
-                                                    <td class="text-end text-success fw-bold">Bs. {{ pos.monto | default(0) | dinero }}</td>
+                                                    <td class="text-end text-success fw-bold">Bs. {{ pos.monto | dinero }}</td>
                                                 </tr>
                                                 <tr class="collapse bg-light" id="desglosePos{{ loop.index }}">
                                                     <td colspan="3" class="p-3">
-                                                        <div class="p-3 border rounded bg-white shadow-sm" style="font-size: 12px;">
-                                                            <div class="d-flex justify-content-between border-bottom pb-1 mb-2">
-                                                                <strong class="text-dark">📊 Cuenta Detallada: {{ pos.agencia }}</strong>
-                                                                <span class="badge bg-success-subtle text-success border border-success fw-bold">DEUDA (+)</span>
-                                                            </div>
-                                                            <div class="row g-2">
-                                                                <div class="col-6">• Venta Total: <span class="fw-bold">Bs. {{ pos.ventas | default(0) | dinero }}</span></div>
-                                                                <div class="col-6">• Premios: <span class="fw-bold text-danger">Bs. {{ pos.premios | default(0) | dinero }}</span></div>
-                                                                
-                                                                <div class="col-12 p-2 my-1 rounded bg-light border">
-                                                                    <div class="d-flex justify-content-between">
-                                                                        <span class="fw-bold text-primary"><i class="fas fa-file-invoice me-1"></i> Total Reporte Sistema:</span>
-                                                                        <span class="fw-bold text-primary">Bs. {{ (pos.monto + pos.cashea + pos.abonos - pos.adelantos) | dinero }}</span>
-                                                                    </div>
-                                                                </div>
-
-                                                                <div class="col-6">• Cashea Absorbido: <span class="fw-bold text-info">Bs. {{ pos.cashea | default(0) | dinero }}</span></div>
-                                                                <div class="col-6">• Abonos Recibidos: <span class="fw-bold text-success">Bs. {{ pos.abonos | default(0) | dinero }}</span></div>
-                                                                <div class="col-6">• Adelantos Entregados: <span class="fw-bold text-warning" style="color: #e65100 !important;">Bs. {{ pos.adelantos | default(0) | dinero }}</span></div>
-                                                                
-                                                                <div class="col-12 border-top pt-2 mt-2 d-flex justify-content-between">
-                                                                    <strong class="text-dark">Saldo Deudor Definitivo:</strong>
-                                                                    <strong class="text-success fs-6">Bs. {{ pos.monto | default(0) | dinero }}</strong>
-                                                                </div>
-                                                            </div>
+                                                        <div class="p-2 border rounded bg-white shadow-sm small">
+                                                            <div>Venta: <strong>Bs. {{ pos.ventas | dinero }}</strong> | Premios: <strong class="text-danger">Bs. {{ pos.premios | dinero }}</strong></div>
+                                                            <div>Cashea: <strong>Bs. {{ pos.cashea | dinero }}</strong> | Abonos: <strong>Bs. {{ pos.abonos | dinero }}</strong> | Adelantos: <strong>Bs. {{ pos.adelantos | dinero }}</strong></div>
                                                         </div>
                                                     </td>
                                                 </tr>
                                                 {% endfor %}
                                             {% else %}
-                                                <tr><td colspan="3" class="text-muted text-center py-3">Sin taquillas deudoras actualmente.</td></tr>
+                                                <tr><td colspan="3" class="text-muted text-center py-3">Sin deudores.</td></tr>
                                             {% endif %}
                                         </tbody>
                                     </table>
@@ -448,99 +413,51 @@
                         </div>
                     </div>
 
-                    <!-- SALDO A FAVOR / A PAGARLES (ROJO) CON LIQUIDACIÓN DIRECTA -->
                     <div class="col-md-6 mb-4">
                         <div class="card shadow-sm border-0" style="border-top: 4px solid #dc3545; border-radius: 12px;">
                             <div class="card-body">
-                                <h5 class="fw-bold text-danger mb-2"><i class="fas fa-arrow-up me-2"></i>Saldo a Favor / A Pagarles (-)</h5>
-                                <small class="text-muted d-block mb-3">💡 Haz clic sobre una agencia para ver el desglose detallado y liquidar la cuenta.</small>
-                                
+                                <h5 class="fw-bold text-danger mb-2">A Pagarles (-)</h5>
                                 <div class="table-responsive">
                                     <table class="table table-hover align-middle mb-0" id="tablaBalancesFavor">
-                                        <thead class="table-light small">
-                                            <tr>
-                                                <th>AGENCIA</th>
-                                                <th>ÚLTIMA FECHA</th>
-                                                <th class="text-end">MONTO A PAGAR</th>
-                                            </tr>
-                                        </thead>
+                                        <thead class="table-light small"><tr><th>AGENCIA</th><th>FECHA</th><th class="text-end">MONTO</th></tr></thead>
                                         <tbody>
                                             {% if negativos %}
                                                 {% for neg in negativos %}
                                                 {% set neg_idx = loop.index %}
                                                 <tr class="fila-interactiva" data-bs-toggle="collapse" data-bs-target="#desgloseNeg{{ neg_idx }}">
-                                                    <td class="fw-bold text-uppercase"><i class="fas fa-chevron-right text-muted me-1 small"></i> {{ neg.agencia }}</td>
+                                                    <td class="fw-bold text-uppercase">{{ neg.agencia }}</td>
                                                     <td><small class="text-muted">{{ neg.fecha }}</small></td>
-                                                    <td class="text-end text-danger fw-bold">Bs. {{ neg.monto | default(0) | dinero }}</td>
+                                                    <td class="text-end text-danger fw-bold">Bs. {{ neg.monto | dinero }}</td>
                                                 </tr>
                                                 <tr class="collapse bg-light" id="desgloseNeg{{ neg_idx }}">
                                                     <td colspan="3" class="p-3">
-                                                        <div class="p-3 border rounded bg-white shadow-sm" style="font-size: 12px;">
-                                                            <div class="d-flex justify-content-between border-bottom pb-1 mb-2">
-                                                                <strong class="text-dark">📊 Cuenta Detallada: {{ neg.agencia }}</strong>
-                                                                <span class="badge bg-danger-subtle text-danger border border-danger fw-bold">SALDO A FAVOR (-)</span>
-                                                            </div>
-                                                            <div class="row g-2">
-                                                                <div class="col-6">• Venta Total: <span class="fw-bold">Bs. {{ neg.ventas | default(0) | dinero }}</span></div>
-                                                                <div class="col-6">• Premios: <span class="fw-bold text-danger">Bs. {{ neg.premios | default(0) | dinero }}</span></div>
-                                                                
-                                                                <div class="col-12 p-2 my-1 rounded bg-light border">
-                                                                    <div class="d-flex justify-content-between">
-                                                                        <span class="fw-bold text-primary"><i class="fas fa-file-invoice me-1"></i> Total Reporte Sistema:</span>
-                                                                        <span class="fw-bold text-primary">Bs. {{ (-neg.monto + neg.cashea + neg.abonos - neg.adelantos) | dinero }}</span>
-                                                                    </div>
-                                                                </div>
-
-                                                                <div class="col-6">• Cashea Absorbido: <span class="fw-bold text-info">Bs. {{ neg.cashea | default(0) | dinero }}</span></div>
-                                                                <div class="col-6">• Abonos Recibidos: <span class="fw-bold text-success">Bs. {{ neg.abonos | default(0) | dinero }}</span></div>
-                                                                <div class="col-6">• Adelantos Entregados: <span class="fw-bold text-warning" style="color: #e65100 !important;">Bs. {{ neg.adelantos | default(0) | dinero }}</span></div>
-                                                                
-                                                                <div class="col-12 border-top pt-2 mt-2 d-flex justify-content-between">
-                                                                    <strong class="text-dark">Monto a Liquidar a Taquilla:</strong>
-                                                                    <strong class="text-danger fs-6">Bs. {{ neg.monto | default(0) | dinero }}</strong>
-                                                                </div>
-
-                                                                <!-- BOTÓN PARA LIQUIDAR SALDO NEGATIVO CON CAPTURE -->
-                                                                <div class="col-12 mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
-                                                                    <span class="small text-muted fw-bold">Liquidar cuenta con comprobante:</span>
-                                                                    <button class="btn btn-success btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalPagarNeg{{ neg_idx }}">
-                                                                        <i class="fas fa-money-bill-wave me-1"></i> Pagar y Subir Capture
-                                                                    </button>
-                                                                </div>
-                                                            </div>
+                                                        <div class="p-2 border rounded bg-white shadow-sm small mb-2">
+                                                            <div>Venta: <strong>Bs. {{ neg.ventas | dinero }}</strong> | Premios: <strong class="text-danger">Bs. {{ neg.premios | dinero }}</strong></div>
+                                                            <div>Cashea: <strong>Bs. {{ neg.cashea | dinero }}</strong> | Abonos: <strong>Bs. {{ neg.abonos | dinero }}</strong> | Adelantos: <strong>Bs. {{ neg.adelantos | dinero }}</strong></div>
                                                         </div>
+                                                        <button class="btn btn-success btn-sm fw-bold w-100" data-bs-toggle="modal" data-bs-target="#modalPagarNeg{{ neg_idx }}">
+                                                            <i class="fas fa-money-bill-wave me-1"></i> Liquidar Saldo con Capture
+                                                        </button>
 
-                                                        <!-- MODAL LIQUIDAR NEGATIVO -->
                                                         <div class="modal fade" id="modalPagarNeg{{ neg_idx }}" tabindex="-1">
                                                             <div class="modal-dialog">
                                                                 <div class="modal-content text-start">
                                                                     <div class="modal-header bg-success text-white py-2">
-                                                                        <h6 class="modal-title fw-bold"><i class="fas fa-check-circle me-1"></i> Liquidar Saldo: {{ neg.agencia }}</h6>
+                                                                        <h6 class="modal-title fw-bold">Liquidar {{ neg.agencia }}</h6>
                                                                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                                                                     </div>
                                                                     <form action="/admin/liquidar-saldo-negativo" method="POST" enctype="multipart/form-data" class="p-3">
                                                                         <input type="hidden" name="agencia" value="{{ neg.agencia }}">
                                                                         <input type="hidden" name="fecha" value="{{ neg.fecha }}">
-                                                                        
-                                                                        <div class="mb-3">
-                                                                            <label class="form-label small fw-bold">Monto a Liquidar (Bs.):</label>
-                                                                            <input type="number" step="0.01" name="monto" value="{{ neg.monto }}" class="form-control form-control-sm fw-bold text-success" required>
-                                                                        </div>
-                                                                        
-                                                                        <div class="mb-3">
-                                                                            <label class="form-label small fw-bold">Capture de Pago / Transferencia:</label>
-                                                                            <input type="file" name="comprobante_file" class="form-control form-control-sm" accept="image/*,.pdf" required>
-                                                                        </div>
-
-                                                                        <div class="d-flex justify-content-end gap-2">
-                                                                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-                                                                            <button type="submit" class="btn btn-success btn-sm fw-bold">Registrar Pago y Notificar</button>
-                                                                        </div>
+                                                                        <label class="small fw-bold">Monto:</label>
+                                                                        <input type="number" step="0.01" name="monto" value="{{ neg.monto }}" class="form-control form-control-sm mb-2" required>
+                                                                        <label class="small fw-bold">Comprobante:</label>
+                                                                        <input type="file" name="comprobante_file" class="form-control form-control-sm mb-3" accept="image/*,.pdf" required>
+                                                                        <button type="submit" class="btn btn-success btn-sm w-100 fw-bold">Registrar</button>
                                                                     </form>
                                                                 </div>
                                                             </div>
                                                         </div>
-
                                                     </td>
                                                 </tr>
                                                 {% endfor %}
@@ -556,75 +473,33 @@
                 </div>
             </div>
 
-            <!-- 5. DATA CASHEA GENERAL CON PAPELERA Y FILTRO -->
+            <!-- 5. CASHEA -->
             <div class="tab-pane fade {% if tab == 'cashea' or tab_activa == 'cashea' %}show active{% endif %}" id="cashea" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #00bcd4; border-radius: 15px;">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                            <h5 class="fw-bold text-info m-0"><i class="fas fa-shopping-cart me-2"></i>Consolidado Cashea General</h5>
-                            <button onclick="copiarCasheasGeneral()" class="btn btn-sm btn-success fw-bold rounded-pill px-3 shadow-sm">
-                                <i class="fas fa-copy me-1"></i> Copiar Casheas
-                            </button>
-                        </div>
-
-                        <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm">
-                            <input type="hidden" name="tab" value="cashea">
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold small text-muted">Filtrar por Taquilla:</label>
-                                <select name="agencia" class="form-select form-select-sm border-info">
-                                    <option value="">-- Todas las Taquillas --</option>
-                                    {% for ag in agencias %}
-                                    <option value="{{ ag.agencia }}" {% if agencia_filtro == ag.agencia %}selected{% endif %}>{{ ag.agencia }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label fw-bold small text-muted">Desde Fecha:</label>
-                                <input type="date" name="desde_fecha" class="form-control form-control-sm border-info" value="{{ desde_fecha }}">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label fw-bold small text-muted">Hasta Fecha:</label>
-                                <input type="date" name="hasta_fecha" class="form-control form-control-sm border-info" value="{{ hasta_fecha }}">
-                            </div>
-                            <div class="col-md-2">
-                                <button type="submit" class="btn btn-info btn-sm w-100 fw-bold text-white shadow-sm py-2">
-                                    <i class="fas fa-filter me-1"></i> Filtrar
-                                </button>
-                            </div>
-                        </form>
-
+                        <h5 class="fw-bold text-info mb-3"><i class="fas fa-shopping-cart me-2"></i>Cashea General</h5>
                         <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0" id="tablaCasheaGeneral" style="font-size: 13px;">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>AGENCIA</th>
-                                        <th>FECHA</th>
-                                        <th>FACTURA / DETALLE</th>
-                                        <th class="text-end">MONTO ABSORBIDO</th>
-                                        <th class="text-center">ACCIÓN</th>
-                                    </tr>
-                                </thead>
+                            <table class="table table-hover align-middle mb-0" style="font-size: 13px;">
+                                <thead class="table-light"><tr><th>AGENCIA</th><th>FECHA</th><th>FACTURA</th><th class="text-end">MONTO</th><th class="text-center">ACCIÓN</th></tr></thead>
                                 <tbody>
                                     {% if casheas_generales %}
                                         {% for c in casheas_generales %}
                                         <tr>
-                                            <td class="fw-bold text-uppercase">{{ c.agencia }}</td>
-                                            <td><small class="text-muted">{{ c.fecha }}</small></td>
+                                            <td class="fw-bold">{{ c.agencia }}</td>
+                                            <td>{{ c.fecha }}</td>
                                             <td>{{ c.factura or c.comprobante }}</td>
-                                            <td class="text-end fw-bold text-danger">Bs. {{ c.monto | default(0) | dinero }}</td>
+                                            <td class="text-end fw-bold text-danger">Bs. {{ c.monto | dinero }}</td>
                                             <td class="text-center">
-                                                <form action="/admin/eliminar-transaccion" method="POST" style="display:inline;" onsubmit="return confirm('¿Seguro deseas eliminar este registro de Cashea?');">
+                                                <form action="/admin/eliminar-transaccion" method="POST" style="display:inline;" onsubmit="return confirm('¿Eliminar registro?');">
                                                     <input type="hidden" name="pago_id" value="{{ c.id }}">
                                                     <input type="hidden" name="redirect_to" value="/admin?tab=cashea">
-                                                    <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2" title="Eliminar Cashea">
-                                                        <i class="fas fa-trash-alt"></i>
-                                                    </button>
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm py-0"><i class="fas fa-trash-alt"></i></button>
                                                 </form>
                                             </td>
                                         </tr>
                                         {% endfor %}
                                     {% else %}
-                                        <tr><td colspan="5" class="text-center text-muted py-3">No hay registros de Cashea en este rango.</td></tr>
+                                        <tr><td colspan="5" class="text-center text-muted py-3">Sin registros de Cashea.</td></tr>
                                     {% endif %}
                                 </tbody>
                             </table>
@@ -633,70 +508,34 @@
                 </div>
             </div>
 
-            <!-- 6. CONSOLIDADO POR SISTEMAS (COMPACTO Y CON RANGO DE FECHAS) -->
+            <!-- 6. CONSOLIDADO SISTEMAS -->
             <div class="tab-pane fade {% if tab == 'consolidado' or tab_activa == 'consolidado' %}show active{% endif %}" id="consolidado" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #e91e63;">
                     <div class="card-body p-3">
-                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                            <h5 class="fw-bold text-admin-theme m-0" style="font-size: 16px;">
-                                <i class="fas fa-chart-pie me-1"></i> Consolidado por Sistemas
-                            </h5>
-                            
-                            <form method="GET" action="/admin" class="d-flex flex-wrap align-items-center gap-2">
-                                <input type="hidden" name="tab" value="consolidado">
-                                <div class="d-flex align-items-center gap-1">
-                                    <label class="small text-muted fw-bold mb-0">Desde:</label>
-                                    <input type="date" name="desde_fecha" value="{{ desde_fecha }}" class="form-control form-control-sm" style="width: 130px; font-size: 11px;">
-                                </div>
-                                <div class="d-flex align-items-center gap-1">
-                                    <label class="small text-muted fw-bold mb-0">Hasta:</label>
-                                    <input type="date" name="hasta_fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" style="width: 130px; font-size: 11px;">
-                                </div>
-                                <div class="d-flex align-items-center gap-1">
-                                    <select name="agencia" class="form-select form-select-sm" style="width: 150px; font-size: 11px;">
-                                        <option value="">-- Todas las Taquillas --</option>
-                                        {% for ag in agencias %}
-                                        <option value="{{ ag.agencia }}" {% if agencia_filtro == ag.agencia %}selected{% endif %}>{{ ag.agencia }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                                <button type="submit" class="btn btn-sm btn-primary px-3" style="font-size: 11px;">
-                                    <i class="fas fa-filter"></i> Filtrar
-                                </button>
-                            </form>
-                        </div>
-                        
-                        <div class="table-responsive" style="width: 100%; overflow-x: auto;">
-                            <table class="table table-sm table-bordered table-striped align-middle mb-0" style="font-size: 11px; width: 100%; min-width: 100%; table-layout: fixed;">
-                                <thead class="table-dark text-center" style="font-size: 10.5px;">
-                                    <tr>
-                                        <th style="padding: 5px 3px; width: 28%;">SISTEMA</th>
-                                        <th style="padding: 5px 3px; text-align: right; width: 18%;">VENTA</th>
-                                        <th style="padding: 5px 3px; text-align: right; width: 18%;">COMISIÓN</th>
-                                        <th style="padding: 5px 3px; text-align: right; width: 18%;">PREMIO</th>
-                                        <th style="padding: 5px 3px; text-align: right; width: 18%;">TOTAL</th>
-                                    </tr>
+                        <h5 class="fw-bold text-admin-theme mb-3">Consolidado por Sistemas</h5>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered table-striped align-middle mb-0" style="font-size: 11px;">
+                                <thead class="table-dark text-center">
+                                    <tr><th>SISTEMA</th><th class="text-end">VENTA</th><th class="text-end">COMISIÓN</th><th class="text-end">PREMIO</th><th class="text-end">TOTAL</th></tr>
                                 </thead>
                                 <tbody>
                                     {% for sistema, valores in sistemas_consolidados.items() %}
                                     <tr>
-                                        <td class="fw-bold" style="padding: 4px 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ sistema }}</td>
-                                        <td style="padding: 4px 3px; text-align: right;">Bs. {{ valores.venta | default(0) | dinero }}</td>
-                                        <td style="padding: 4px 3px; text-align: right; color: #0d47a1;">Bs. {{ valores.comision | default(0) | dinero }}</td>
-                                        <td style="padding: 4px 3px; text-align: right; color: #c62828;">Bs. {{ valores.premio | default(0) | dinero }}</td>
-                                        <td style="padding: 4px 3px; text-align: right; font-weight: bold; color: {% if (valores.neto | default(0)) < 0 %}#c62828{% else %}#2e7d32{% endif %};">
-                                            Bs. {{ valores.neto | default(0) | dinero }}
+                                        <td class="fw-bold">{{ sistema }}</td>
+                                        <td class="text-end">Bs. {{ valores.venta | dinero }}</td>
+                                        <td class="text-end text-primary">Bs. {{ valores.comision | dinero }}</td>
+                                        <td class="text-end text-danger">Bs. {{ valores.premio | dinero }}</td>
+                                        <td class="text-end fw-bold {% if (valores.neto | default(0)) < 0 %}text-danger{% else %}text-success{% endif %}">
+                                            Bs. {{ valores.neto | dinero }}
                                         </td>
                                     </tr>
                                     {% endfor %}
-                                    <tr style="background-color: #212529; color: #ffffff; font-weight: bold; font-size: 11.5px;">
-                                        <td style="padding: 6px 3px;">TOTALES GENERALES</td>
-                                        <td style="padding: 6px 3px; text-align: right;">Bs. {{ totales_generales.venta | default(0) | dinero }}</td>
-                                        <td style="padding: 6px 3px; text-align: right; color: #90caf9;">Bs. {{ totales_generales.comision | default(0) | dinero }}</td>
-                                        <td style="padding: 6px 3px; text-align: right; color: #ef9a9a;">Bs. {{ totales_generales.premio | default(0) | dinero }}</td>
-                                        <td style="padding: 6px 3px; text-align: right; color: {% if totales_generales.neto < 0 %}#ef9a9a{% else %}#a5d6a7{% endif %};">
-                                            Bs. {{ totales_generales.neto | default(0) | dinero }}
-                                        </td>
+                                    <tr class="table-dark fw-bold">
+                                        <td>TOTALES</td>
+                                        <td class="text-end">Bs. {{ totales_generales.venta | dinero }}</td>
+                                        <td class="text-end text-primary">Bs. {{ totales_generales.comision | dinero }}</td>
+                                        <td class="text-end text-danger">Bs. {{ totales_generales.premio | dinero }}</td>
+                                        <td class="text-end">Bs. {{ totales_generales.neto | dinero }}</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -705,93 +544,51 @@
                 </div>
             </div>
 
-            <!-- 7. PESTAÑA: AUDITORÍA POR SISTEMAS Y JUSTIFICACIÓN POR AGENCIA -->
+            <!-- 7. AUDITORÍA SISTEMAS -->
             <div class="tab-pane fade {% if tab == 'auditoria_sistemas' or tab_activa == 'auditoria_sistemas' %}show active{% endif %}" id="auditoria_sistemas" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #6f42c1; border-radius: 15px;">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                            <h5 class="fw-bold m-0" style="color: #6f42c1;">
-                                <i class="fas fa-search-dollar me-2"></i>Auditoría de Sistemas y Justificación por Agencia
-                            </h5>
-                            <span class="badge bg-secondary p-2">Período: {{ desde_fecha }} al {{ hasta_fecha }}</span>
-                        </div>
-                        
-                        <p class="text-muted small mb-4">
-                            💡 Haz clic sobre cualquier tarjeta de sistema para desplegar la lista de agencias que originaron el monto con sus ventas, comisiones y premios.
-                        </p>
-
+                        <h5 class="fw-bold mb-3" style="color: #6f42c1;"><i class="fas fa-search-dollar me-2"></i>Auditoría y Justificación por Agencia</h5>
                         <div class="row g-3">
                             {% for sys_nombre, totales in sistemas_consolidados.items() %}
                             <div class="col-md-6 col-lg-4">
                                 <div class="card border shadow-sm h-100" style="border-radius: 12px; overflow: hidden;">
-                                    <div class="card-header d-flex justify-content-between align-items-center cursor-pointer py-3" 
-                                         data-bs-toggle="collapse" 
-                                         data-bs-target="#collapseSys{{ loop.index }}" 
-                                         style="background: #f8f9fa; cursor: pointer;">
+                                    <div class="card-header d-flex justify-content-between align-items-center py-2" data-bs-toggle="collapse" data-bs-target="#collapseSys{{ loop.index }}" style="cursor: pointer; background: #f8f9fa;">
                                         <div>
                                             <h6 class="fw-bold mb-0 text-dark">{{ sys_nombre }}</h6>
                                             <small class="text-muted">Venta: Bs. {{ totales.venta | dinero }}</small>
                                         </div>
                                         <div class="text-end">
                                             <span class="fs-6 fw-bold {% if totales.neto < 0 %}text-danger{% else %}text-success{% endif %}">
-                                                {% if totales.neto >= 0 %}+{% endif %}Bs. {{ totales.neto | dinero }}
+                                                Bs. {{ totales.neto | dinero }}
                                             </span>
-                                            <i class="fas fa-chevron-down ms-2 text-muted small"></i>
                                         </div>
                                     </div>
-
                                     <div class="collapse" id="collapseSys{{ loop.index }}">
                                         <div class="card-body p-2 bg-light">
-                                            <div class="table-responsive">
-                                                <table class="table table-sm table-hover mb-0 bg-white border" style="font-size: 11px;">
-                                                    <thead class="table-dark">
+                                            <table class="table table-sm table-hover mb-0 bg-white border" style="font-size: 11px;">
+                                                <thead class="table-dark"><tr><th>Agencia</th><th class="text-end">Venta</th><th class="text-end">Premio</th><th class="text-end">Total</th></tr></thead>
+                                                <tbody>
+                                                    {% if sistemas_agencias_detalle.get(sys_nombre) %}
+                                                        {% for ag_item in sistemas_agencias_detalle.get(sys_nombre) %}
                                                         <tr>
-                                                            <th>Agencia</th>
-                                                            <th class="text-end">Venta</th>
-                                                            <th class="text-end">Com.</th>
-                                                            <th class="text-end">Premio</th>
-                                                            <th class="text-end">Total</th>
+                                                            <td class="fw-bold">{{ ag_item.agencia }}</td>
+                                                            <td class="text-end">Bs. {{ ag_item.venta | dinero }}</td>
+                                                            <td class="text-end text-danger">Bs. {{ ag_item.premio | dinero }}</td>
+                                                            <td class="text-end fw-bold">Bs. {{ ag_item.total | dinero }}</td>
                                                         </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {% if sistemas_agencias_detalle.get(sys_nombre) %}
-                                                            {% for ag_item in sistemas_agencias_detalle.get(sys_nombre) %}
-                                                            <tr>
-                                                                <td class="fw-bold text-uppercase">{{ ag_item.agencia }}</td>
-                                                                <td class="text-end">Bs. {{ ag_item.venta | dinero }}</td>
-                                                                <td class="text-end text-primary">Bs. {{ ag_item.comision | dinero }}</td>
-                                                                <td class="text-end text-danger">Bs. {{ ag_item.premio | dinero }}</td>
-                                                                <td class="text-end fw-bold {% if ag_item.total < 0 %}text-danger{% else %}text-success{% endif %}">
-                                                                    Bs. {{ ag_item.total | dinero }}
-                                                                </td>
-                                                            </tr>
-                                                            {% endfor %}
-                                                        {% else %}
-                                                            <tr>
-                                                                <td colspan="5" class="text-center text-muted py-2">Sin movimientos registrados.</td>
-                                                            </tr>
-                                                        {% endif %}
-                                                    </tbody>
-                                                    <tfoot class="table-secondary fw-bold">
-                                                        <tr>
-                                                            <td>TOTAL</td>
-                                                            <td class="text-end">Bs. {{ totales.venta | dinero }}</td>
-                                                            <td class="text-end text-primary">Bs. {{ totales.comision | dinero }}</td>
-                                                            <td class="text-end text-danger">Bs. {{ totales.premio | dinero }}</td>
-                                                            <td class="text-end {% if totales.neto < 0 %}text-danger{% else %}text-success{% endif %}">
-                                                                Bs. {{ totales.neto | dinero }}
-                                                            </td>
-                                                        </tr>
-                                                    </tfoot>
-                                                </table>
-                                            </div>
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        <tr><td colspan="4" class="text-center text-muted py-2">Sin movimientos.</td></tr>
+                                                    {% endif %}
+                                                </tbody>
+                                            </table>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                             {% endfor %}
                         </div>
-
                     </div>
                 </div>
             </div>
@@ -800,42 +597,26 @@
             <div class="tab-pane fade {% if tab == 'totalizador' or tab_activa == 'totalizador' %}show active{% endif %}" id="totalizador" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #0d47a1;">
                     <div class="card-body">
-                        <h5 class="fw-bold text-primary mb-4"><i class="fas fa-calculator me-2"></i>Totalizador Financiero Global</h5>
+                        <h5 class="fw-bold text-primary mb-3">Totalizador Global</h5>
                         <div class="row g-3">
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <div class="p-3 bg-light border rounded">
-                                    <small class="text-muted fw-bold">GANANCIA POR % EXCEDENTE</small>
-                                    <h5 class="text-primary mt-1 mb-0">Bs. {{ total_ganancia_excedente | default(0) | dinero }}</h5>
+                                    <small class="text-muted fw-bold">GANANCIA EXCEDENTE</small>
+                                    <h5 class="text-primary mt-1 mb-0">Bs. {{ total_ganancia_excedente | dinero }}</h5>
                                 </div>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <div class="p-3 bg-light border rounded">
-                                    <small class="text-muted fw-bold">GANANCIA POR % PARTICIPACIÓN</small>
-                                    <h5 class="text-warning mt-1 mb-0" style="color: #e65100 !important;">Bs. {{ total_ganancia_participacion | default(0) | dinero }}</h5>
+                                    <small class="text-muted fw-bold">GANANCIA PARTICIPACIÓN</small>
+                                    <h5 class="text-warning mt-1 mb-0" style="color: #e65100 !important;">Bs. {{ total_ganancia_participacion | dinero }}</h5>
                                 </div>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <div class="p-3 bg-success-subtle border border-success rounded">
-                                    <small class="text-success fw-bold">TOTAL MI GANANCIA</small>
-                                    <h4 class="text-success mt-1 mb-0 fw-bold">Bs. {{ total_mi_ganancia_global | default(0) | dinero }}</h4>
+                                    <small class="text-success fw-bold">MI GANANCIA TOTAL</small>
+                                    <h4 class="text-success mt-1 mb-0 fw-bold">Bs. {{ total_mi_ganancia_global | dinero }}</h4>
                                 </div>
                             </div>
-                            <div class="col-md-3">
-                                <div class="p-3 bg-info-subtle border border-info rounded">
-                                    <small class="text-info fw-bold" style="color: #006064 !important;">TOTAL CASHEA ABSORBIDO</small>
-                                    <h5 class="mt-1 mb-0 text-dark fw-bold">Bs. {{ totales_auxiliares.cashea | default(0) | dinero }}</h5>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="mt-4 p-3 bg-light border rounded-3 d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="m-0 fw-bold text-dark"><i class="fas fa-balance-scale me-2"></i>Cuenta Total con los Banqueros (Suma de Cuadros):</h6>
-                                <small class="text-muted">Si es negativo: tienes saldo a favor a cobrarles. Si es positivo: monto neto a pagarles.</small>
-                            </div>
-                            <h4 class="m-0 fw-bold {% if (suma_cuadros_banqueros | default(0)) < 0 %}text-success{% else %}text-danger{% endif %}">
-                                Bs. {{ suma_cuadros_banqueros | default(0) | dinero }}
-                            </h4>
                         </div>
                     </div>
                 </div>
@@ -845,7 +626,53 @@
             <div class="tab-pane fade {% if tab == 'desglose_banca' or tab_activa == 'desglose_banca' %}show active{% endif %}" id="desglose_banca" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
-                        <h5 class="fw-bold text-success mb-3"><i class="fas fa-university"></i> Desglose por Banqueros con Ganancia Privada</h5>
+                        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                            <h5 class="fw-bold text-success m-0"><i class="fas fa-university"></i> Desglose por Banqueros</h5>
+                            <button class="btn btn-outline-success btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCargarGuacaCalamar">
+                                <i class="fas fa-plus-circle me-1"></i> Cargar Guaca (Líder) / Calamar (NYS)[cite: 3, 4]
+                            </button>
+                        </div>
+
+                        <!-- MODAL CARGAR GUACA Y CALAMAR DIRECTO -->
+                        <div class="modal fade" id="modalCargarGuacaCalamar" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header bg-success text-white py-2">
+                                        <h6 class="modal-title fw-bold">Cargar Totales Especiales (Guaca / Calamar)[cite: 4]</h6>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <form action="/api/cargar-totales-lider-nys" method="POST" class="p-3">
+                                        <input type="hidden" name="fecha" value="{{ hasta_fecha }}">
+                                        
+                                        <h6 class="fw-bold text-dark border-bottom pb-1 mb-2">Comercializadora Líder (Área Guaca)[cite: 3, 4]:</h6>
+                                        <div class="row g-2 mb-3">
+                                            <div class="col-6">
+                                                <label class="small text-muted">Venta Guaca[cite: 4]:</label>
+                                                <input type="number" step="0.01" name="venta_lider" class="form-control form-control-sm" placeholder="Ej: 119805.00[cite: 4]">
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="small text-muted">Premios Guaca[cite: 4]:</label>
+                                                <input type="number" step="0.01" name="premios_lider" class="form-control form-control-sm" placeholder="Ej: 130700.00[cite: 4]">
+                                            </div>
+                                        </div>
+
+                                        <h6 class="fw-bold text-dark border-bottom pb-1 mb-2">Comercializadora NYS (Área Calamar)[cite: 4]:</h6>
+                                        <div class="row g-2 mb-3">
+                                            <div class="col-6">
+                                                <label class="small text-muted">Venta Calamar[cite: 4]:</label>
+                                                <input type="number" step="0.01" name="venta_nys" class="form-control form-control-sm" placeholder="Ej: 730.00[cite: 4]">
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="small text-muted">Premios Calamar[cite: 4]:</label>
+                                                <input type="number" step="0.01" name="premios_nys" class="form-control form-control-sm" placeholder="0.00[cite: 4]">
+                                            </div>
+                                        </div>
+
+                                        <button type="submit" class="btn btn-success btn-sm w-100 fw-bold">Guardar Totales</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
 
                         <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm">
                             <input type="hidden" name="tab" value="desglose_banca">
@@ -864,176 +691,172 @@
 
                         {% for banquero, data in desglose_banqueros.items() %}
                         {% set b_idx = loop.index %}
-                        <div class="card mb-4 border-0 shadow-sm card-banquero" data-nombre="{{ banquero }}" style="border-radius: 12px; border-left: 5px solid #198754 !important;">
+                        <div class="card mb-4 border-0 shadow-sm" style="border-radius: 12px; border-left: 5px solid #198754 !important;">
                             <div class="card-header bg-success text-white fw-bold d-flex justify-content-between align-items-center py-2">
-                                <span><i class="fas fa-building me-1"></i> {{ banquero }}</span>
+                                <span><i class="fas fa-building me-1"></i> {{ banquero }}[cite: 3]</span>
                                 <div class="d-flex align-items-center gap-2">
-                                    <button class="btn btn-sm btn-outline-light py-0 fw-bold" data-bs-toggle="modal" data-bs-target="#modalEditarBanca{{ b_idx }}">
-                                        <i class="fas fa-cog me-1"></i> Configurar %
-                                    </button>
-                                    <button onclick="copiarBanquero('tabla_banquero_{{ b_idx }}', '{{ banquero }}')" class="btn btn-sm btn-light text-success fw-bold py-0">Copiar</button>
+                                    <button class="btn btn-sm btn-outline-light py-0 fw-bold" data-bs-toggle="modal" data-bs-target="#modalEditarBanca{{ b_idx }}">Configurar %[cite: 3]</button>
+                                    <button onclick="copiarBanquero('tabla_banquero_{{ b_idx }}', '{{ banquero }}')" class="btn btn-sm btn-light text-success fw-bold py-0">Copiar[cite: 3]</button>
                                 </div>
                             </div>
                             <div class="card-body p-3">
+                                
+                                <!-- FORMULARIO: ADELANTOS Y PENDIENTES DEL BANQUERO -->
+                                <form action="/admin/guardar-ajustes-banquero-global" method="POST" class="row g-2 align-items-center mb-3 p-2 bg-light rounded border">
+                                    <input type="hidden" name="banquero" value="{{ banquero }}">
+                                    <input type="hidden" name="fecha" value="{{ hasta_fecha }}">
+                                    <input type="hidden" name="desde_fecha" value="{{ desde_fecha }}">
+                                    <input type="hidden" name="hasta_fecha" value="{{ hasta_fecha }}">
+                                    
+                                    <div class="col-md-4">
+                                        <label class="small fw-bold text-danger mb-0"><i class="fas fa-hand-holding-usd me-1"></i> Adelanto (Plata pedida a la banca):</label>
+                                        <input type="number" step="0.01" name="adelantos" value="{{ data.adelantos_banquero }}" class="form-control form-control-sm border-danger" placeholder="0.00">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="small fw-bold text-warning mb-0" style="color: #e65100 !important;"><i class="fas fa-clock me-1"></i> Pendiente (Deuda semanas anteriores):</label>
+                                        <input type="number" step="0.01" name="pendientes" value="{{ data.pendientes_banquero }}" class="form-control form-control-sm border-warning" placeholder="0.00">
+                                    </div>
+                                    <div class="col-md-4 d-flex align-items-end">
+                                        <button type="submit" class="btn btn-sm btn-dark w-100 fw-bold"><i class="fas fa-save me-1"></i> Guardar Adelanto / Pendiente</button>
+                                    </div>
+                                </form>
+
                                 <div class="row g-3">
                                     <div class="col-lg-7">
-                                        <div class="border rounded p-2 bg-white shadow-sm">
-                                            <div class="table-responsive">
-                                                <table class="table table-sm table-hover mb-0 align-middle tabla-sistemas-banquero" id="tabla_banquero_{{ b_idx }}" style="font-size: 11px;">
-                                                    <thead class="table-light">
-                                                        <tr>
-                                                            <th>SISTEMA</th>
-                                                            <th class="text-end">VENTA</th>
-                                                            <th class="text-end">COMIS. BANCA</th>
-                                                            <th class="text-end">PREMIOS</th>
-                                                            <th class="text-end">TOT. SISTEMA</th>
-                                                            <th class="text-end text-warning">PARTICIP.</th>
-                                                            <th class="text-end">TOTAL LIQ.</th>
-                                                            <th class="text-center">EDITAR</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {% if data.sistemas %}
-                                                            {% for sys in data.sistemas %}
-                                                            {% set s_idx = loop.index %}
-                                                            <tr data-sistema="{{ sys.sistema }}">
-                                                                <td class="fw-bold sys-nombre">
-                                                                    <span class="badge badge-banquero-verde me-1 badge-pct-banca">{{ sys.pct_banquero }}%</span>
-                                                                    {{ sys.sistema }}
-                                                                    {% if sys.ajustado_manual %}
-                                                                    <span class="badge bg-warning text-dark ms-1" title="Monto editado manualmente">M</span>
-                                                                    {% endif %}
-                                                                </td>
-                                                                <td class="text-end sys-venta">Bs. {{ sys.venta | default(0) | dinero }}</td>
-                                                                <td class="text-end sys-comis">Bs. {{ sys.comision_banquero | default(0) | dinero }}</td>
-                                                                <td class="text-end sys-premios">Bs. {{ sys.premios | default(0) | dinero }}</td>
-                                                                <td class="text-end fw-semibold">Bs. {{ sys.total_sistema | default(0) | dinero }}</td>
-                                                                <td class="text-end text-warning fw-bold">
-                                                                    {% if sys.pct_participacion > 0 %}
-                                                                    - Bs. {{ sys.monto_participacion | default(0) | dinero }}
-                                                                    {% else %}
-                                                                    -
-                                                                    {% endif %}
-                                                                </td>
-                                                                <td class="text-end fw-bold sys-total">Bs. {{ sys.total_banquero | default(0) | dinero }}</td>
-                                                                
-                                                                <td class="text-center">
-                                                                    <button class="btn btn-sm btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#modalEditVal{{ b_idx }}_{{ s_idx }}" title="Editar Montos Directos">
-                                                                        <i class="fas fa-edit"></i>
-                                                                    </button>
+                                        <div class="table-responsive border rounded bg-white shadow-sm p-1">
+                                            <table class="table table-sm table-hover mb-0 align-middle" id="tabla_banquero_{{ b_idx }}" style="font-size: 11px;">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>SISTEMA[cite: 3]</th>
+                                                        <th class="text-end">VENTA[cite: 3]</th>
+                                                        <th class="text-end">COMIS. BANCA[cite: 3]</th>
+                                                        <th class="text-end">PREMIOS[cite: 3]</th>
+                                                        <th class="text-end">TOT. SISTEMA[cite: 3]</th>
+                                                        <th class="text-end text-warning">PARTICIP.[cite: 3]</th>
+                                                        <th class="text-end">TOTAL LIQ.[cite: 3]</th>
+                                                        <th class="text-center">EDITAR[cite: 3]</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for sys in data.sistemas %}
+                                                    {% set s_idx = loop.index %}
+                                                    <tr>
+                                                        <td class="fw-bold">
+                                                            <span class="badge badge-banquero-verde me-1">{{ sys.pct_banquero }}%</span>
+                                                            {{ sys.sistema }}
+                                                            {% if sys.ajustado_manual %}<span class="badge bg-warning text-dark ms-1">M</span>{% endif %}
+                                                        </td>
+                                                        <td class="text-end">Bs. {{ sys.venta | dinero }}</td>
+                                                        <td class="text-end">Bs. {{ sys.comision_banquero | dinero }}</td>
+                                                        <td class="text-end">Bs. {{ sys.premios | dinero }}</td>
+                                                        <td class="text-end">Bs. {{ sys.total_sistema | dinero }}</td>
+                                                        <td class="text-end text-warning fw-bold">
+                                                            {% if sys.pct_participacion > 0 %}- Bs. {{ sys.monto_participacion | dinero }}{% else %}-{% endif %}
+                                                        </td>
+                                                        <td class="text-end fw-bold">Bs. {{ sys.total_banquero | dinero }}</td>
+                                                        <td class="text-center">
+                                                            <button class="btn btn-sm btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#modalEditVal{{ b_idx }}_{{ s_idx }}"><i class="fas fa-edit"></i></button>
 
-                                                                    <div class="modal fade" id="modalEditVal{{ b_idx }}_{{ s_idx }}" tabindex="-1">
-                                                                        <div class="modal-dialog modal-sm">
-                                                                            <div class="modal-content text-start">
-                                                                                <div class="modal-header bg-dark text-white py-1">
-                                                                                    <h6 class="modal-title small fw-bold">Editar {{ sys.sistema }}</h6>
-                                                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                                                                                </div>
-                                                                                <form method="POST" action="/admin/guardar-ajuste-banquero-sistema" class="p-2">
-                                                                                    <input type="hidden" name="banquero" value="{{ banquero }}">
-                                                                                    <input type="hidden" name="sistema" value="{{ sys.sistema }}">
-                                                                                    <input type="hidden" name="fecha" value="{{ hasta_fecha }}">
-                                                                                    <input type="hidden" name="desde_fecha" value="{{ desde_fecha }}">
-                                                                                    <input type="hidden" name="hasta_fecha" value="{{ hasta_fecha }}">
-                                                                                    
-                                                                                    <label class="small fw-bold">Venta:</label>
-                                                                                    <input type="number" step="0.01" name="venta" value="{{ sys.venta }}" class="form-control form-control-sm mb-1" required>
-                                                                                    
-                                                                                    <label class="small fw-bold">Comisión Banca:</label>
-                                                                                    <input type="number" step="0.01" name="comision" value="{{ sys.comision_banquero }}" class="form-control form-control-sm mb-1" required>
-                                                                                    
-                                                                                    <label class="small fw-bold">Premios:</label>
-                                                                                    <input type="number" step="0.01" name="premios" value="{{ sys.premios }}" class="form-control form-control-sm mb-2" required>
-                                                                                    
-                                                                                    <button type="submit" class="btn btn-success btn-sm w-100 fw-bold mb-1">Recalcular</button>
-                                                                                </form>
-                                                                                
-                                                                                {% if sys.ajustado_manual %}
-                                                                                <form method="POST" action="/admin/restablecer-ajuste-banquero-sistema" class="px-2 pb-2">
-                                                                                    <input type="hidden" name="banquero" value="{{ banquero }}">
-                                                                                    <input type="hidden" name="sistema" value="{{ sys.sistema }}">
-                                                                                    <input type="hidden" name="desde_fecha" value="{{ desde_fecha }}">
-                                                                                    <input type="hidden" name="hasta_fecha" value="{{ hasta_fecha }}">
-                                                                                    <button type="submit" class="btn btn-outline-danger btn-sm w-100 py-0" style="font-size: 10px;">Restablecer Original</button>
-                                                                                </form>
-                                                                                {% endif %}
-                                                                            </div>
+                                                            <div class="modal fade" id="modalEditVal{{ b_idx }}_{{ s_idx }}" tabindex="-1">
+                                                                <div class="modal-dialog modal-sm">
+                                                                    <div class="modal-content text-start">
+                                                                        <div class="modal-header bg-dark text-white py-1">
+                                                                            <h6 class="modal-title small fw-bold">Editar {{ sys.sistema }}</h6>
+                                                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                                                                         </div>
+                                                                        <form method="POST" action="/admin/guardar-ajuste-banquero-sistema" class="p-2">
+                                                                            <input type="hidden" name="banquero" value="{{ banquero }}">
+                                                                            <input type="hidden" name="sistema" value="{{ sys.sistema }}">
+                                                                            <input type="hidden" name="fecha" value="{{ hasta_fecha }}">
+                                                                            <input type="hidden" name="desde_fecha" value="{{ desde_fecha }}">
+                                                                            <input type="hidden" name="hasta_fecha" value="{{ hasta_fecha }}">
+                                                                            <label class="small fw-bold">Venta:</label>
+                                                                            <input type="number" step="0.01" name="venta" value="{{ sys.venta }}" class="form-control form-control-sm mb-1" required>
+                                                                            <label class="small fw-bold">Comisión:</label>
+                                                                            <input type="number" step="0.01" name="comision" value="{{ sys.comision_banquero }}" class="form-control form-control-sm mb-1" required>
+                                                                            <label class="small fw-bold">Premios:</label>
+                                                                            <input type="number" step="0.01" name="premios" value="{{ sys.premios }}" class="form-control form-control-sm mb-2" required>
+                                                                            <button type="submit" class="btn btn-success btn-sm w-100 fw-bold mb-1">Guardar</button>
+                                                                        </form>
                                                                     </div>
-                                                                </td>
-                                                            </tr>
-                                                            {% endfor %}
-                                                        {% endif %}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                    {% endfor %}
 
-                                                        {% if data.cashea_descontado > 0 %}
-                                                        <tr class="table-info fila-cashea">
-                                                            <td class="fw-bold" colspan="6"><i class="fas fa-shopping-cart"></i> CASHEA ABSORBIDO</td>
-                                                            <td class="text-end fw-bold text-danger">- Bs. {{ data.cashea_descontado | dinero }}</td>
-                                                            <td></td>
-                                                        </tr>
-                                                        {% endif %}
+                                                    {% if data.cashea_descontado > 0 %}
+                                                    <tr class="table-info fila-cashea">
+                                                        <td class="fw-bold" colspan="6"><i class="fas fa-shopping-cart"></i> CASHEA ABSORBIDO</td>
+                                                        <td class="text-end fw-bold text-danger">- Bs. {{ data.cashea_descontado | dinero }}</td>
+                                                        <td></td>
+                                                    </tr>
+                                                    {% endif %}
 
-                                                        <tr class="table-success fw-bold">
-                                                            <td colspan="6">TOTAL DEFINITIVO BANQUERO</td>
-                                                            <td class="text-end text-success fs-6 span-total-definitivo">Bs. {{ data.total_a_pagar_banquero | default(0) | dinero }}</td>
-                                                            <td></td>
-                                                        </tr>
-                                                    </tbody>
-                                                </table>
-                                            </div>
+                                                    {% if data.adelantos_banquero != 0 %}
+                                                    <tr class="table-danger fila-adelanto">
+                                                        <td class="fw-bold" colspan="6"><i class="fas fa-hand-holding-usd"></i> ADELANTO (Dinero recibido de banca)</td>
+                                                        <td class="text-end fw-bold text-danger">+ Bs. {{ data.adelantos_banquero | dinero }}</td>
+                                                        <td></td>
+                                                    </tr>
+                                                    {% endif %}
+
+                                                    {% if data.pendientes_banquero != 0 %}
+                                                    <tr class="table-warning fila-pendiente">
+                                                        <td class="fw-bold" colspan="6"><i class="fas fa-clock"></i> PENDIENTE ANTERIOR (Deuda de otra semana)</td>
+                                                        <td class="text-end fw-bold text-warning" style="color: #e65100 !important;">+ Bs. {{ data.pendientes_banquero | dinero }}</td>
+                                                        <td></td>
+                                                    </tr>
+                                                    {% endif %}
+
+                                                    <tr class="table-success fw-bold">
+                                                        <td colspan="6">TOTAL DEFINITIVO BANQUERO[cite: 3]</td>
+                                                        <td class="text-end text-success fs-6">Bs. {{ data.total_a_pagar_banquero | dinero }}[cite: 3]</td>
+                                                        <td></td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
                                         </div>
                                     </div>
 
                                     <div class="col-lg-5">
-                                        <div class="border rounded p-2 bg-light shadow-sm">
-                                            <div class="table-responsive">
-                                                <table class="table table-sm table-hover mb-0 align-middle tabla-privada" style="font-size: 11px;">
-                                                    <thead class="table-dark">
-                                                        <tr>
-                                                            <th>SISTEMA</th>
-                                                            <th class="text-center">% TAQ / DIF / PART</th>
-                                                            <th class="text-end">GANANCIA REAL</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {% if data.sistemas %}
-                                                            {% for sys in data.sistemas %}
-                                                            <tr data-sistema="{{ sys.sistema }}">
-                                                                <td class="fw-bold">{{ sys.sistema }}</td>
-                                                                <td class="text-center">
-                                                                    <span class="badge badge-taquilla-azul">{{ sys.pct_taquilla }}% Taq</span>
-                                                                    <span class="badge bg-primary">{{ sys.pct_excedente }}% Dif</span>
-                                                                    <span class="badge bg-warning text-dark">{{ sys.pct_participacion }}% Part</span>
-                                                                </td>
-                                                                <td class="text-end fw-bold {% if (sys.ganancia_total | default(0)) < 0 %}text-danger{% else %}text-success{% endif %}">
-                                                                    {% if (sys.ganancia_total | default(0)) < 0 %}
-                                                                    - Bs. {{ (sys.ganancia_total | abs) | default(0) | dinero }}
-                                                                    {% else %}
-                                                                    + Bs. {{ sys.ganancia_total | default(0) | dinero }}
-                                                                    {% endif %}
-                                                                </td>
-                                                            </tr>
-                                                            {% endfor %}
-                                                        {% endif %}
-                                                        <tr class="table-dark fw-bold">
-                                                            <td colspan="2">GANANCIA TOTAL BANCA</td>
-                                                            <td class="text-end text-warning">Bs. {{ data.total_mi_ganancia_banca | default(0) | dinero }}</td>
-                                                        </tr>
-                                                    </tbody>
-                                                </table>
-                                            </div>
+                                        <div class="table-responsive border rounded bg-light shadow-sm p-1">
+                                            <table class="table table-sm table-hover mb-0 align-middle" style="font-size: 11px;">
+                                                <thead class="table-dark">
+                                                    <tr><th>SISTEMA[cite: 3]</th><th class="text-center">% TAQ / DIF / PART[cite: 3]</th><th class="text-end">GANANCIA REAL[cite: 3]</th></tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for sys in data.sistemas %}
+                                                    <tr>
+                                                        <td class="fw-bold">{{ sys.sistema }}[cite: 3]</td>
+                                                        <td class="text-center">
+                                                            <span class="badge badge-taquilla-azul">{{ sys.pct_taquilla }}%</span>[cite: 3]
+                                                            <span class="badge bg-primary">{{ sys.pct_excedente }}%</span>[cite: 3]
+                                                            <span class="badge bg-warning text-dark">{{ sys.pct_participacion }}%</span>[cite: 3]
+                                                        </td>
+                                                        <td class="text-end fw-bold {% if sys.ganancia_total < 0 %}text-danger{% else %}text-success{% endif %}">
+                                                            Bs. {{ sys.ganancia_total | dinero }}[cite: 3]
+                                                        </td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                    <tr class="table-dark fw-bold">
+                                                        <td colspan="2">TOTAL GANANCIA[cite: 3]</td>
+                                                        <td class="text-end text-warning">Bs. {{ data.total_mi_ganancia_banca | dinero }}[cite: 3]</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
                                         </div>
                                     </div>
-
                                 </div>
                             </div>
                         </div>
 
+                        <!-- MODAL CONFIG % -->
                         <div class="modal fade" id="modalEditarBanca{{ b_idx }}" tabindex="-1">
                             <div class="modal-dialog modal-lg">
                                 <div class="modal-content">
                                     <div class="modal-header bg-success text-white">
-                                        <h6 class="modal-title fw-bold"><i class="fas fa-edit me-2"></i> Configurar Porcentajes: {{ banquero }}</h6>
+                                        <h6 class="modal-title fw-bold">Configurar %: {{ banquero }}</h6>
                                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                                     </div>
                                     <div class="modal-body p-3">
@@ -1042,23 +865,21 @@
                                             <input type="hidden" name="regla_id" value="{{ sys.id }}">
                                             <input type="hidden" name="desde_fecha" value="{{ desde_fecha }}">
                                             <input type="hidden" name="hasta_fecha" value="{{ hasta_fecha }}">
-                                            <div class="col-md-3">
-                                                <strong style="font-size: 12px;">{{ sys.sistema }}</strong>
-                                            </div>
+                                            <div class="col-md-3"><strong>{{ sys.sistema }}</strong></div>
                                             <div class="col-md-2">
-                                                <label class="small text-muted d-block" style="font-size: 10px;">% Banca</label>
+                                                <label class="small text-muted d-block">% Banca</label>
                                                 <input type="number" step="0.1" name="pct_banquero" value="{{ sys.pct_banquero }}" class="form-control form-control-sm" required>
                                             </div>
                                             <div class="col-md-2">
-                                                <label class="small text-muted d-block" style="font-size: 10px;">% Taquilla</label>
+                                                <label class="small text-muted d-block">% Taquilla</label>
                                                 <input type="number" step="0.1" name="pct_taquilla" value="{{ sys.pct_taquilla }}" class="form-control form-control-sm" required>
                                             </div>
                                             <div class="col-md-3">
-                                                <label class="small text-muted d-block" style="font-size: 10px;">% Participación</label>
+                                                <label class="small text-muted d-block">% Part</label>
                                                 <input type="number" step="0.1" name="pct_participacion" value="{{ sys.pct_participacion }}" class="form-control form-control-sm" required>
                                             </div>
                                             <div class="col-md-2 d-flex align-items-end">
-                                                <button type="submit" class="btn btn-sm btn-success w-100 fw-bold" style="font-size: 11px;">Guardar</button>
+                                                <button type="submit" class="btn btn-sm btn-success w-100 fw-bold">Guardar</button>
                                             </div>
                                         </form>
                                         {% endfor %}
@@ -1091,146 +912,44 @@
         function copiarBalancesGlobales() {
             var filasDeben = document.querySelectorAll("#tablaBalancesDeben tbody tr.fila-interactiva");
             var filasFavor = document.querySelectorAll("#tablaBalancesFavor tbody tr.fila-interactiva");
-            
-            var fDesde = document.querySelector("input[name='desde_fecha']") ? document.querySelector("input[name='desde_fecha']").value : "";
-            var fHasta = document.querySelector("input[name='hasta_fecha']") ? document.querySelector("input[name='hasta_fecha']").value : "";
-            
-            var texto = "⚖️ --- RESUMEN DE BALANCES GLOBALES ---\n";
-            texto += "📅 Período: " + (fDesde || "Hoy") + " hasta " + (fHasta || "Hoy") + "\n\n";
-
-            texto += "🟢 DEBEN A LA BANCA (+):\n";
-            var totalDeben = 0.0;
-            if (filasDeben.length) {
-                filasDeben.forEach(function(f) {
-                    var cols = f.querySelectorAll("td");
-                    if (cols.length >= 3) {
-                        var ag = cols[0].innerText.trim();
-                        var mTxt = cols[2].innerText.replace("Bs.", "").replace(/,/g, "").trim();
-                        var mVal = parseFloat(mTxt) || 0.0;
-                        totalDeben += mVal;
-                        
-                        var targetId = f.getAttribute("data-bs-target");
-                        var detalleFila = document.querySelector(targetId);
-                        var extraInfo = "";
-                        if (detalleFila) {
-                            var repMatch = detalleFila.innerText.match(/Total Reporte Sistema:\s*Bs\.\s*([\d,.-]+)/);
-                            var casheaMatch = detalleFila.innerText.match(/Cashea Absorbido:\s*Bs\.\s*([\d,.-]+)/);
-                            if (repMatch) extraInfo += ` | Rep: Bs. ${repMatch[1]}`;
-                            if (casheaMatch && parseFloat(casheaMatch[1].replace(/,/g, '')) > 0) extraInfo += ` | Cashea: Bs. ${casheaMatch[1]}`;
-                        }
-
-                        texto += `  • ${ag}: Bs. ${mVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}${extraInfo}\n`;
-                    }
-                });
-            } else {
-                texto += "  (Sin agencias deudoras)\n";
-            }
-            texto += `  👉 Total por Cobrar: Bs. ${totalDeben.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}\n\n`;
-
-            texto += "🔴 SALDO A FAVOR / A PAGARLES (-):\n";
-            var totalFavor = 0.0;
-            if (filasFavor.length) {
-                filasFavor.forEach(function(f) {
-                    var cols = f.querySelectorAll("td");
-                    if (cols.length >= 3) {
-                        var ag = cols[0].innerText.trim();
-                        var mTxt = cols[2].innerText.replace("Bs.", "").replace(/,/g, "").trim();
-                        var mVal = parseFloat(mTxt) || 0.0;
-                        totalFavor += mVal;
-
-                        var targetId = f.getAttribute("data-bs-target");
-                        var detalleFila = document.querySelector(targetId);
-                        var extraInfo = "";
-                        if (detalleFila) {
-                            var repMatch = detalleFila.innerText.match(/Total Reporte Sistema:\s*Bs\.\s*([\d,.-]+)/);
-                            var casheaMatch = detalleFila.innerText.match(/Cashea Absorbido:\s*Bs\.\s*([\d,.-]+)/);
-                            if (repMatch) extraInfo += ` | Rep: Bs. ${repMatch[1]}`;
-                            if (casheaMatch && parseFloat(casheaMatch[1].replace(/,/g, '')) > 0) extraInfo += ` | Cashea: Bs. ${casheaMatch[1]}`;
-                        }
-
-                        texto += `  • ${ag}: Bs. ${mVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}${extraInfo}\n`;
-                    }
-                });
-            } else {
-                texto += "  (Sin saldos a favor)\n";
-            }
-            texto += `  👉 Total por Pagar: Bs. ${totalFavor.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}\n`;
-
-            navigator.clipboard.writeText(texto).then(function() {
-                alert("¡Balances copiados al portapapeles listos para enviar!");
+            var texto = "⚖️ --- RESUMEN DE BALANCES ---\n\n🟢 DEBEN (+):\n";
+            filasDeben.forEach(function(f) {
+                var c = f.querySelectorAll("td");
+                texto += `• ${c[0].innerText.trim()}: ${c[2].innerText.trim()}\n`;
             });
-        }
-
-        function copiarCasheasGeneral() {
-            var filas = document.querySelectorAll("#tablaCasheaGeneral tbody tr");
-            if (!filas.length) {
-                alert("No hay registros de Cashea para copiar.");
-                return;
-            }
-            var texto = "🛒 --- REPORTES CASHEA ABSORBIDOS ---\n\n";
-            var totalCashea = 0.0;
-            filas.forEach(function(f) {
-                var cols = f.querySelectorAll("td");
-                if (cols.length >= 4) {
-                    var ag = cols[0].innerText.trim();
-                    var fecha = cols[1].innerText.trim();
-                    var det = cols[2].innerText.trim();
-                    var montoTxt = cols[3].innerText.replace("Bs.", "").replace(/,/g, "").trim();
-                    var mVal = parseFloat(montoTxt) || 0.0;
-                    totalCashea += mVal;
-                    texto += `• [${ag}] (${fecha}) -> ${det} | Bs. ${mVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}\n`;
-                }
+            texto += "\n🔴 A PAGARLES (-):\n";
+            filasFavor.forEach(function(f) {
+                var c = f.querySelectorAll("td");
+                texto += `• ${c[0].innerText.trim()}: ${c[2].innerText.trim()}\n`;
             });
-            texto += `\n💰 TOTAL CASHEA GENERAL: Bs. ${totalCashea.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
             navigator.clipboard.writeText(texto).then(function() {
-                alert("¡Casheas copiados al portapapeles con éxito!");
+                alert("Balances copiados con éxito.");
             });
         }
 
         function copiarBanquero(tablaId, nombreBanquero) {
             var tabla = document.getElementById(tablaId);
             if (!tabla) return;
-            
-            var fDesde = document.getElementById("filtro_desde") ? document.getElementById("filtro_desde").value : "";
-            var fHasta = document.getElementById("filtro_hasta") ? document.getElementById("filtro_hasta").value : "";
-            
-            var textoCopiar = "--- " + nombreBanquero + " ---\n";
-            textoCopiar += "📅 PERÍODO: " + (fDesde || "Hoy") + " hasta " + (fHasta || "Hoy") + "\n\n";
-            
+            var texto = "--- " + nombreBanquero + " ---\n\n";
             var filas = tabla.getElementsByTagName("tr");
-            var totalDefinitivo = "";
-
+            var totalDef = "";
             for (var i = 0; i < filas.length; i++) {
-                if (filas[i].classList.contains('d-none')) continue;
-                
                 var cols = filas[i].getElementsByTagName("td");
                 if (cols.length >= 7) {
-                    var sis = cols[0].innerText.replace(/[\n\r]+/g, ' ').trim();
-                    var venta = cols[1].innerText.trim();
-                    var comision = cols[2].innerText.trim();
-                    var premios = cols[3].innerText.trim();
-                    var totSis = cols[4].innerText.trim();
-                    var particip = cols[5].innerText.trim();
-                    var totalLiq = cols[6].innerText.trim();
-                    
-                    textoCopiar += "🎰 " + sis + "\n";
-                    textoCopiar += "   • Venta: " + venta + " | Comis: " + comision + " | Premios: " + premios + "\n";
-                    textoCopiar += "   • Tot. Sistema: " + totSis + " | Partic: " + particip + " | Total Liq: " + totalLiq + "\n\n";
-                } else if (filas[i].classList.contains('table-success') || filas[i].innerText.includes("TOTAL DEFINITIVO")) {
-                    totalDefinitivo = cols[cols.length - 1].innerText.trim();
-                } else if (filas[i].classList.contains('fila-cashea')) {
-                    textoCopiar += "🛒 CASHEA ABSORBIDO: " + cols[cols.length - 1].innerText.trim() + "\n\n";
+                    texto += `🎰 ${cols[0].innerText.trim()}\nVenta: ${cols[1].innerText.trim()} | Com: ${cols[2].innerText.trim()} | Prem: ${cols[3].innerText.trim()} | Total: ${cols[6].innerText.trim()}\n\n`;
+                } else if (filas[i].innerText.includes("TOTAL DEFINITIVO")) {
+                    totalDef = cols[cols.length - 1].innerText.trim();
+                } else if (filas[i].classList.contains("fila-adelanto")) {
+                    texto += `💸 ADELANTO: ${cols[cols.length - 1].innerText.trim()}\n\n`;
+                } else if (filas[i].classList.contains("fila-pendiente")) {
+                    texto += `⏳ PENDIENTE ANTERIOR: ${cols[cols.length - 1].innerText.trim()}\n\n`;
                 }
             }
-
-            if (totalDefinitivo) {
-                textoCopiar += "==============================\n";
-                textoCopiar += "💰 TOTAL DEFINITIVO BANQUERO: " + totalDefinitivo + "\n";
-                textoCopiar += "==============================\n";
+            if (totalDef) {
+                texto += `💰 TOTAL DEFINITIVO: ${totalDef}\n`;
             }
-
-            navigator.clipboard.writeText(textoCopiar).then(function() {
-                alert("¡Reporte copiado al portapapeles!");
+            navigator.clipboard.writeText(texto).then(function() {
+                alert("Cuadro copiado con éxito.");
             });
         }
     </script>
