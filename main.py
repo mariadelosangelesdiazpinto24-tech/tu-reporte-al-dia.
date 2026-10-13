@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from typing import Optional
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, UploadFile, File, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -45,6 +45,8 @@ ALIAS_AGENCIAS = {
     "LADD LA CONEJITA": "MILA",
     "LA CONEJITA": "MILA",
     "CONEJITA": "MILA",
+    "EMILY LARA": "MILA",
+    "EMILY": "MILA",
     "AGENCIA VALLEMIL": "VALLEMIL",
     "AGENCIA ORQUIDEA 2": "ORQUIDEA",
     "AGENCIA ORQUÍDEA 2": "ORQUIDEA"
@@ -207,17 +209,16 @@ def init_db():
         )
     ''')
 
-    # Unificación histórica directa en base de datos
     try:
         cursor.execute("UPDATE pagos SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
         cursor.execute("UPDATE reportes SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
         cursor.execute("UPDATE lecturas_comunicados SET agencia = 'ANA MARIA' WHERE UPPER(TRIM(agencia)) = 'RUTA MILLONARIA'")
         
-        cursor.execute("UPDATE pagos SET agencia = 'MILA' WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA')")
-        cursor.execute("UPDATE reportes SET agencia = 'MILA' WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA')")
-        cursor.execute("UPDATE lecturas_comunicados SET agencia = 'MILA' WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA')")
+        cursor.execute("UPDATE pagos SET agencia = 'MILA' WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA', 'EMILY LARA', 'EMILY')")
+        cursor.execute("UPDATE reportes SET agencia = 'MILA' WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA', 'EMILY LARA', 'EMILY')")
+        cursor.execute("UPDATE lecturas_comunicados SET agencia = 'MILA' WHERE UPPER(TRIM(agencia)) IN ('LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA', 'EMILY LARA', 'EMILY')")
         
-        cursor.execute("DELETE FROM usuarios WHERE UPPER(TRIM(agencia)) IN ('RUTA MILLONARIA', 'LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA')")
+        cursor.execute("DELETE FROM usuarios WHERE UPPER(TRIM(agencia)) IN ('RUTA MILLONARIA', 'LADD LA CONEJITA', 'LA CONEJITA', 'CONEJITA', 'EMILY LARA', 'EMILY')")
     except Exception as e_mig:
         print("Aviso en unificación:", e_mig)
 
@@ -225,6 +226,18 @@ def init_db():
     conn.close()
 
 init_db()
+
+@app.get("/api/debug-agencias")
+def debug_agencias(fecha: Optional[str] = None):
+    conn = get_db()
+    cursor = conn.cursor()
+    if fecha:
+        cursor.execute("SELECT DISTINCT agencia, fecha FROM reportes WHERE fecha = %s ORDER BY agencia", (fecha,))
+    else:
+        cursor.execute("SELECT DISTINCT agencia, count(*) as total_reportes FROM reportes GROUP BY agencia ORDER BY agencia")
+    filas = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return JSONResponse(content={"reportes_encontrados": filas})
 
 def obtener_estructura_banqueros_bd():
     conn = get_db()
@@ -256,10 +269,18 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
 
     if agencia_filtro:
         ag_norm = normalizar(agencia_filtro)
-        cursor.execute(
-            "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s", 
-            (ag_norm, f_desde, f_hasta)
-        )
+        if ag_norm == "MILA":
+            cursor.execute(
+                """SELECT * FROM reportes 
+                   WHERE (UPPER(TRIM(agencia)) ILIKE '%%MILA%%' OR UPPER(TRIM(agencia)) ILIKE '%%CONEJITA%%' OR UPPER(TRIM(agencia)) ILIKE '%%EMILY%%') 
+                     AND fecha >= %s AND fecha <= %s""", 
+                (f_desde, f_hasta)
+            )
+        else:
+            cursor.execute(
+                "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s", 
+                (ag_norm, f_desde, f_hasta)
+            )
     else:
         cursor.execute("SELECT * FROM reportes WHERE fecha >= %s AND fecha <= %s", (f_desde, f_hasta))
     
@@ -317,10 +338,18 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
 
     if agencia_filtro:
         ag_norm = normalizar(agencia_filtro)
-        cursor.execute(
-            "SELECT tipo, monto FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'", 
-            (ag_norm, f_desde, f_hasta)
-        )
+        if ag_norm == "MILA":
+            cursor.execute(
+                """SELECT tipo, monto FROM pagos 
+                   WHERE (UPPER(TRIM(agencia)) ILIKE '%%MILA%%' OR UPPER(TRIM(agencia)) ILIKE '%%CONEJITA%%' OR UPPER(TRIM(agencia)) ILIKE '%%EMILY%%') 
+                     AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'""", 
+                (f_desde, f_hasta)
+            )
+        else:
+            cursor.execute(
+                "SELECT tipo, monto FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'", 
+                (ag_norm, f_desde, f_hasta)
+            )
     else:
         cursor.execute("SELECT tipo, monto FROM pagos WHERE fecha >= %s AND fecha <= %s AND estado = 'APROBADO'", (f_desde, f_hasta))
     
@@ -444,35 +473,37 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
         "suma_cuadros_banqueros": suma_cuadros_banqueros
     }
 
-def actualizar_ultima_conexion(agencia: str):
-    agencia_norm = normalizar(agencia)
-    if agencia_norm and agencia_norm != "ADMIN":
-        try:
-            now_str = obtener_fechahora_venezuela()
-            conn = get_db()
-            cursor = conn.cursor()
-            cursor.execute("UPDATE usuarios SET ultima_conexion = %s WHERE UPPER(TRIM(agencia)) = %s", (now_str, agencia_norm))
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            print("Error actualizando conexion:", e)
-
 def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     agencia_norm = normalizar(agencia)
     conn = get_db()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha_reporte))
+    cursor.execute(
+        """SELECT * FROM reportes 
+           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA', 'EMILY LARA', 'EMILY')) 
+             AND fecha = %s""", 
+        (agencia_norm, fecha_reporte)
+    )
     rep = cursor.fetchone()
     
     if not rep:
         conn.close()
         return
 
-    cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND estado = 'APROBADO'", (agencia_norm, fecha_reporte))
+    cursor.execute(
+        """SELECT * FROM pagos 
+           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA', 'EMILY LARA', 'EMILY')) 
+             AND fecha = %s AND estado = 'APROBADO'""", 
+        (agencia_norm, fecha_reporte)
+    )
     todos_pagos = cursor.fetchall()
     
-    cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_PENDIENTE' AND estado = 'APROBADO'", (agencia_norm,))
+    cursor.execute(
+        """SELECT * FROM pagos 
+           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA', 'EMILY LARA', 'EMILY')) 
+             AND tipo = 'AJUSTE_PENDIENTE' AND estado = 'APROBADO'""", 
+        (agencia_norm,)
+    )
     ajustes_anteriores = cursor.fetchall()
 
     conn.close()
@@ -600,7 +631,12 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("UPDATE reportes SET monto = %s, detalle_html = %s WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (monto_final, detalle_actualizado, agencia_norm, fecha_reporte))
+    cursor.execute(
+        """UPDATE reportes SET monto = %s, detalle_html = %s 
+           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA', 'EMILY LARA', 'EMILY')) 
+             AND fecha = %s""", 
+        (monto_final, detalle_actualizado, agencia_norm, fecha_reporte)
+    )
     conn.commit()
     conn.close()
 
@@ -686,7 +722,12 @@ async def guardar_reporte_colab(request: Request):
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia, fecha))
+    cursor.execute(
+        """SELECT * FROM reportes 
+           WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA', 'EMILY LARA', 'EMILY')) 
+             AND fecha = %s""", 
+        (agencia, fecha)
+    )
     rep = cursor.fetchone()
 
     if rep and fecha < hoy_str:
@@ -700,8 +741,8 @@ async def guardar_reporte_colab(request: Request):
 
     if rep:
         cursor.execute(
-            "UPDATE reportes SET monto = %s, ventas = %s, premios = %s, detalle_html = %s WHERE id = %s",
-            (monto, ventas, premios, detalle_html, rep['id'])
+            "UPDATE reportes SET agencia = %s, monto = %s, ventas = %s, premios = %s, detalle_html = %s WHERE id = %s",
+            (agencia, monto, ventas, premios, detalle_html, rep['id'])
         )
     else:
         cursor.execute(
@@ -710,12 +751,17 @@ async def guardar_reporte_colab(request: Request):
         )
 
     if cashea_monto > 0:
-        cursor.execute("SELECT id FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo = 'CASHEA'", (agencia, fecha))
+        cursor.execute(
+            """SELECT id FROM pagos 
+               WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) IN ('MILA', 'LADD LA CONEJITA', 'LA CONEJITA', 'EMILY LARA', 'EMILY')) 
+                 AND fecha = %s AND tipo = 'CASHEA'""", 
+            (agencia, fecha)
+        )
         cashea_db = cursor.fetchone()
         if cashea_db:
             cursor.execute(
-                "UPDATE pagos SET monto = %s, factura = %s, comprobante = %s WHERE id = %s",
-                (cashea_monto, cashea_detalle, cashea_detalle, cashea_db['id'])
+                "UPDATE pagos SET agencia = %s, monto = %s, factura = %s, comprobante = %s WHERE id = %s",
+                (agencia, cashea_monto, cashea_detalle, cashea_detalle, cashea_db['id'])
             )
         else:
             cursor.execute(
