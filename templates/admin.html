@@ -350,7 +350,7 @@
                 </div>
             </div>
 
-            <!-- 4. BALANCES GLOBALES (+ / -) CON TOTAL REPORTE, CASHEA Y DESGLOSE COMPLETO -->
+            <!-- 4. BALANCES GLOBALES (+ / -) CON BOTÓN DE LIQUIDAR DIRECTO -->
             <div class="tab-pane fade {% if tab == 'balances' or tab_activa == 'balances' %}show active{% endif %}" id="balances" role="tabpanel">
                 
                 <div class="card shadow-sm border-0 mb-4 p-3 bg-light rounded" style="border-radius: 12px;">
@@ -445,12 +445,12 @@
                         </div>
                     </div>
 
-                    <!-- SALDO A FAVOR / A PAGARLES (ROJO) -->
+                    <!-- SALDO A FAVOR / A PAGARLES (ROJO) CON LIQUIDACIÓN DIRECTA -->
                     <div class="col-md-6 mb-4">
                         <div class="card shadow-sm border-0" style="border-top: 4px solid #dc3545; border-radius: 12px;">
                             <div class="card-body">
                                 <h5 class="fw-bold text-danger mb-2"><i class="fas fa-arrow-up me-2"></i>Saldo a Favor / A Pagarles (-)</h5>
-                                <small class="text-muted d-block mb-3">💡 Haz clic sobre una agencia para ver el desglose detallado con Cashea y Reporte.</small>
+                                <small class="text-muted d-block mb-3">💡 Haz clic sobre una agencia para ver el desglose detallado y liquidar la cuenta.</small>
                                 
                                 <div class="table-responsive">
                                     <table class="table table-hover align-middle mb-0" id="tablaBalancesFavor">
@@ -464,12 +464,13 @@
                                         <tbody>
                                             {% if negativos %}
                                                 {% for neg in negativos %}
-                                                <tr class="fila-interactiva" data-bs-toggle="collapse" data-bs-target="#desgloseNeg{{ loop.index }}">
+                                                {% set neg_idx = loop.index %}
+                                                <tr class="fila-interactiva" data-bs-toggle="collapse" data-bs-target="#desgloseNeg{{ neg_idx }}">
                                                     <td class="fw-bold text-uppercase"><i class="fas fa-chevron-right text-muted me-1 small"></i> {{ neg.agencia }}</td>
                                                     <td><small class="text-muted">{{ neg.fecha }}</small></td>
                                                     <td class="text-end text-danger fw-bold">Bs. {{ neg.monto | default(0) | dinero }}</td>
                                                 </tr>
-                                                <tr class="collapse bg-light" id="desgloseNeg{{ loop.index }}">
+                                                <tr class="collapse bg-light" id="desgloseNeg{{ neg_idx }}">
                                                     <td colspan="3" class="p-3">
                                                         <div class="p-3 border rounded bg-white shadow-sm" style="font-size: 12px;">
                                                             <div class="d-flex justify-content-between border-bottom pb-1 mb-2">
@@ -495,8 +496,48 @@
                                                                     <strong class="text-dark">Monto a Liquidar a Taquilla:</strong>
                                                                     <strong class="text-danger fs-6">Bs. {{ neg.monto | default(0) | dinero }}</strong>
                                                                 </div>
+
+                                                                <!-- BOTÓN PARA LIQUIDAR SALDO NEGATIVO CON CAPTURE -->
+                                                                <div class="col-12 mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
+                                                                    <span class="small text-muted fw-bold">Liquidar cuenta con comprobante:</span>
+                                                                    <button class="btn btn-success btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalPagarNeg{{ neg_idx }}">
+                                                                        <i class="fas fa-money-bill-wave me-1"></i> Pagar y Subir Capture
+                                                                    </button>
+                                                                </div>
                                                             </div>
                                                         </div>
+
+                                                        <!-- MODAL LIQUIDAR NEGATIVO -->
+                                                        <div class="modal fade" id="modalPagarNeg{{ neg_idx }}" tabindex="-1">
+                                                            <div class="modal-dialog">
+                                                                <div class="modal-content text-start">
+                                                                    <div class="modal-header bg-success text-white py-2">
+                                                                        <h6 class="modal-title fw-bold"><i class="fas fa-check-circle me-1"></i> Liquidar Saldo: {{ neg.agencia }}</h6>
+                                                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                                    </div>
+                                                                    <form action="/admin/liquidar-saldo-negativo" method="POST" enctype="multipart/form-data" class="p-3">
+                                                                        <input type="hidden" name="agencia" value="{{ neg.agencia }}">
+                                                                        <input type="hidden" name="fecha" value="{{ neg.fecha }}">
+                                                                        
+                                                                        <div class="mb-3">
+                                                                            <label class="form-label small fw-bold">Monto a Liquidar (Bs.):</label>
+                                                                            <input type="number" step="0.01" name="monto" value="{{ neg.monto }}" class="form-control form-control-sm fw-bold text-success" required>
+                                                                        </div>
+                                                                        
+                                                                        <div class="mb-3">
+                                                                            <label class="form-label small fw-bold">Capture de Pago / Transferencia:</label>
+                                                                            <input type="file" name="comprobante_file" class="form-control form-control-sm" accept="image/*,.pdf" required>
+                                                                        </div>
+
+                                                                        <div class="d-flex justify-content-end gap-2">
+                                                                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                                                                            <button type="submit" class="btn btn-success btn-sm fw-bold">Registrar Pago y Notificar</button>
+                                                                        </div>
+                                                                    </form>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
                                                     </td>
                                                 </tr>
                                                 {% endfor %}
@@ -512,7 +553,7 @@
                 </div>
             </div>
 
-            <!-- 5. DATA CASHEA GENERAL CON COPIAR Y RANGO -->
+            <!-- 5. DATA CASHEA GENERAL CON PAPELERA Y FILTRO -->
             <div class="tab-pane fade {% if tab == 'cashea' or tab_activa == 'cashea' %}show active{% endif %}" id="cashea" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #00bcd4; border-radius: 15px;">
                     <div class="card-body">
@@ -557,6 +598,7 @@
                                         <th>FECHA</th>
                                         <th>FACTURA / DETALLE</th>
                                         <th class="text-end">MONTO ABSORBIDO</th>
+                                        <th class="text-center">ACCIÓN</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -567,10 +609,19 @@
                                             <td><small class="text-muted">{{ c.fecha }}</small></td>
                                             <td>{{ c.factura or c.comprobante }}</td>
                                             <td class="text-end fw-bold text-danger">Bs. {{ c.monto | default(0) | dinero }}</td>
+                                            <td class="text-center">
+                                                <form action="/admin/eliminar-transaccion" method="POST" style="display:inline;" onsubmit="return confirm('¿Seguro deseas eliminar este registro de Cashea?');">
+                                                    <input type="hidden" name="pago_id" value="{{ c.id }}">
+                                                    <input type="hidden" name="redirect_to" value="/admin?tab=cashea">
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2" title="Eliminar Cashea">
+                                                        <i class="fas fa-trash-alt"></i>
+                                                    </button>
+                                                </form>
+                                            </td>
                                         </tr>
                                         {% endfor %}
                                     {% else %}
-                                        <tr><td colspan="4" class="text-center text-muted py-3">No hay registros de Cashea en este rango.</td></tr>
+                                        <tr><td colspan="5" class="text-center text-muted py-3">No hay registros de Cashea en este rango.</td></tr>
                                     {% endif %}
                                 </tbody>
                             </table>
@@ -696,7 +747,7 @@
                 </div>
             </div>
 
-            <!-- 8. DESGLOSE BANCA (CON EDICIÓN DE MONTOS Y REGLAS EN VIVO) -->
+            <!-- 8. DESGLOSE BANCA -->
             <div class="tab-pane fade {% if tab == 'desglose_banca' or tab_activa == 'desglose_banca' %}show active{% endif %}" id="desglose_banca" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
@@ -772,13 +823,11 @@
                                                                 </td>
                                                                 <td class="text-end fw-bold sys-total">Bs. {{ sys.total_banquero | default(0) | dinero }}</td>
                                                                 
-                                                                <!-- BOTÓN DE EDICIÓN RÁPIDA POR SISTEMA -->
                                                                 <td class="text-center">
                                                                     <button class="btn btn-sm btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#modalEditVal{{ b_idx }}_{{ s_idx }}" title="Editar Montos Directos">
                                                                         <i class="fas fa-edit"></i>
                                                                     </button>
 
-                                                                    <!-- MODAL PARA EDITAR VENTA, PREMIOS Y COMISIÓN -->
                                                                     <div class="modal fade" id="modalEditVal{{ b_idx }}_{{ s_idx }}" tabindex="-1">
                                                                         <div class="modal-dialog modal-sm">
                                                                             <div class="modal-content text-start">
@@ -886,7 +935,6 @@
                             </div>
                         </div>
 
-                        <!-- MODAL EDITAR PORCENTAJES EN VIVO -->
                         <div class="modal fade" id="modalEditarBanca{{ b_idx }}" tabindex="-1">
                             <div class="modal-dialog modal-lg">
                                 <div class="modal-content">
