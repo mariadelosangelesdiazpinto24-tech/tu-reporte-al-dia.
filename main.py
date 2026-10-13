@@ -15,7 +15,6 @@ from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
 
-# Zona horaria oficial de Venezuela (America/Caracas, UTC-4)
 TZ_VENEZUELA = ZoneInfo("America/Caracas")
 
 def obtener_fecha_venezuela() -> str:
@@ -262,9 +261,11 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
     reps_db = cursor.fetchall()
 
     sistemas_consolidados = {}
+    sistemas_agencias_detalle = {}
     totales_generales = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
 
     for rep_db in reps_db:
+        ag_origen = rep_db['agencia']
         if rep_db and rep_db['detalle_html']:
             tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', rep_db['detalle_html'], re.DOTALL)
             if tabla_match:
@@ -285,11 +286,21 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
 
                         if sys_nombre not in sistemas_consolidados:
                             sistemas_consolidados[sys_nombre] = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
+                            sistemas_agencias_detalle[sys_nombre] = []
                         
                         sistemas_consolidados[sys_nombre]["venta"] += v
                         sistemas_consolidados[sys_nombre]["comision"] += c
                         sistemas_consolidados[sys_nombre]["premio"] += p
                         sistemas_consolidados[sys_nombre]["neto"] += t
+
+                        if v > 0 or p > 0 or t != 0:
+                            sistemas_agencias_detalle[sys_nombre].append({
+                                "agencia": ag_origen,
+                                "venta": v,
+                                "comision": c,
+                                "premio": p,
+                                "total": t
+                            })
 
                         totales_generales["venta"] += v
                         totales_generales["comision"] += c
@@ -399,6 +410,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
 
     return (
         sistemas_consolidados,
+        sistemas_agencias_detalle,
         totales_generales,
         totales_auxiliares,
         desglose_banqueros,
@@ -716,6 +728,7 @@ def get_banquero(
 
     (
         sistemas_consolidados,
+        _,
         totales_generales,
         totales_auxiliares,
         desglose_banqueros,
@@ -768,7 +781,6 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
     for r in reportes_agencia_raw:
         r_dict = dict(r)
         
-        # 1. Sumar la columna COM. de cada fila individual del reporte de sistemas
         comision_sum = 0.0
         if r_dict.get('detalle_html'):
             tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', r_dict['detalle_html'], re.DOTALL)
@@ -783,7 +795,6 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
                         except:
                             pass
         
-        # 2. Si no sumó, estimar Venta - Premios - Monto base
         if comision_sum == 0.0 and (float(r_dict.get('ventas') or 0) > 0):
             comision_sum = max(0.0, float(r_dict.get('ventas') or 0) - float(r_dict.get('premios') or 0) - float(r_dict.get('monto') or 0))
             
@@ -807,7 +818,6 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
     
-    # SALDO ACUMULADO REAL (suma de los saldos restantes vigentes de los reportes)
     cursor.execute("SELECT SUM(monto) AS total_rep FROM reportes WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
     row_rep = cursor.fetchone()
     saldo_acumulado = float(row_rep['total_rep'] or 0.0) if row_rep else 0.0
@@ -910,7 +920,6 @@ def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), mo
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# ACTUALIZACIÓN EN VIVO DE SISTEMAS DESDE LA AGENCIA (ACTUALIZA DIRECTO EL MONTO)
 @app.post("/actualizar-reporte-sistema")
 def post_actualizar_reporte_sistema(
     agencia: str = Form(...),
@@ -1098,7 +1107,6 @@ def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# LIQUIDAR SALDO NEGATIVO CON SUBIDA DE CAPTURE DIRECTO
 @app.post("/admin/liquidar-saldo-negativo")
 async def post_liquidar_saldo_negativo(
     agencia: str = Form(...),
@@ -1308,7 +1316,6 @@ def get_admin(
         pend_row = cursor.fetchone()
         solicitudes_pendientes_count = pend_row['total_pendientes'] if pend_row else 0
 
-        # DATA CASHEA CON FILTROS
         if agencia_filtro:
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND UPPER(TRIM(agencia)) ILIKE %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (f"%{normalizar(agencia_filtro)}%", f_desde, f_hasta))
         else:
@@ -1316,7 +1323,6 @@ def get_admin(
         casheas_generales = [dict(row) for row in cursor.fetchall()]
         total_cashea_filtrado = sum(float(c.get('monto') or 0.0) for c in casheas_generales)
 
-        # BALANCES GLOBALES (+ / -) CON DESGLOSE DETALLADO
         positivos = []
         negativos = []
         for ag in agencias:
@@ -1381,6 +1387,7 @@ def get_admin(
 
         (
             sistemas_consolidados,
+            sistemas_agencias_detalle,
             totales_generales,
             totales_auxiliares,
             desglose_banqueros,
@@ -1400,6 +1407,7 @@ def get_admin(
             "positivos": positivos,
             "negativos": negativos,
             "sistemas_consolidados": sistemas_consolidados,
+            "sistemas_agencias_detalle": sistemas_agencias_detalle,
             "totales_generales": totales_generales,
             "totales_auxiliares": totales_auxiliares,
             "desglose_banqueros": desglose_banqueros,
