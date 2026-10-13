@@ -448,17 +448,17 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
     conn.close()
     total_mi_ganancia_global = total_ganancia_excedente + total_ganancia_participacion
 
-    return (
-        sistemas_consolidados,
-        sistemas_agencias_detalle,
-        totales_generales,
-        totales_auxiliares,
-        desglose_banqueros,
-        total_ganancia_excedente,
-        total_ganancia_participacion,
-        total_mi_ganancia_global,
-        suma_cuadros_banqueros
-    )
+    return {
+        "sistemas_consolidados": sistemas_consolidados,
+        "sistemas_agencias_detalle": sistemas_agencias_detalle,
+        "totales_generales": totales_generales,
+        "totales_auxiliares": totales_auxiliares,
+        "desglose_banqueros": desglose_banqueros,
+        "total_ganancia_excedente": total_ganancia_excedente,
+        "total_ganancia_participacion": total_ganancia_participacion,
+        "total_mi_ganancia_global": total_mi_ganancia_global,
+        "suma_cuadros_banqueros": suma_cuadros_banqueros
+    }
 
 def actualizar_ultima_conexion(agencia: str):
     agencia_norm = normalizar(agencia)
@@ -858,14 +858,9 @@ def get_banquero(
     f_desde = desde_fecha if desde_fecha else fecha_bd_reciente
     f_hasta = hasta_fecha if hasta_fecha else fecha_bd_reciente
 
-    (
-        sistemas_consolidados,
-        _,
-        totales_generales,
-        totales_auxiliares,
-        desglose_banqueros,
-        _, _, _, _
-    ) = calcular_desglose_banqueros_datos(f_desde, f_hasta)
+    res_banqueros = calcular_desglose_banqueros_datos(f_desde, f_hasta)
+
+    desglose_banqueros = res_banqueros["desglose_banqueros"]
 
     nombre_comercializadora = ""
     for b_key in desglose_banqueros.keys():
@@ -1668,17 +1663,8 @@ def get_admin(
 
         conn.close()
 
-        # Retorno de 9 valores garantizado
-        resultado_banqueros = calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro)
-        sistemas_consolidados = resultado_banqueros[0]
-        sistemas_agencias_detalle = resultado_banqueros[1]
-        totales_generales = resultado_banqueros[2]
-        totales_auxiliares = resultado_banqueros[3]
-        desglose_banqueros = resultado_banqueros[4]
-        total_ganancia_excedente = resultado_banqueros[5]
-        total_ganancia_participacion = resultado_banqueros[6]
-        total_mi_ganancia_global = resultado_banqueros[7]
-        suma_cuadros_banqueros = resultado_banqueros[8]
+        # Acceso por claves de diccionario: sin riesgo de tuple index out of range
+        res = calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro)
 
         return templates.TemplateResponse(request=request, name="admin.html", context={
             "reportes": reportes,
@@ -1689,15 +1675,15 @@ def get_admin(
             "total_cashea_filtrado": total_cashea_filtrado,
             "positivos": positivos,
             "negativos": negativos,
-            "sistemas_consolidados": sistemas_consolidados,
-            "sistemas_agencias_detalle": sistemas_agencias_detalle,
-            "totales_generales": totales_generales,
-            "totales_auxiliares": totales_auxiliares,
-            "desglose_banqueros": desglose_banqueros,
-            "total_ganancia_excedente": total_ganancia_excedente,
-            "total_ganancia_participacion": total_ganancia_participacion,
-            "total_mi_ganancia_global": total_mi_ganancia_global,
-            "suma_cuadros_banqueros": suma_cuadros_banqueros,
+            "sistemas_consolidados": res["sistemas_consolidados"],
+            "sistemas_agencias_detalle": res["sistemas_agencias_detalle"],
+            "totales_generales": res["totales_generales"],
+            "totales_auxiliares": res["totales_auxiliares"],
+            "desglose_banqueros": res["desglose_banqueros"],
+            "total_ganancia_excedente": res["total_ganancia_excedente"],
+            "total_ganancia_participacion": res["total_ganancia_participacion"],
+            "total_mi_ganancia_global": res["total_mi_ganancia_global"],
+            "suma_cuadros_banqueros": res["suma_cuadros_banqueros"],
             "solicitudes_pendientes_count": solicitudes_pendientes_count,
             "desde_fecha": f_desde,
             "hasta_fecha": f_hasta,
