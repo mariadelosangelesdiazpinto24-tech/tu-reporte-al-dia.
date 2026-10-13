@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
 
+# Zona horaria oficial de Venezuela (America/Caracas, UTC-4)
 TZ_VENEZUELA = ZoneInfo("America/Caracas")
 
 def obtener_fecha_venezuela() -> str:
@@ -767,23 +768,26 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
     for r in reportes_agencia_raw:
         r_dict = dict(r)
         
-        # Extraer comisiones totales directamente del HTML
-        comision_extraida = 0.0
+        # 1. Sumar la columna COM. de cada fila individual del reporte de sistemas
+        comision_sum = 0.0
         if r_dict.get('detalle_html'):
-            match_tot = re.search(r'TOTALES.*?<\/tr>', r_dict['detalle_html'], re.DOTALL | re.IGNORECASE)
-            if match_tot:
-                cols_tot = re.findall(r'<td[^>]*>(.*?)<\/td>', match_tot.group(0), re.DOTALL)
-                if len(cols_tot) >= 3:
-                    try:
-                        comision_extraida = float(re.sub(r'[^\d.-]', '', cols_tot[2]))
-                    except:
-                        pass
+            tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', r_dict['detalle_html'], re.DOTALL)
+            if tabla_match:
+                filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_match.group(1), re.DOTALL)
+                for f in filas:
+                    cols = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', f, re.DOTALL)
+                    if len(cols) >= 5 and "TOTALES" not in cols[0].upper() and "SISTEMA" not in cols[0].upper():
+                        try:
+                            c_val = float(re.sub(r'[^\d.-]', '', cols[2]))
+                            comision_sum += c_val
+                        except:
+                            pass
         
-        # Si no la encuentra, estimar diferencia ventas - premios - neto
-        if comision_extraida == 0.0 and (r_dict.get('ventas', 0) > 0):
-            comision_extraida = max(0.0, float(r_dict.get('ventas', 0)) - float(r_dict.get('premios', 0)) - float(r_dict.get('monto', 0)))
+        # 2. Si no sumó, estimar Venta - Premios - Monto base
+        if comision_sum == 0.0 and (float(r_dict.get('ventas') or 0) > 0):
+            comision_sum = max(0.0, float(r_dict.get('ventas') or 0) - float(r_dict.get('premios') or 0) - float(r_dict.get('monto') or 0))
             
-        r_dict['comision'] = comision_extraida
+        r_dict['comision'] = comision_sum
         reportes_agencia.append(r_dict)
     
     cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
@@ -803,19 +807,10 @@ def get_agencia(request: Request, nombre: Optional[str] = None):
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
     
+    # SALDO ACUMULADO REAL (suma de los saldos restantes vigentes de los reportes)
     cursor.execute("SELECT SUM(monto) AS total_rep FROM reportes WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
     row_rep = cursor.fetchone()
-    total_deuda_reportes = float(row_rep['total_rep'] or 0.0) if row_rep else 0.0
-
-    cursor.execute("SELECT SUM(monto) AS total_abonos FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo IN ('PAGO_TAQUILLA', 'PAGO_BANCA') AND estado = 'APROBADO'", (agencia_norm,))
-    row_abonos = cursor.fetchone()
-    total_abonos_realizados = float(row_abonos['total_abonos'] or 0.0) if row_abonos else 0.0
-
-    cursor.execute("SELECT SUM(monto) AS total_adelantos FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo IN ('ADELANTO', 'LIQUIDACION') AND estado = 'APROBADO'", (agencia_norm,))
-    row_adelantos = cursor.fetchone()
-    total_adelantos_dados = float(row_adelantos['total_adelantos'] or 0.0) if row_adelantos else 0.0
-
-    saldo_acumulado = total_deuda_reportes - total_abonos_realizados + total_adelantos_dados
+    saldo_acumulado = float(row_rep['total_rep'] or 0.0) if row_rep else 0.0
 
     conn.close()
     
@@ -915,7 +910,7 @@ def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), mo
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# CORRECCIÓN EN MODIFICACIÓN DE REPORTES (ACTUALIZA DIRECTO EL MONTO)
+# ACTUALIZACIÓN EN VIVO DE SISTEMAS DESDE LA AGENCIA (ACTUALIZA DIRECTO EL MONTO)
 @app.post("/actualizar-reporte-sistema")
 def post_actualizar_reporte_sistema(
     agencia: str = Form(...),
