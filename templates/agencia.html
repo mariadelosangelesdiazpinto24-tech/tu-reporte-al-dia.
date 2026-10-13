@@ -32,40 +32,49 @@
             color: white !important; 
         }
 
-        /* ESTILOS DE TABLA MEJORADA PARA MODAL DE REPORTE */
+        /* ESTILOS LIMPIOS Y ESPACIOSOS PARA EL CUADRO DE SISTEMAS EN EL MODAL */
+        .modal-cuerpo-reporte .table-responsive {
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+            background: #ffffff;
+            margin-bottom: 15px;
+        }
         .modal-cuerpo-reporte table {
             width: 100% !important;
-            border-collapse: separate !important;
-            border-spacing: 0 !important;
-            border: 1px solid #dee2e6 !important;
-            border-radius: 10px !important;
-            overflow: hidden !important;
-            background-color: #ffffff !important;
+            margin-bottom: 0 !important;
+            border-collapse: collapse !important;
         }
         .modal-cuerpo-reporte th {
             background-color: #212529 !important;
             color: #ffffff !important;
-            padding: 10px 14px !important;
-            font-size: 13px !important;
-            text-transform: uppercase !important;
-            letter-spacing: 0.5px !important;
+            padding: 8px 10px !important;
+            font-size: 11.5px !important;
+            text-align: right !important;
             white-space: nowrap !important;
+        }
+        .modal-cuerpo-reporte th:first-child {
+            text-align: left !important;
         }
         .modal-cuerpo-reporte td {
-            padding: 10px 14px !important;
-            font-size: 13.5px !important;
-            border-bottom: 1px solid #eceff1 !important;
+            padding: 7px 10px !important;
+            font-size: 12px !important;
+            border-bottom: 1px solid #eef2f5 !important;
+            text-align: right !important;
             white-space: nowrap !important;
-            font-weight: 500 !important;
         }
-        .modal-cuerpo-reporte tr:hover {
-            background-color: #f1f8e9 !important;
+        .modal-cuerpo-reporte td:first-child {
+            text-align: left !important;
+            font-weight: 700 !important;
+            color: #37474f !important;
+        }
+        .modal-cuerpo-reporte tr:hover td {
+            background-color: #f8fafc !important;
         }
         .modal-cuerpo-reporte tr:last-child td {
-            border-bottom: none !important;
-            background-color: #e8f5e9 !important;
-            font-weight: bold !important;
-            font-size: 14px !important;
+            background-color: #f1f5f9 !important;
+            font-weight: 800 !important;
+            font-size: 12.5px !important;
+            border-top: 2px solid #cbd5e1 !important;
         }
     </style>
 </head>
@@ -80,7 +89,7 @@
 
     <div class="container my-4">
 
-        <!-- COMUNICADOS CON BOTÓN DE MARCAR COMO LEÍDO -->
+        <!-- NOTIFICACIONES -->
         {% if comunicados %}
             {% for com in comunicados %}
             <div class="alert alert-warning alert-dismissible fade show shadow-sm border-start border-warning border-4 mb-4" role="alert" style="border-radius: 12px; background: #fffde7;">
@@ -132,6 +141,7 @@
         <!-- PESTAÑAS -->
         <ul class="nav nav-tabs mb-4 fw-bold border-0" id="agenciaTab" role="tablist">
             <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#reportes"><i class="fas fa-chart-line me-1"></i> Mis Reportes</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#auditoria"><i class="fas fa-search-dollar me-1"></i> Auditoría por Sistemas</button></li>
             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#transacciones"><i class="fas fa-exchange-alt me-1"></i> Transacciones</button></li>
             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#adelantos"><i class="fas fa-hand-holding-usd me-1"></i> Adelantos</button></li>
             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cashea"><i class="fas fa-shopping-cart me-1"></i> Cashea</button></li>
@@ -185,6 +195,78 @@
                                     <td colspan="5" class="text-center text-muted py-3">No hay reportes cargados actualmente.</td>
                                 </tr>
                                 {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NUEVA PESTAÑA: AUDITORÍA POR SISTEMAS CON RANGO DE FECHAS -->
+            <div class="tab-pane fade" id="auditoria">
+                <div class="card card-custom p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <h4 class="fw-bold m-0" style="color: {% if agencia and agencia.genero == 'MASCULINO' %}#0d47a1{% else %}#ad1457{% endif %};">
+                            <i class="fas fa-search-dollar text-warning me-2"></i>Auditoría de Sistemas (Ventas, Comisiones y Premios)
+                        </h4>
+                    </div>
+
+                    <!-- FILTRO POR RANGO DE FECHAS -->
+                    <form method="GET" action="/agencia" class="row g-2 align-items-end p-3 bg-light rounded border mb-4">
+                        <input type="hidden" name="nombre" value="{{ nombre_agencia }}">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted">Desde Fecha:</label>
+                            <input type="date" name="desde_fecha" value="{{ desde_fecha }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted">Hasta Fecha:</label>
+                            <input type="date" name="hasta_fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <button type="submit" class="btn btn-custom btn-sm w-100 fw-bold py-2">
+                                <i class="fas fa-filter me-1"></i> Filtrar Auditoría
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- TABLA AUDITORÍA CON NOMBRES ABREVIADOS Y NÚMEROS LEGIBLES -->
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered table-hover align-middle mb-0" style="font-size: 13px;">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>SISTEMA</th>
+                                    <th class="text-end">VENTA</th>
+                                    <th class="text-end">COMISIÓN</th>
+                                    <th class="text-end">PREMIOS</th>
+                                    <th class="text-end">TOTAL NETO</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if auditoria_sistemas %}
+                                    {% for s_nom, s_val in auditoria_sistemas.items() %}
+                                    <tr>
+                                        <td class="fw-bold nombre-sistema-celda">{{ s_nom }}</td>
+                                        <td class="text-end">Bs. {{ s_val.venta | dinero }}</td>
+                                        <td class="text-end text-primary fw-bold">Bs. {{ s_val.comision | dinero }}</td>
+                                        <td class="text-end text-danger fw-bold">Bs. {{ s_val.premio | dinero }}</td>
+                                        <td class="text-end fw-bold {% if s_val.neto < 0 %}text-danger{% else %}text-success{% endif %}">
+                                            Bs. {{ s_val.neto | dinero }}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                    <tr class="table-secondary fw-bold" style="font-size: 13.5px;">
+                                        <td>TOTALES CONSOLIDADOS</td>
+                                        <td class="text-end">Bs. {{ totales_auditoria.venta | dinero }}</td>
+                                        <td class="text-end text-primary">Bs. {{ totales_auditoria.comision | dinero }}</td>
+                                        <td class="text-end text-danger">Bs. {{ totales_auditoria.premio | dinero }}</td>
+                                        <td class="text-end {% if totales_auditoria.neto < 0 %}text-danger{% else %}text-success{% endif %}">
+                                            Bs. {{ totales_auditoria.neto | dinero }}
+                                        </td>
+                                    </tr>
+                                {% else %}
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted py-4">No hay ventas registradas en este período.</td>
+                                    </tr>
+                                {% endif %}
                             </tbody>
                         </table>
                     </div>
@@ -440,95 +522,4 @@
 
     </div>
 
-    <!-- MODALES DE DETALLE REPORTE CON BOTÓN "SOLICITAR A LA BANCA" -->
-    {% for r in reportes %}
-    <div class="modal fade" id="modalDetalle{{ r.id }}" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-centered">
-            <div class="modal-content" style="border-radius: 16px; overflow: hidden;">
-                <div class="modal-header text-white" style="background: {% if agencia and agencia.genero == 'MASCULINO' %}linear-gradient(135deg, #0d47a1, #1976d2){% else %}linear-gradient(135deg, #ad1457, #d81b60){% endif %};">
-                    <h5 class="modal-title fw-bold"><i class="fas fa-file-invoice me-2"></i>Reporte Fecha: {{ r.fecha }} 🍀🌺</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body bg-light p-3 modal-cuerpo-reporte" style="overflow-x: auto;">
-                    {{ r.detalle_html | safe }}
-                </div>
-                <div class="modal-footer bg-white d-flex justify-content-between align-items-center">
-                    <div>
-                        {% if r.monto < 0 %}
-                        <form action="/solicitar-banca-directo" method="POST" style="display: inline;" onsubmit="return confirm('¿Deseas enviar la solicitud de pago por Bs. {{ (r.monto | abs) | dinero }} a la banca?');">
-                            <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
-                            <input type="hidden" name="fecha" value="{{ r.fecha }}">
-                            <input type="hidden" name="monto" value="{{ r.monto }}">
-                            <button type="submit" class="btn btn-success fw-bold rounded-pill px-3 shadow-sm">
-                                <i class="fas fa-university me-1"></i> Solicitar a la Banca (Bs. {{ (r.monto | abs) | dinero }})
-                            </button>
-                        </form>
-                        {% endif %}
-                    </div>
-                    <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endfor %}
-
-    <script>
-        function filtrarReportesFecha() {
-            var fechaBusqueda = document.getElementById("buscarFechaReporte").value;
-            var filas = document.querySelectorAll("#tablaReportesAgencia tbody tr");
-            filas.forEach(function(fila) {
-                var fechaFila = fila.getAttribute("data-fecha");
-                if (fechaBusqueda === "" || fechaFila === fechaBusqueda) {
-                    fila.style.display = "";
-                } else {
-                    fila.style.display = "none";
-                }
-            });
-        }
-
-        function mostrarTodosReportes() {
-            document.getElementById("buscarFechaReporte").value = "";
-            var filas = document.querySelectorAll("#tablaReportesAgencia tbody tr");
-            filas.forEach(function(fila) {
-                fila.style.display = "";
-            });
-        }
-
-        // Script automático que calcula y reemplaza el "-" de comisiones en el modal
-        document.addEventListener("DOMContentLoaded", function() {
-            document.querySelectorAll(".modal-cuerpo-reporte").forEach(function(modal) {
-                var tabla = modal.querySelector("table");
-                if (!tabla) return;
-                
-                var filas = tabla.querySelectorAll("tr");
-                var sumaComision = 0.0;
-                var celdaGuion = null;
-
-                filas.forEach(function(fila) {
-                    var celdas = fila.querySelectorAll("td");
-                    if (celdas.length >= 5) {
-                        var textoPrimero = celdas[0].innerText.toUpperCase();
-                        if (textoPrimero.includes("TOTALES")) {
-                            if (celdas[2].innerText.trim() === "-") {
-                                celdaGuion = celdas[2];
-                            }
-                        } else if (!textoPrimero.includes("SISTEMA")) {
-                            var valorCom = parseFloat(celdas[2].innerText.replace(/,/g, '').trim());
-                            if (!isNaN(valorCom)) {
-                                sumaComision += valorCom;
-                            }
-                        }
-                    }
-                });
-
-                if (celdaGuion && sumaComision > 0) {
-                    celdaGuion.innerText = sumaComision.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    celdaGuion.style.fontWeight = "bold";
-                    celdaGuion.style.color = "#0d47a1";
-                }
-            });
-        });
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+    <!-- MODALES DE DETALLE REPORTE
