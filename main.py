@@ -399,6 +399,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             pct_excedente = (pct_b - pct_t) * 100.0
             g_excedente = v_sys * (pct_b - pct_t)
             
+            # CÁLCULO DE PARTICIPACIÓN Y DEDUCCIÓN TOTAL - PARTICIPACIÓN
             monto_participacion = t_banquero_sistema * pct_part if pct_part > 0 else 0.0
             total_despues_participacion = t_banquero_sistema - monto_participacion
             g_total = g_excedente + monto_participacion
@@ -416,6 +417,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
                 "total_sistema": t_banquero_sistema,
                 "monto_participacion": monto_participacion,
                 "total_banquero": total_despues_participacion,
+                "total_final": total_despues_participacion,
                 "pct_banquero": int(round(pct_b * 100)),
                 "pct_taquilla": int(round(pct_t * 100)),
                 "pct_excedente": int(round(pct_excedente)),
@@ -477,7 +479,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         conn.close()
         return
 
-    # Buscar pagos válidos de la fecha (excluyendo ajustes duplicados)
     cursor.execute(
         "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND estado = 'APROBADO' AND tipo NOT IN ('AJUSTE_PENDIENTE', 'MODIFICACION')", 
         (agencia_norm, fecha_reporte)
@@ -558,13 +559,11 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
-    # FÓRMULA ESTRICTA DEL DÍA
     monto_final = total_neto_sistemas - total_cashea + total_adelantos - total_pagos_taquilla + total_liquidaciones_admin
 
     if abs(monto_final) < 0.05:
         monto_final = 0.0
 
-    # BLOQUES CON ESTILOS TECNOLÓGICOS DINÁMICOS
     bloque_pagos_banca = f'''
     <div class="mb-3 tech-card" style="background: var(--tech-card-bg, rgba(20,20,30,0.85)); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-left: 6px solid var(--tech-secondary, #ffd700); border-top: 1px solid var(--tech-border, rgba(255,255,255,0.1));">
         <h5 style="color: var(--tech-secondary, #ffd700); font-weight: bold; border-bottom: 2px solid var(--tech-secondary, #ffd700); padding-bottom: 10px; margin-bottom: 15px; letter-spacing: 0.5px;"><i class="fas fa-university"></i> PAGOS / ABONOS A LA BANCA</h5>
@@ -892,7 +891,6 @@ def get_agencia(
     cursor.execute("SELECT * FROM usuarios WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
     agencia_info = cursor.fetchone()
     
-    # Determinamos el género para aplicar la presentación tecnológica
     genero_agencia = "FEMENINO"
     if agencia_info and agencia_info.get('genero'):
         genero_agencia = str(agencia_info['genero']).strip().upper()
@@ -918,7 +916,6 @@ def get_agencia(
         cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
     pagos_agencia = [dict(row) for row in cursor.fetchall()]
 
-    # Casheas de la agencia
     if f_desde and f_hasta:
         cursor.execute(
             "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s ORDER BY fecha DESC, id DESC",
@@ -939,7 +936,6 @@ def get_agencia(
     row_cdia = cursor.fetchone()
     total_cashea_dia = float(row_cdia['total_dia'] or 0.0) if row_cdia else 0.0
 
-    # Auditoría por sistemas
     cursor.execute(
         "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha ASC", 
         (agencia_norm, f_desde or hoy_vzla, f_hasta or hoy_vzla)
@@ -1005,7 +1001,6 @@ def get_agencia(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
     
-    # SALDO ACTUAL TOTAL HISTÓRICO
     cursor.execute(
         """SELECT SUM(monto) as saldo_total 
            FROM reportes 
@@ -1176,7 +1171,6 @@ def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), mo
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# ACTUALIZAR REPORTE SISTEMA SIN ACUMULAR SALDOS FANTASMAS
 @app.post("/actualizar-reporte-sistema")
 def post_actualizar_reporte_sistema(
     agencia: str = Form(...),
@@ -1259,7 +1253,6 @@ def post_actualizar_reporte_sistema(
         )
         conn.commit()
 
-        # Limpiar cualquier ajuste fantasma anterior para que el cálculo sea 100% puro
         cursor.execute(
             "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND (factura LIKE %s OR tipo = 'AJUSTE_PENDIENTE')",
             (agencia_norm, f"%Modif. {sistema}%")
@@ -1279,7 +1272,6 @@ def post_actualizar_reporte_sistema(
         return RedirectResponse(url="/admin?tab=modificaciones&msg=actualizado", status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=modificaciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# ELIMINAR TRANSACCIÓN Y REESTABLECER
 @app.post("/eliminar-transaccion")
 @app.post("/admin/eliminar-transaccion")
 def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[str] = Form(None)):
@@ -1299,7 +1291,6 @@ def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[st
         return RedirectResponse(url=redirect_to, status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# PROCESAR SOLICITUD DE DINERO
 @app.post("/admin/procesar-solicitud-dinero")
 async def post_procesar_solicitud_dinero(
     solicitud_id: int = Form(...),
@@ -1366,7 +1357,6 @@ async def post_procesar_solicitud_dinero(
 
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# CONFIRMAR O RECHAZAR PAGO
 @app.post("/admin/validar-pago")
 def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
     conn = get_db()
@@ -1670,7 +1660,6 @@ def get_admin(
         ultima_fila = cursor.fetchone()
         fecha_bd_reciente = ultima_fila['fecha'] if (ultima_fila and ultima_fila['fecha']) else hoy_vzla
 
-        # Rango por defecto de Lunes a Domingo
         lunes_sem, domingo_sem = obtener_rango_semana_actual()
         if tab in ['totalizador', 'desglose_banca'] and not desde_fecha and not hasta_fecha:
             f_desde = lunes_sem
