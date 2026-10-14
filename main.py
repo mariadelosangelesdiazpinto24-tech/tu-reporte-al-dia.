@@ -272,7 +272,6 @@ def extraer_neto_de_html(detalle_html: str) -> float:
     return neto_acumulado
 
 def calcular_balance_contable_exacto(neto_sistemas: float, cashea: float, abonos: float, adelantos: float, liquidaciones: float) -> float:
-    # La fórmula contable unificada: Total Neto Sistemas - Cashea - Abonos + Adelantos + Liquidaciones
     total = neto_sistemas - cashea - abonos + adelantos + liquidaciones
     if abs(total) < 0.05:
         total = 0.0
@@ -378,7 +377,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             totales_auxiliares["cashea"] += m_val
         elif t_type in ['ADELANTO', 'LIQUIDACION']:
             totales_auxiliares["adelantos"] += m_val
-        elif t_type in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
+        elif t_type in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']:
             totales_auxiliares["abonos_banca"] += m_val
 
     ESTRUCTURA_BANQUEROS = obtener_estructura_banqueros_bd()
@@ -567,7 +566,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
                 <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['factura']}</td>
                 <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1)); text-align: right; color: var(--tech-primary, #ff007f); font-weight: bold;">Bs. {monto_p:,.2f}</td>
             </tr>'''
-        elif tipo_p in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
+        elif tipo_p in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']:
             total_pagos_taquilla += monto_p
             pagos_banca_rows_html += f'''
             <tr style="font-size: 13px; background: rgba(255,255,255,0.02); color: var(--tech-text, #ffffff);">
@@ -1037,7 +1036,6 @@ def get_agencia(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
 
-    # Obtención de registros para cálculo del saldo
     if f_desde and f_hasta:
         cursor.execute(
             """SELECT detalle_html FROM reportes 
@@ -1084,7 +1082,7 @@ def get_agencia(
     for fd in filas_desglose:
         t_d = str(fd['tipo']).upper()
         m_d = float(fd['total'] or 0.0)
-        if t_d in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
+        if t_d in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']:
             abonos_calc += m_d
         elif t_d == 'LIQUIDACION':
             liquidaciones_calc += m_d
@@ -1093,7 +1091,6 @@ def get_agencia(
         elif t_d == 'CASHEA':
             cashea_calc += m_d
 
-    # FÓRMULA UNIFICADA: Total Neto Sistemas - Cashea - Abonos + Adelantos + Liquidaciones
     saldo_acumulado = calcular_balance_contable_exacto(
         neto_sistemas_calc, 
         cashea_calc, 
@@ -1140,6 +1137,42 @@ def get_agencia(
         "hasta_fecha": f_hasta,
         "tab_activa": tab or "reportes"
     })
+
+@app.post("/admin/saldar-deuda-taquilla")
+def post_saldar_deuda_taquilla(
+    agencia: str = Form(...),
+    monto_restante: float = Form(...),
+    fecha: Optional[str] = Form(None)
+):
+    agencia_norm = normalizar(agencia)
+    fecha_operacion = fecha or obtener_fecha_venezuela()
+    
+    if abs(monto_restante) > 0.01:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Si la taquilla debe (monto > 0), registramos un AJUSTE_BANCA que salde la deuda
+        # Si la taquilla tiene saldo a favor (monto < 0), registramos una LIQUIDACION que salde la cuenta
+        if monto_restante > 0:
+            cursor.execute(
+                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+                   VALUES (%s, %s, %s, %s, %s, 'AJUSTE_BANCA', 'APROBADO')""",
+                (agencia_norm, fecha_operacion, abs(monto_restante), f"Ajuste Saldo #{fecha_operacion}", "Ajuste de banca para saldar cuenta a 0.00")
+            )
+        else:
+            cursor.execute(
+                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+                   VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
+                (agencia_norm, fecha_operacion, abs(monto_restante), f"Liquidación Saldo #{fecha_operacion}", "Liquidación manual para saldar cuenta a 0.00")
+            )
+
+        cursor.execute("UPDATE reportes SET monto = 0.0 WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha_operacion))
+        conn.commit()
+        conn.close()
+
+        recalcular_y_actualizar_reporte(agencia_norm, fecha_operacion)
+
+    return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/agencia/cambiar-clave")
 def post_cambiar_clave(agencia: str = Form(...), nueva_clave: str = Form(...), confirm_clave: str = Form(...)):
@@ -1715,7 +1748,7 @@ def get_admin(
         params_pagos = []
         if tipo_transaccion:
             if tipo_transaccion == 'RECIBIDOS':
-                query_pagos += " AND tipo IN ('PAGO_TAQUILLA', 'PAGO_BANCA')"
+                query_pagos += " AND tipo IN ('PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA')"
             elif tipo_transaccion == 'ENVIADOS':
                 query_pagos += " AND tipo IN ('LIQUIDACION')"
             elif tipo_transaccion == 'ADELANTOS':
@@ -1824,7 +1857,7 @@ def get_admin(
             for fp in filas_pagos:
                 tipo_fp = str(fp['tipo']).upper()
                 m_fp = float(fp['total_monto'] or 0.0)
-                if tipo_fp in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
+                if tipo_fp in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']:
                     sum_abonos += m_fp
                 elif tipo_fp == 'CASHEA':
                     sum_cashea += m_fp
@@ -1837,7 +1870,6 @@ def get_admin(
             p_tot = float(fila_rep['total_premios'] or 0.0) if fila_rep else 0.0
             f_rep = fila_rep['ultima_fecha'] if (fila_rep and fila_rep['ultima_fecha']) else f_hasta
 
-            # Obtener el total neto de la columna TOTAL de la fila TOTALES del HTML (161.404,60)
             neto_desde_html = 0.0
             for r_adm in reps_admin_periodo:
                 if r_adm and r_adm['detalle_html']:
@@ -1848,7 +1880,6 @@ def get_admin(
             else:
                 base_sistemas = (v_tot - p_tot)
 
-            # FÓRMULA UNIFICADA: Total Neto Sistemas - Cashea - Abonos + Adelantos + Liquidaciones
             balance_contable = calcular_balance_contable_exacto(
                 base_sistemas, 
                 sum_cashea, 
@@ -1863,12 +1894,14 @@ def get_admin(
                 "agencia": ag_nombre,
                 "fecha": f_rep,
                 "monto": balance_contable,
+                "balance_total": balance_contable,
                 "ventas": v_tot,
                 "premios": p_tot,
-                "reporte_neto": base_sistemas,  # Muestra exactamente el neto único de loterías (161.404,60)
+                "reporte_neto": base_sistemas,
                 "abonos": sum_abonos,
                 "cashea": sum_cashea,
-                "adelantos": (sum_adelantos + sum_liquidaciones),
+                "adelantos": sum_adelantos,
+                "liquidaciones": sum_liquidaciones,
                 "pendientes": 0.0
             }
 
