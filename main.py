@@ -1030,50 +1030,29 @@ def get_agencia(
         comunicados = [dict(row) for row in cursor.fetchall()]
     
     # -------------------------------------------------------------
-    # SALDO ACTUAL Y DESGLOSE INTERACTIVO DEL PENDIENTE (CON FILTRO DE RANGO)
+    # SALDO ACTUAL TOTAL HISTÓRICO (SIN FILTRO DE FECHAS EN PENDIENTES)
     # -------------------------------------------------------------
-    if f_desde and f_hasta:
-        cursor.execute(
-            """SELECT SUM(monto) as total_rango, SUM(ventas) as v_tot, SUM(premios) as p_tot 
-               FROM reportes 
-               WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s""",
-            (agencia_norm, f_desde, f_hasta)
-        )
-        row_rango = cursor.fetchone()
-        
-        saldo_acumulado = float(row_rango['total_rango'] or 0.0) if row_rango else 0.0
-        v_tot = float(row_rango['v_tot'] or 0.0) if row_rango else 0.0
-        p_tot = float(row_rango['p_tot'] or 0.0) if row_rango else 0.0
-        neto_sistemas_calc = v_tot - p_tot
+    cursor.execute(
+        """SELECT SUM(monto) as saldo_total, SUM(ventas) as v_tot, SUM(premios) as p_tot 
+           FROM reportes 
+           WHERE UPPER(TRIM(agencia)) = %s""",
+        (agencia_norm,)
+    )
+    row_pend_glob = cursor.fetchone()
+    
+    saldo_acumulado = float(row_pend_glob['saldo_total'] or 0.0) if row_pend_glob else 0.0
+    v_tot = float(row_pend_glob['v_tot'] or 0.0) if row_pend_glob else 0.0
+    p_tot = float(row_pend_glob['p_tot'] or 0.0) if row_pend_glob else 0.0
+    neto_sistemas_calc = v_tot - p_tot
 
-        cursor.execute(
-            """SELECT tipo, SUM(monto) as total FROM pagos 
-               WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO' 
-               GROUP BY tipo""",
-            (agencia_norm, f_desde, f_hasta)
-        )
-        filas_desglose = cursor.fetchall()
-        fecha_display_desglose = f"{f_desde} al {f_hasta}"
-    else:
-        cursor.execute(
-            "SELECT fecha, monto, ventas, premios FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC LIMIT 1",
-            (agencia_norm,)
-        )
-        ult_reporte = cursor.fetchone()
-        
-        fecha_display_desglose = ult_reporte['fecha'] if ult_reporte else hoy_vzla
-        saldo_acumulado = float(ult_reporte['monto'] or 0.0) if ult_reporte else 0.0
-        v_ult = float(ult_reporte['ventas'] or 0.0) if ult_reporte else 0.0
-        p_ult = float(ult_reporte['premios'] or 0.0) if ult_reporte else 0.0
-        neto_sistemas_calc = v_ult - p_ult
-
-        cursor.execute(
-            """SELECT tipo, SUM(monto) as total FROM pagos 
-               WHERE UPPER(TRIM(agencia)) = %s AND (fecha = %s OR factura LIKE %s) AND estado = 'APROBADO' 
-               GROUP BY tipo""",
-            (agencia_norm, fecha_display_desglose, f"%{fecha_display_desglose}%")
-        )
-        filas_desglose = cursor.fetchall()
+    cursor.execute(
+        """SELECT tipo, SUM(monto) as total FROM pagos 
+           WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' 
+           GROUP BY tipo""",
+        (agencia_norm,)
+    )
+    filas_desglose = cursor.fetchall()
+    fecha_display_desglose = "Saldo Acumulado Pendiente"
 
     abonos_calc = 0.0
     liquidaciones_calc = 0.0
@@ -1548,7 +1527,7 @@ def post_actualizar_regla_banquero(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/guardar-ajuste-banquero-sistema")
-def post_guardar_ajuste_banquero_sistema(
+def post_guardar_ajuste_banquero-sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     fecha: str = Form(...),
@@ -1777,7 +1756,7 @@ def get_admin(
             
             cursor.execute(
                 """SELECT tipo, SUM(monto) as total_monto FROM pagos 
-                   WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO' 
+                   WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'
                    GROUP BY tipo""",
                 (ag_norm, f_desde, f_hasta)
             )
