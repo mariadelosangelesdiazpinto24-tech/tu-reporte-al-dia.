@@ -9,7 +9,7 @@ import traceback
 import base64
 from zoneinfo import ZoneInfo
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import FastAPI, Request, Form, UploadFile, File, status
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -24,6 +24,13 @@ def obtener_fecha_venezuela() -> str:
 
 def obtener_fechahora_venezuela() -> str:
     return datetime.now(TZ_VENEZUELA).strftime('%Y-%m-%d %H:%M:%S')
+
+def obtener_rango_semana_actual():
+    hoy = datetime.now(TZ_VENEZUELA).date()
+    # lunes = hoy - hoy.weekday(), domingo = lunes + 6 días
+    lunes = hoy - timedelta(days=hoy.weekday())
+    domingo = lunes + timedelta(days=6)
+    return lunes.strftime('%Y-%m-%d'), domingo.strftime('%Y-%m-%d')
 
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("templates", exist_ok=True)
@@ -1033,7 +1040,7 @@ def get_agencia(
     # SALDO ACTUAL TOTAL HISTÓRICO (SIN FILTRO DE FECHAS EN PENDIENTES)
     # -------------------------------------------------------------
     cursor.execute(
-        """SELECT SUM(monto) as saldo_total, SUM(ventas) as v_tot, SUM(premios) as p_tot 
+        """SELECT SUM(monto) as saldo_total 
            FROM reportes 
            WHERE UPPER(TRIM(agencia)) = %s""",
         (agencia_norm,)
@@ -1716,14 +1723,15 @@ def get_admin(
         ultima_fila = cursor.fetchone()
         fecha_bd_reciente = ultima_fila['fecha'] if (ultima_fila and ultima_fila['fecha']) else hoy_vzla
 
-        if agencia and not desde_fecha and not hasta_fecha:
-            cursor.execute("SELECT fecha FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC LIMIT 1", (normalizar(agencia),))
-            fila_ag = cursor.fetchone()
-            if fila_ag and fila_ag['fecha']:
-                fecha_bd_reciente = fila_ag['fecha']
+        # Si estamos en Totalizador o Desglose de Banca y no se envió filtro manual, usar de Lunes a Domingo
+        lunes_sem, domingo_sem = obtener_rango_semana_actual()
+        if tab in ['totalizador', 'desglose_banca'] and not desde_fecha and not hasta_fecha:
+            f_desde = lunes_sem
+            f_hasta = domingo_sem
+        else:
+            f_desde = desde_fecha if desde_fecha else fecha_bd_reciente
+            f_hasta = hasta_fecha if hasta_fecha else fecha_bd_reciente
 
-        f_desde = desde_fecha if desde_fecha else fecha_bd_reciente
-        f_hasta = hasta_fecha if hasta_fecha else fecha_bd_reciente
         agencia_filtro = agencia if agencia else ""
 
         cursor.execute("SELECT * FROM pagos WHERE estado = 'PENDIENTE' ORDER BY id DESC")
@@ -1737,6 +1745,10 @@ def get_admin(
         casheas_generales = [dict(row) for row in cursor.fetchall()]
         total_cashea_filtrado = sum(float(c.get('monto') or 0.0) for c in casheas_generales)
 
+        # BALANCES GLOBALES (+ / -)
+        # Si el usuario usó el buscador de fechas, filtra por fechas. Si no, muestra el balance pendiente histórico total.
+        hay_filtro_fechas_admin = bool(desde_fecha and hasta_fecha)
+
         positivos = []
         negativos = []
         for ag in agencias:
@@ -1745,20 +1757,37 @@ def get_admin(
             ag_nombre = ag['agencia']
             ag_norm = normalizar(ag_nombre)
             
-            cursor.execute(
-                """SELECT SUM(ventas) as total_ventas, SUM(premios) as total_premios, SUM(monto) as saldo_neto, MAX(fecha) as ultima_fecha
-                   FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s""",
-                (ag_norm, f_desde, f_hasta)
-            )
-            fila_rep = cursor.fetchone()
-            
-            cursor.execute(
-                """SELECT tipo, SUM(monto) as total_monto FROM pagos 
-                   WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'
-                   GROUP BY tipo""",
-                (ag_norm, f_desde, f_hasta)
-            )
-            filas_pagos = cursor.fetchall()
+            if hay_filtro_fechas_admin:
+                cursor.execute(
+                    """SELECT SUM(ventas) as total_ventas, SUM(premios) as total_premios, SUM(monto) as saldo_neto, MAX(fecha) as ultima_fecha
+                       FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s""",
+                    (ag_norm, f_desde, f_hasta)
+                )
+                fila_rep = cursor.fetchone()
+
+                cursor.execute(
+                    """SELECT tipo, SUM(monto) as total_monto FROM pagos 
+                       WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'
+                       GROUP BY tipo""",
+                    (ag_norm, f_desde, f_hasta)
+                )
+                filas_pagos = cursor.fetchall()
+            else:
+                # Saldo total histórico acumulado pendiente de la taquilla
+                cursor.execute(
+                    """SELECT SUM(ventas) as total_ventas, SUM(premios) as total_premios, SUM(monto) as saldo_neto, MAX(fecha) as ultima_fecha
+                       FROM reportes WHERE UPPER(TRIM(agencia)) = %s""",
+                    (ag_norm,)
+                )
+                fila_rep = cursor.fetchone()
+
+                cursor.execute(
+                    """SELECT tipo, SUM(monto) as total_monto FROM pagos 
+                       WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO'
+                       GROUP BY tipo""",
+                    (ag_norm,)
+                )
+                filas_pagos = cursor.fetchall()
             
             sum_abonos = 0.0
             sum_cashea = 0.0
