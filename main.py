@@ -454,7 +454,7 @@ def actualizar_ultima_conexion(agencia: str):
         except Exception as e:
             print("Error actualizando conexion:", e)
 
-# RECALCULAR Y ACTUALIZAR REPORTE PRECISO (SIN INVENTAR PENDIENTES)
+# RECALCULAR Y ACTUALIZAR REPORTE (SIN INVENTAR PENDIENTES NI DUPLICAR CASHEA)
 def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     agencia_norm = normalizar(agencia)
     conn = get_db()
@@ -467,14 +467,12 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         conn.close()
         return
 
-    # Pagos regulares aprobados de este día
     cursor.execute(
         "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND estado = 'APROBADO' AND tipo != 'AJUSTE_PENDIENTE'", 
         (agencia_norm, fecha_reporte)
     )
     todos_pagos = cursor.fetchall()
     
-    # ÚNICAMENTE los ajustes pendientes legítimos que apliquen a este día
     cursor.execute(
         "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo = 'AJUSTE_PENDIENTE' AND estado = 'APROBADO'", 
         (agencia_norm, fecha_reporte)
@@ -542,7 +540,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     detalle_original = rep['detalle_html'] or ""
 
-    # Extraer la tabla pura de sistemas sin duplicar nada
+    # Extraer la tabla pura de sistemas sin duplicar
     if '<!-- BLOQUES_EXTRAS -->' in detalle_original:
         tabla_sistemas_html = detalle_original.split('<!-- BLOQUES_EXTRAS -->')[0].strip()
     elif 'PAGOS / ABONOS A LA BANCA' in detalle_original:
@@ -550,6 +548,12 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         tabla_sistemas_html = detalle_original[:pos_corte].strip() if pos_corte != -1 else detalle_original
     else:
         tabla_sistemas_html = detalle_original.strip()
+
+    # Si la tabla ya contenía el bloque cashea inyectado por Colab, limpiarlo para evitar duplicidad
+    if 'CASHEA (Registros absorbidos)' in tabla_sistemas_html:
+        pos_c_sub = tabla_sistemas_html.find('<div class="mb-3"')
+        if pos_c_sub != -1:
+            tabla_sistemas_html = tabla_sistemas_html[:pos_c_sub].strip()
 
     total_neto_sistemas = 0.0
     filas_tabla = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_sistemas_html, re.DOTALL | re.IGNORECASE)
@@ -565,7 +569,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
-    # Cálculo exacto sin inventar nada
+    # Balance del día
     monto_final = total_neto_sistemas - total_pagos_taquilla + total_adelantos - total_cashea + total_ajustes_pendientes
 
     bloque_pagos_banca = f'''
@@ -596,7 +600,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     </div>
     '''
 
-    # Solo mostrar el bloque de pendientes si realmente EXISTE un ajuste para esa fecha
     bloque_ajustes = ""
     if ajustes_rows_html:
         bloque_ajustes = f'''
@@ -720,7 +723,6 @@ async def guardar_reporte_colab(request: Request):
     cashea_monto = float(data.get("cashea_monto", 0.0))
     cashea_detalle = data.get("cashea_detalle", "")
 
-    hoy_str = obtener_fecha_venezuela()
     conn = get_db()
     cursor = conn.cursor()
 
@@ -729,7 +731,6 @@ async def guardar_reporte_colab(request: Request):
     cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia, fecha))
     rep = cursor.fetchone()
 
-    # Actualizamos el reporte limpiamente SIN inventar diferenciales automáticos
     if rep:
         cursor.execute(
             "UPDATE reportes SET agencia = %s, monto = %s, ventas = %s, premios = %s, detalle_html = %s WHERE id = %s",
@@ -759,7 +760,6 @@ async def guardar_reporte_colab(request: Request):
     conn.close()
 
     recalcular_y_actualizar_reporte(agencia, fecha)
-        
     return {"status": "ok", "mensaje": "Reporte actualizado con éxito"}
 
 @app.get("/", response_class=HTMLResponse)
@@ -879,38 +879,38 @@ def get_agencia(
     cursor.execute("SELECT * FROM usuarios WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
     agencia_info = cursor.fetchone()
     
-    cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
+    f_desde = desde_fecha if desde_fecha else ""
+    f_hasta = hasta_fecha if hasta_fecha else ""
+
+    # Filtrar reportes si hay rango definido
+    if f_desde and f_hasta:
+        cursor.execute(
+            "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha DESC", 
+            (agencia_norm, f_desde, f_hasta)
+        )
+    else:
+        cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
+    
     reportes_agencia_raw = cursor.fetchall()
-
-    f_desde = desde_fecha if desde_fecha else hoy_vzla
-    f_hasta = hasta_fecha if hasta_fecha else hoy_vzla
-
     reportes_agencia = []
     for r in reportes_agencia_raw:
         r_dict = dict(r)
-        comision_sum = 0.0
-        if r_dict.get('detalle_html'):
-            tabla_match = re.search(r'<table[^>]*>(.*?)<\/table>', r_dict['detalle_html'], re.DOTALL | re.IGNORECASE)
-            if tabla_match:
-                filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla_match.group(1), re.DOTALL | re.IGNORECASE)
-                for f in filas:
-                    cols = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', f, re.DOTALL | re.IGNORECASE)
-                    if len(cols) >= 5 and "TOTALES" not in cols[0].upper() and "SISTEMA" not in cols[0].upper():
-                        try:
-                            c_val = float(re.sub(r'[^\d.-]', '', cols[2]))
-                            comision_sum += c_val
-                        except:
-                            pass
-        
-        if comision_sum == 0.0 and (float(r_dict.get('ventas') or 0) > 0):
-            comision_sum = max(0.0, float(r_dict.get('ventas') or 0) - float(r_dict.get('premios') or 0) - float(r_dict.get('monto') or 0))
-            
-        r_dict['comision'] = comision_sum
         reportes_agencia.append(r_dict)
 
+    # Filtrar pagos
+    if f_desde and f_hasta:
+        cursor.execute(
+            "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", 
+            (agencia_norm, f_desde, f_hasta)
+        )
+    else:
+        cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
+    pagos_agencia = [dict(row) for row in cursor.fetchall()]
+
+    # Auditoría por sistemas
     cursor.execute(
         "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha ASC", 
-        (agencia_norm, f_desde, f_hasta)
+        (agencia_norm, f_desde or hoy_vzla, f_hasta or hoy_vzla)
     )
     reps_rango = cursor.fetchall()
     
@@ -952,9 +952,6 @@ def get_agencia(
                         totales_auditoria["premio"] += sp
                         totales_auditoria["neto"] += st
 
-    cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
-    pagos_agencia = [dict(row) for row in cursor.fetchall()]
-    
     try:
         cursor.execute(
             """SELECT c.* FROM comunicados c
@@ -974,6 +971,10 @@ def get_agencia(
     row_rep = cursor.fetchone()
     saldo_acumulado = float(row_rep['total_rep'] or 0.0) if row_rep else 0.0
 
+    # Desglose de reportes pendientes con saldo
+    cursor.execute("SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND abs(monto) > 0.01 ORDER BY fecha DESC", (agencia_norm,))
+    items_pendientes = [dict(row) for row in cursor.fetchall()]
+
     conn.close()
     
     return templates.TemplateResponse(request=request, name="agencia.html", context={
@@ -984,6 +985,7 @@ def get_agencia(
         "comunicados": comunicados,
         "sistemas": SISTEMAS_OFICIALES,
         "saldo_actual": saldo_acumulado,
+        "items_pendientes": items_pendientes,
         "auditoria_sistemas": auditoria_sistemas_agencia,
         "totales_auditoria": totales_auditoria,
         "desde_fecha": f_desde,
@@ -1032,7 +1034,7 @@ def post_solicitar_banca_directo(agencia: str = Form(...), fecha: str = Form(...
     )
     conn.commit()
     conn.close()
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=pendiente", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/reportar")
 async def post_reportar(
@@ -1166,7 +1168,6 @@ def post_actualizar_reporte_sistema(
         )
         conn.commit()
 
-        # Solo si fue un cambio a un día anterior, registrar el ajuste pendiente exacto en la fecha de hoy
         if fecha < hoy_vzla:
             diferencial = sum_t - float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
             if abs(diferencial) > 0.01:
@@ -1356,7 +1357,7 @@ def post_actualizar_regla_banquero(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/guardar-ajuste-banquero-sistema")
-def post_guardar_ajuste_banquero_sistema(
+def post_guardar_ajuste_banquero-sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     fecha: str = Form(...),
@@ -1425,15 +1426,15 @@ def post_eliminar_comunicado(comunicado_id: int = Form(...)):
 
 @app.post("/admin/crear-agencia")
 @app.post("/admin/crear-taquilla")
-def post_crear_agencia(agencia: str = Form(...), clave: str = Form(...), genero: str = Form("FEMENINO"), rol: str = Form("TAQUILLA")):
+def post_crear_agencia(agencia: str = Form(...), clave: str = Form(...), genero: str = Form("FEMENINO")):
     agencia_norm = normalizar(agencia)
     if agencia_norm and clave:
         conn = get_db()
         cursor = conn.cursor()
         cursor.execute(
-            """INSERT INTO usuarios (agencia, clave, genero, rol) VALUES (%s, %s, %s, %s)
-               ON CONFLICT (agencia) DO UPDATE SET clave = EXCLUDED.clave, genero = EXCLUDED.genero, rol = EXCLUDED.rol""",
-            (agencia_norm, clave, genero, rol)
+            """INSERT INTO usuarios (agencia, clave, genero, rol) VALUES (%s, %s, %s, 'TAQUILLA')
+               ON CONFLICT (agencia) DO UPDATE SET clave = EXCLUDED.clave, genero = EXCLUDED.genero, rol = 'TAQUILLA'""",
+            (agencia_norm, clave, genero)
         )
         conn.commit()
         conn.close()
@@ -1448,7 +1449,6 @@ def post_eliminar_agencia(agencia_id: int = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
 
-# RUTAS PARA EL LÁPIZ Y LA PAPELERA DEL ADMIN (BALANCES)
 @app.post("/admin/editar-monto-reporte")
 def post_editar_monto_reporte(
     agencia: str = Form(...),
@@ -1489,6 +1489,7 @@ def get_admin(
     agencia: Optional[str] = None, 
     desde_fecha: Optional[str] = None, 
     hasta_fecha: Optional[str] = None, 
+    tipo_transaccion: Optional[str] = None,
     tab: str = "transacciones"
 ):
     try:
@@ -1498,7 +1499,22 @@ def get_admin(
         cursor.execute("SELECT * FROM reportes ORDER BY id DESC")
         reportes = [dict(row) for row in cursor.fetchall()]
         
-        cursor.execute("SELECT * FROM pagos WHERE tipo != 'CASHEA' ORDER BY id DESC")
+        # Filtro avanzado de transacciones
+        query_pagos = "SELECT * FROM pagos WHERE tipo != 'CASHEA'"
+        params_pagos = []
+        if tipo_transaccion:
+            if tipo_transaccion == 'RECIBIDOS':
+                query_pagos += " AND tipo IN ('PAGO_TAQUILLA', 'PAGO_BANCA')"
+            elif tipo_transaccion == 'ENVIADOS':
+                query_pagos += " AND tipo IN ('LIQUIDACION')"
+            elif tipo_transaccion == 'ADELANTOS':
+                query_pagos += " AND tipo = 'ADELANTO'"
+            elif tipo_transaccion == 'MODIFICACIONES':
+                query_pagos += " AND tipo = 'MODIFICACION'"
+            elif tipo_transaccion == 'SOLICITUDES':
+                query_pagos += " AND tipo = 'SOLICITUD_BANCA'"
+        query_pagos += " ORDER BY id DESC"
+        cursor.execute(query_pagos, tuple(params_pagos))
         pagos = [dict(row) for row in cursor.fetchall()]
 
         cursor.execute("SELECT * FROM usuarios ORDER BY id DESC")
@@ -1530,6 +1546,7 @@ def get_admin(
         pend_row = cursor.fetchone()
         solicitudes_pendientes_count = pend_row['total_pendientes'] if pend_row else 0
 
+        # Data Cashea y suma absorbida en el rango
         if agencia_filtro:
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (normalizar(agencia_filtro), f_desde, f_hasta))
         else:
@@ -1563,6 +1580,7 @@ def get_admin(
             sum_abonos = 0.0
             sum_cashea = 0.0
             sum_adelantos = 0.0
+            sum_pendientes_ajustes = 0.0
             for fp in filas_pagos:
                 tipo_fp = str(fp['tipo']).upper()
                 m_fp = float(fp['total_monto'] or 0.0)
@@ -1572,6 +1590,8 @@ def get_admin(
                     sum_cashea += m_fp
                 elif tipo_fp in ['ADELANTO', 'LIQUIDACION']:
                     sum_adelantos += m_fp
+                elif tipo_fp == 'AJUSTE_PENDIENTE':
+                    sum_pendientes_ajustes += m_fp
 
             v_tot = float(fila_rep['total_ventas'] or 0.0) if fila_rep else 0.0
             p_tot = float(fila_rep['total_premios'] or 0.0) if fila_rep else 0.0
@@ -1586,9 +1606,11 @@ def get_admin(
                 "monto": saldo_val,
                 "ventas": v_tot,
                 "premios": p_tot,
+                "reporte_neto": (v_tot - p_tot),
                 "abonos": sum_abonos,
                 "cashea": sum_cashea,
-                "adelantos": sum_adelantos
+                "adelantos": sum_adelantos,
+                "pendientes": sum_pendientes_ajustes
             }
 
             if saldo_val > 0.009:
@@ -1634,6 +1656,7 @@ def get_admin(
             "desde_fecha": f_desde,
             "hasta_fecha": f_hasta,
             "agencia_filtro": agencia_filtro,
+            "tipo_transaccion": tipo_transaccion or "",
             "tab_activa": tab,
             "tab": tab
         })
