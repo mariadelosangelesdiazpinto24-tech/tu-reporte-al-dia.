@@ -275,8 +275,10 @@
                                     </td>
                                     <td>
                                         {{ p.factura }}<br>
-                                        {% if p.comprobante and (p.comprobante.endswith('.png') or p.comprobante.endswith('.jpg') or p.comprobante.endswith('.jpeg') or p.comprobante.endswith('.pdf') or 'comprobante/' in p.comprobante) %}
-                                            <a href="{{ p.comprobante if 'comprobante/' in p.comprobante else '/uploads/' ~ p.comprobante }}" target="_blank" class="small fw-bold text-primary"><i class="fas fa-image me-1"></i> Ver Comprobante</a>
+                                        {% if p.comprobante %}
+                                            <a href="/comprobante/{{ p.id }}" class="small fw-bold text-primary">
+                                                <i class="fas fa-download me-1"></i> Descargar Comprobante
+                                            </a>
                                         {% endif %}
                                     </td>
                                     <td>
