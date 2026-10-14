@@ -345,7 +345,7 @@
                 </div>
             </div>
 
-            <!-- 4. BALANCES (JUSTIFICANDO SALDO EN REPORTES) -->
+            <!-- 4. BALANCES -->
             <div class="tab-pane fade {% if tab_activa == 'balances' or not tab_activa %}show active{% endif %}" id="tab-balances" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
@@ -439,7 +439,7 @@
                 </div>
             </div>
 
-            <!-- MODAL DESGLOSE DE FORMULA (BALANCES) -->
+            <!-- MODAL DESGLOSE -->
             <div class="modal fade" id="modalDesgloseAgencia" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content border-0 shadow">
@@ -477,11 +477,11 @@
                 </div>
             </div>
 
-            <!-- 5. MODIFICACIONES (CON RANGO DE FECHAS) -->
+            <!-- 5. MODIFICACIONES -->
             <div class="tab-pane fade {% if tab_activa == 'modificaciones' %}show active{% endif %}" id="tab-modificaciones" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-3" style="max-width: 800px; margin: 0 auto;">
                     <h5 class="fw-bold text-tema mb-2"><i class="fas fa-pen-to-square me-1"></i> Modificar Sistema de Cualquier Taquilla</h5>
-                    <p class="text-muted small mb-3">Ajusta ventas y premios en tiempo real por fecha o rango continuo.</p>
+                    <p class="text-muted small mb-3">Ajusta ventas y premios en tiempo real por fecha o rango de fechas.</p>
                     
                     <form action="/actualizar-reporte-sistema" method="POST" class="row g-3">
                         <input type="hidden" name="origen" value="admin">
@@ -527,7 +527,7 @@
                 </div>
             </div>
 
-            <!-- 6. DATA CASHEA -->
+            <!-- 6. DATA CASHEA: CONSOLIDADO POR AGENCIA EN RANGO + TOTALES AL COPIAR -->
             <div class="tab-pane fade {% if tab_activa == 'cashea' %}show active{% endif %}" id="tab-cashea" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
@@ -551,26 +551,40 @@
                     </form>
 
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="fw-bold text-dark m-0"><i class="fas fa-cart-shopping text-info me-2"></i>Facturas Cashea Consolidadas</h5>
-                        <span class="badge bg-info text-dark fs-6 px-3 py-2 rounded-pill">Total Absorbido: Bs. {{ total_cashea_filtrado | dinero }}</span>
+                        <h5 class="fw-bold text-dark m-0"><i class="fas fa-cart-shopping text-info me-2"></i>Facturas Cashea Consolidadas por Agencia</h5>
+                        <span class="badge bg-info text-dark fs-6 px-3 py-2 rounded-pill" id="badgeTotalCashea">Total Absorbido: Bs. {{ total_cashea_filtrado | dinero }}</span>
                     </div>
+
+                    <!-- TABLA AGRUPADA POR AGENCIA -->
                     <div class="table-responsive">
-                        <table class="table table-sm table-hover align-middle mb-0" id="tablaCashea">
-                            <thead class="table-light"><tr><th>Fecha</th><th>Agencia</th><th>Factura / Detalle</th><th class="text-end">Monto Absorbido</th></tr></thead>
-                            <tbody>
-                                {% for c in casheas_generales %}
+                        <table class="table table-sm table-hover align-middle mb-0" id="tablaCasheaAgrupada">
+                            <thead class="table-light">
                                 <tr>
-                                    <td>{{ c.fecha }}</td>
-                                    <td class="fw-bold">{{ c.agencia }}</td>
-                                    <td>{{ c.factura or c.comprobante }}</td>
-                                    <td class="text-end fw-bold text-danger">Bs. {{ c.monto | dinero }}</td>
+                                    <th>Agencia</th>
+                                    <th>Facturas y Detalles (Período)</th>
+                                    <th class="text-end">Monto Total Absorbido</th>
                                 </tr>
-                                {% else %}
-                                <tr><td colspan="4" class="text-center text-muted py-3">No hay facturas Cashea en el período.</td></tr>
-                                {% endfor %}
+                            </thead>
+                            <tbody id="tbodyCasheaAgrupado">
+                                <!-- Se llena dinámicamente con JS garantizando suma limpia -->
                             </tbody>
+                            <tfoot class="table-light fw-bold">
+                                <tr>
+                                    <td colspan="2">TOTAL ABSORBIDO EN PERÍODO:</td>
+                                    <td class="text-end text-danger fs-6" id="tfootTotalCashea">Bs. {{ total_cashea_filtrado | dinero }}</td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
+
+                    <!-- TABLA FUENTE OCULTA DE REGISTROS PARA EL JS -->
+                    <table class="d-none" id="tablaFuenteCashea">
+                        <tbody>
+                            {% for c in casheas_generales %}
+                            <tr data-agencia="{{ c.agencia }}" data-monto="{{ c.monto or 0 }}" data-factura="{{ c.factura or c.comprobante }}" data-fecha="{{ c.fecha }}"></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -642,7 +656,7 @@
                 </div>
             </div>
 
-            <!-- 8. AUDITORÍA: ACORDEÓN PLEGABLE -->
+            <!-- 8. AUDITORÍA: ACORDEÓN -->
             <div class="tab-pane fade {% if tab_activa == 'auditoria' %}show active{% endif %}" id="tab-auditoria" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
@@ -697,7 +711,7 @@
                 </div>
             </div>
 
-            <!-- 9. TOTALIZADOR: RESUMEN LIMPIO -->
+            <!-- 9. TOTALIZADOR -->
             <div class="tab-pane fade {% if tab_activa == 'totalizador' %}show active{% endif %}" id="tab-totalizador" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end">
@@ -752,7 +766,7 @@
                 </div>
             </div>
 
-            <!-- 10. DESGLOSE BANCA (CON PARTICIPACION +/- Y CUADRO PRIVADO RECALCULADO) -->
+            <!-- 10. DESGLOSE BANCA (MONTOS MATEMÁTICAMENTE EXACTOS) -->
             <div class="tab-pane fade {% if tab_activa == 'desglose_banca' %}show active{% endif %}" id="tab-desglose-banca" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end">
@@ -807,11 +821,7 @@
                                     </thead>
                                     <tbody>
                                         {% for sys in b_info.sistemas %}
-                                        <tr data-sistema="{{ sys.sistema }}" 
-                                            data-venta="{{ sys.venta or 0 }}" 
-                                            data-premio="{{ sys.premios or 0 }}"
-                                            data-pct-banquero="{{ sys.pct_banquero or 0 }}"
-                                            data-pct-participacion="{{ sys.pct_participacion if sys.pct_participacion is defined else 0 }}">
+                                        <tr>
                                             <td class="fw-bold col-sistema">{{ sys.sistema }}</td>
                                             <td class="text-end col-venta">Bs. {{ (sys.venta or 0) | dinero }}</td>
                                             <td class="text-end text-danger col-premio">Bs. {{ (sys.premios or 0) | dinero }}</td>
@@ -844,7 +854,7 @@
                         </div>
                     </div>
 
-                    <!-- CUADRITO DE GANANCIAS (RECALCULADO Y DETALLADO PARA TI) -->
+                    <!-- CUADRO DE GANANCIAS PERSONAL (SIN MONTOS MILLONARIOS ANÓMALOS) -->
                     <div class="col-lg-4">
                         <div class="tarjeta-mi-ganancia-banca shadow-sm h-100" id="tarjeta_ganancia_{{ loop.index }}">
                             <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom border-light border-opacity-25">
@@ -855,18 +865,18 @@
                             <div class="mb-3">
                                 <small class="text-white-50 d-block">Ganancia Neta con {{ b_nom }}:</small>
                                 <h3 class="fw-bold text-white m-0 val-mi-ganancia-total">
-                                    Bs. {{ (b_info.mi_ganancia_total if b_info.mi_ganancia_total is defined else ((b_info.ganancia_excedente or 0) + (b_info.ganancia_participacion or 0))) | dinero }}
+                                    Bs. 0.00
                                 </h3>
                             </div>
 
                             <div class="p-2 rounded bg-black bg-opacity-25 mb-3" style="font-size: 12px;">
                                 <div class="d-flex justify-content-between py-1">
                                     <span>Por Excedente (%):</span>
-                                    <strong class="text-white val-ganancia-excedente">Bs. {{ (b_info.ganancia_excedente if b_info.ganancia_excedente is defined else 0) | dinero }}</strong>
+                                    <strong class="text-white val-ganancia-excedente">Bs. 0.00</strong>
                                 </div>
                                 <div class="d-flex justify-content-between py-1">
                                     <span>Por Participación (+ / -):</span>
-                                    <strong class="text-white val-ganancia-participacion">Bs. {{ (b_info.ganancia_participacion if b_info.ganancia_participacion is defined else 0) | dinero }}</strong>
+                                    <strong class="text-white val-ganancia-participacion">Bs. 0.00</strong>
                                 </div>
                             </div>
 
@@ -875,9 +885,9 @@
                                 <table class="table table-sm table-borderless text-white mb-0 tabla-ganancias-sistemas" style="font-size: 11px;">
                                     <tbody>
                                         {% for sys in b_info.sistemas %}
-                                        <tr>
-                                            <td>{{ sys.sistema }}</td>
-                                            <td class="text-end fw-bold">
+                                        <tr class="fila-dif-sistema">
+                                            <td class="dif-nombre">{{ sys.sistema }}</td>
+                                            <td class="text-end fw-bold dif-monto">
                                                 Bs. {{ (sys.mi_ganancia if sys.mi_ganancia is defined else ((sys.venta or 0) * 0.04)) | dinero }}
                                             </td>
                                         </tr>
@@ -894,7 +904,7 @@
         </div>
     </div>
 
-    <!-- MODAL EDITAR REPORTE (CON RANGO DE FECHAS) -->
+    <!-- MODAL EDITAR REPORTE -->
     <div class="modal fade" id="modalEditarReporte" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow">
@@ -954,26 +964,32 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // PARSEAR MONTO DE TEXTO A NUMERO
+        // PARSEAR MONTO RESPETANDO MILES (.) Y DECIMALES (,) EN VENEZUELA
         function parseMonto(txt) {
             if (!txt) return 0;
-            var limpio = txt.replace(/[^0-9,-]/g, '').replace(',', '.');
-            return parseFloat(limpio) || 0;
+            var str = txt.replace('Bs.', '').trim();
+            // Si tiene punto como separador de miles y coma decimal (ej: 282.910,00)
+            if (str.indexOf('.') > -1 && str.indexOf(',') > -1) {
+                str = str.replace(/\./g, '').replace(',', '.');
+            } else if (str.indexOf(',') > -1) {
+                str = str.replace(',', '.');
+            }
+            var n = parseFloat(str);
+            return isNaN(n) ? 0 : n;
         }
 
         function formatoBs(val) {
             return "Bs. " + val.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
-        // CALCULO AUTOMATICO DE TOTALES EN TABLAS Y CUADROS PRIVADOS
         document.addEventListener("DOMContentLoaded", function() {
+            // 1. CALCULO EXACTO DE BANQUEROS Y MIS GANANCIAS PRIVADAS
             var bloques = document.querySelectorAll(".banquero-bloque");
-            bloques.forEach(function(b, idx) {
+            bloques.forEach(function(b) {
                 var tabla = b.querySelector(".tabla-banquero-calculo");
                 var filas = tabla.querySelectorAll("tbody tr");
                 
                 var totVenta = 0, totPremio = 0, totComision = 0, totNeto = 0, totPart = 0, totFinal = 0;
-                var gananciaExcedente = 0, gananciaPart = 0;
 
                 filas.forEach(function(tr) {
                     var v = parseMonto(tr.querySelector(".col-venta").innerText);
@@ -989,14 +1005,9 @@
                     totNeto += t;
                     totPart += part;
                     totFinal += fin;
-
-                    // Diferencial estimado por excedente (promedio 4% si no viene discriminado)
-                    gananciaExcedente += (v * 0.04);
-                    // Participación: se suma a tu ganancia si es positiva para ti, o se resta si el sistema perdió
-                    gananciaPart += part;
                 });
 
-                // Asignar al pie de tabla
+                // Totales exactos en el pie de tabla
                 tabla.querySelector(".foot-venta").innerText = formatoBs(totVenta);
                 tabla.querySelector(".foot-premio").innerText = formatoBs(totPremio);
                 tabla.querySelector(".foot-comision").innerText = formatoBs(totComision);
@@ -1004,74 +1015,105 @@
                 tabla.querySelector(".foot-part").innerText = formatoBs(totPart);
                 tabla.querySelector(".foot-final").innerText = formatoBs(totFinal);
 
-                // Si el cuadro privado estaba en 0.00, inyectar el cálculo dinámico
+                // Cuadro de ganancias privadas: suma exacta de los diferenciales por sistema
                 var box = b.querySelector(".tarjeta-mi-ganancia-banca");
-                var totalPrivado = box.querySelector(".val-mi-ganancia-total");
-                if (totalPrivado && parseMonto(totalPrivado.innerText) === 0) {
-                    var ganTotal = gananciaExcedente + gananciaPart;
-                    totalPrivado.innerText = formatoBs(ganTotal);
-                    box.querySelector(".val-ganancia-excedente").innerText = formatoBs(gananciaExcedente);
-                    box.querySelector(".val-ganancia-participacion").innerText = formatoBs(gananciaPart);
-                }
+                var difFilas = box.querySelectorAll(".fila-dif-sistema");
+                var gananciaExcedente = 0;
+                difFilas.forEach(function(df) {
+                    gananciaExcedente += parseMonto(df.querySelector(".dif-monto").innerText);
+                });
+
+                var gananciaParticipacion = totPart; // La participación calculada
+                var gananciaTotal = gananciaExcedente + gananciaParticipacion;
+
+                box.querySelector(".val-mi-ganancia-total").innerText = formatoBs(gananciaTotal);
+                box.querySelector(".val-ganancia-excedente").innerText = formatoBs(gananciaExcedente);
+                box.querySelector(".val-ganancia-participacion").innerText = formatoBs(gananciaParticipacion);
             });
+
+            // 2. CONSOLIDAR DATA CASHEA POR AGENCIA
+            consolidarCasheaPorAgencia();
         });
 
-        // 1. FILTRAR TRANSACCIONES
-        function filtrarTransacciones() {
-            var filtro = document.getElementById("filtroTipoTransaccion").value;
-            var filas = document.querySelectorAll("#tablaTransacciones .fila-transaccion");
-            filas.forEach(function(fila) {
-                var tipo = fila.getAttribute("data-tipo");
-                if (filtro === "TODOS" || tipo === filtro) {
-                    fila.style.display = "";
-                } else {
-                    fila.style.display = "none";
+        // AGRUPADOR INTELIGENTE DE CASHEA
+        var casheaAgrupadoGlobal = {};
+
+        function consolidarCasheaPorAgencia() {
+            var filasFuente = document.querySelectorAll("#tablaFuenteCashea tbody tr");
+            var agenciasMap = {};
+            var granTotal = 0;
+
+            filasFuente.forEach(function(tr) {
+                var ag = tr.getAttribute("data-agencia") || "SIN ASIGNAR";
+                var monto = parseFloat(tr.getAttribute("data-monto") || 0);
+                var factura = tr.getAttribute("data-factura") || "";
+                var fecha = tr.getAttribute("data-fecha") || "";
+
+                if (!agenciasMap[ag]) {
+                    agenciasMap[ag] = {
+                        total: 0,
+                        facturas: []
+                    };
                 }
+
+                agenciasMap[ag].total += monto;
+                granTotal += monto;
+                if (factura) {
+                    agenciasMap[ag].facturas.push(factura + " (" + fecha + ")");
+                }
+            });
+
+            casheaAgrupadoGlobal = agenciasMap;
+
+            var tbody = document.getElementById("tbodyCasheaAgrupado");
+            tbody.innerHTML = "";
+
+            var keys = Object.keys(agenciasMap);
+            if (keys.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">No hay facturas Cashea en el período.</td></tr>';
+                return;
+            }
+
+            keys.forEach(function(ag) {
+                var item = agenciasMap[ag];
+                var tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td class="fw-bold text-dark">${ag}</td>
+                    <td class="small text-muted">${item.facturas.join(" | ") || 'Sin detalle de factura'}</td>
+                    <td class="text-end fw-bold text-danger">${formatoBs(item.total)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById("tfootTotalCashea").innerText = formatoBs(granTotal);
+        }
+
+        // COPIAR CASHEA CON SU TOTAL CORRESPONDIENTE
+        function copiarCasheaGlobal() {
+            var texto = "🛒 FACTURAS CASHEA ABSORBIDAS POR AGENCIA 🛒\n";
+            texto += "Período: {{ desde_fecha }} al {{ hasta_fecha }}\n";
+            texto += "----------------------------------------\n\n";
+
+            var totalGeneral = 0;
+            for (var ag in casheaAgrupadoGlobal) {
+                var item = casheaAgrupadoGlobal[ag];
+                totalGeneral += item.total;
+                texto += "📌 " + ag.toUpperCase() + "\n";
+                texto += "   • Facturas: " + (item.facturas.join(", ") || "Varias") + "\n";
+                texto += "   • Monto Absorbido: " + formatoBs(item.total) + "\n\n";
+            }
+
+            texto += "========================================\n";
+            texto += "💰 TOTAL GENERAL CASHEA: " + formatoBs(totalGeneral) + "\n";
+            texto += "----------------------------------------\n";
+            texto += "🍀 Los Ángeles del Dinero 🍀";
+
+            navigator.clipboard.writeText(texto).then(function() {
+                alert("Reporte consolidado de Cashea copiado al portapapeles con éxito.");
             });
         }
 
-        // 2. MODAL DESGLOSE (JUSTIFICANDO SALDO EN REPORTES)
-        function abrirModalDesglose(agencia, reportes, cashea, adelantos, abonos, total) {
-            document.getElementById("modalDesgloseTitulo").innerText = "Desglose de Balance: " + agencia;
-            
-            var totalNum = parseFloat(total || 0);
-            var repNum = parseFloat(reportes || 0);
-            var casNum = parseFloat(cashea || 0);
-            var adeNum = parseFloat(adelantos || 0);
-            var aboNum = parseFloat(abonos || 0);
-
-            // Si vienen en 0 pero hay un monto total de balance, se justifica en reportes
-            if (repNum === 0 && casNum === 0 && adeNum === 0 && aboNum === 0 && totalNum !== 0) {
-                repNum = totalNum;
-            }
-
-            document.getElementById("mdlReportes").innerText = "Bs. " + repNum.toLocaleString('es-VE', {minimumFractionDigits: 2});
-            document.getElementById("mdlCashea").innerText = "Bs. " + casNum.toLocaleString('es-VE', {minimumFractionDigits: 2});
-            document.getElementById("mdlAdelantos").innerText = "Bs. " + adeNum.toLocaleString('es-VE', {minimumFractionDigits: 2});
-            document.getElementById("mdlAbonos").innerText = "Bs. " + aboNum.toLocaleString('es-VE', {minimumFractionDigits: 2});
-            document.getElementById("mdlTotal").innerText = "Bs. " + totalNum.toLocaleString('es-VE', {minimumFractionDigits: 2});
-            
-            var modal = new bootstrap.Modal(document.getElementById('modalDesgloseAgencia'));
-            modal.show();
-        }
-
-        // 3. MODAL EDITAR REPORTE
-        function abrirModalEditarReporte(banquero) {
-            document.getElementById("editAgencia").value = banquero;
-            document.getElementById("modalEditarTitulo").innerHTML = '<i class="fas fa-edit text-tema me-1"></i> Modificar Sistema - ' + banquero;
-            var modal = new bootstrap.Modal(document.getElementById('modalEditarReporte'));
-            modal.show();
-        }
-
-        function calcularComisionAutomatica() {
-            var venta = parseFloat(document.getElementById("editVenta").value) || 0;
-            var comInput = document.getElementById("editComision");
-            if (comInput.dataset.manual !== "true" && venta > 0) {
-                comInput.placeholder = (venta * 0.16).toFixed(2);
-            }
-        }
-
-        // 4. COPIAR REPORTE BANQUERO DETALLADO CON TOTALES INCLUIDOS AL FINAL
+        // COPIAR REPORTE BANQUERO DETALLADO CON TOTALES INCLUIDOS AL FINAL
         function copiarReporteBanqueroDetallado(nombreBanquero, tableId) {
             var tabla = document.getElementById(tableId);
             var texto = "🏪 LIQUIDACIÓN: " + nombreBanquero.toUpperCase() + "\n";
@@ -1113,22 +1155,61 @@
             });
         }
 
-        // 5. COPIAR CASHEA
-        function copiarCasheaGlobal() {
-            var texto = "🛒 FACTURAS CASHEA ABSORBIDAS 🛒\n\n";
-            var filas = document.querySelectorAll("#tablaCashea tbody tr");
-            filas.forEach(function(tr) {
-                var cols = tr.querySelectorAll("td");
-                if (cols.length >= 4) {
-                    texto += "• " + cols[1].innerText.trim() + " (" + cols[0].innerText.trim() + "): " + cols[2].innerText.trim() + " -> " + cols[3].innerText.trim() + "\n";
+        // FILTRAR TRANSACCIONES
+        function filtrarTransacciones() {
+            var filtro = document.getElementById("filtroTipoTransaccion").value;
+            var filas = document.querySelectorAll("#tablaTransacciones .fila-transaccion");
+            filas.forEach(function(fila) {
+                var tipo = fila.getAttribute("data-tipo");
+                if (filtro === "TODOS" || tipo === filtro) {
+                    fila.style.display = "";
+                } else {
+                    fila.style.display = "none";
                 }
-            });
-            navigator.clipboard.writeText(texto).then(function() {
-                alert("Reporte de facturas Cashea copiado al portapapeles.");
             });
         }
 
-        // 6. COPIAR BALANCES GLOBALES
+        // MODAL DESGLOSE DE FORMULA (BALANCES)
+        function abrirModalDesglose(agencia, reportes, cashea, adelantos, abonos, total) {
+            document.getElementById("modalDesgloseTitulo").innerText = "Desglose de Balance: " + agencia;
+            
+            var totalNum = parseMonto(total);
+            var repNum = parseMonto(reportes);
+            var casNum = parseMonto(cashea);
+            var adeNum = parseMonto(adelantos);
+            var aboNum = parseMonto(abonos);
+
+            if (repNum === 0 && casNum === 0 && adeNum === 0 && aboNum === 0 && totalNum !== 0) {
+                repNum = totalNum;
+            }
+
+            document.getElementById("mdlReportes").innerText = formatoBs(repNum);
+            document.getElementById("mdlCashea").innerText = formatoBs(casNum);
+            document.getElementById("mdlAdelantos").innerText = formatoBs(adeNum);
+            document.getElementById("mdlAbonos").innerText = formatoBs(aboNum);
+            document.getElementById("mdlTotal").innerText = formatoBs(totalNum);
+            
+            var modal = new bootstrap.Modal(document.getElementById('modalDesgloseAgencia'));
+            modal.show();
+        }
+
+        // MODAL EDITAR REPORTE
+        function abrirModalEditarReporte(banquero) {
+            document.getElementById("editAgencia").value = banquero;
+            document.getElementById("modalEditarTitulo").innerHTML = '<i class="fas fa-edit text-tema me-1"></i> Modificar Sistema - ' + banquero;
+            var modal = new bootstrap.Modal(document.getElementById('modalEditarReporte'));
+            modal.show();
+        }
+
+        function calcularComisionAutomatica() {
+            var venta = parseFloat(document.getElementById("editVenta").value) || 0;
+            var comInput = document.getElementById("editComision");
+            if (comInput.dataset.manual !== "true" && venta > 0) {
+                comInput.placeholder = (venta * 0.16).toFixed(2);
+            }
+        }
+
+        // COPIAR BALANCES GLOBALES
         function copiarReporteGlobal() {
             var texto = "🍀 BALANCES GLOBALES - LOS ÁNGELES DEL DINERO 🍀\n\n";
             texto += "📥 DEBEN A LA BANCA (+):\n";
