@@ -1082,32 +1082,81 @@ def get_agencia(
         "saldo_final": saldo_acumulado
     }
 
-    cursor.execute("SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND abs(monto) > 0.05 ORDER BY fecha DESC", (agencia_norm,))
-    items_pendientes = [dict(row) for row in cursor.fetchall()]
+# -------------------------------------------------------------
+    # SALDO ACTUAL Y DESGLOSE INTERACTIVO DEL PENDIENTE (CON FILTRO DE RANGO)
+    # -------------------------------------------------------------
+    if f_desde and f_hasta:
+        cursor.execute(
+            """SELECT SUM(monto) as total_rango, SUM(ventas) as v_tot, SUM(premios) as p_tot 
+               FROM reportes 
+               WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s""",
+            (agencia_norm, f_desde, f_hasta)
+        )
+        row_rango = cursor.fetchone()
+        
+        saldo_acumulado = float(row_rango['total_rango'] or 0.0) if row_rango else 0.0
+        v_tot = float(row_rango['v_tot'] or 0.0) if row_rango else 0.0
+        p_tot = float(row_rango['p_tot'] or 0.0) if row_rango else 0.0
+        neto_sistemas_calc = v_tot - p_tot
 
-    conn.close()
-    
-    return templates.TemplateResponse(request=request, name="agencia.html", context={
-        "agencia": agencia_info,
-        "nombre_agencia": agencia_norm,
-        "reportes": reportes_agencia,
-        "pagos": pagos_agencia,
-        "casheas_agencia": casheas_agencia,
-        "total_cashea_periodo": total_cashea_periodo,
-        "total_cashea_dia": total_cashea_dia,
-        "comunicados": comunicados,
-        "sistemas": SISTEMAS_OFICIALES,
-        "saldo_actual": saldo_acumulado,
-        "desglose_cuenta": desglose_cuenta,
-        "items_pendientes": items_pendientes,
-        "auditoria_sistemas": auditoria_sistemas_agencia,
-        "totales_auditoria": totales_auditoria,
-        "auditoria_cashea_monto": auditoria_cashea_monto,
-        "facturas_cashea_auditoria": facturas_cashea_auditoria,
-        "desde_fecha": f_desde,
-        "hasta_fecha": f_hasta,
-        "tab_activa": tab or "reportes"
-    })
+        cursor.execute(
+            """SELECT tipo, SUM(monto) as total FROM pagos 
+               WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO' 
+               GROUP BY tipo""",
+            (agencia_norm, f_desde, f_hasta)
+        )
+        filas_desglose = cursor.fetchall()
+        fecha_display_desglose = f"{f_desde} al {f_hasta}"
+    else:
+        cursor.execute(
+            "SELECT fecha, monto, ventas, premios FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC LIMIT 1",
+            (agencia_norm,)
+        )
+        ult_reporte = cursor.fetchone()
+        
+        fecha_display_desglose = ult_reporte['fecha'] if ult_reporte else hoy_vzla
+        saldo_acumulado = float(ult_reporte['monto'] or 0.0) if ult_reporte else 0.0
+        v_ult = float(ult_reporte['ventas'] or 0.0) if ult_reporte else 0.0
+        p_ult = float(ult_reporte['premios'] or 0.0) if ult_reporte else 0.0
+        neto_sistemas_calc = v_ult - p_ult
+
+        cursor.execute(
+            """SELECT tipo, SUM(monto) as total FROM pagos 
+               WHERE UPPER(TRIM(agencia)) = %s AND (fecha = %s OR factura LIKE %s) AND estado = 'APROBADO' 
+               GROUP BY tipo""",
+            (agencia_norm, fecha_display_desglose, f"%{fecha_display_desglose}%")
+        )
+        filas_desglose = cursor.fetchall()
+
+    abonos_calc = 0.0
+    liquidaciones_calc = 0.0
+    adelantos_calc = 0.0
+    cashea_calc = 0.0
+
+    for fd in filas_desglose:
+        t_d = str(fd['tipo']).upper()
+        m_d = float(fd['total'] or 0.0)
+        if t_d in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
+            abonos_calc += m_d
+        elif t_d == 'LIQUIDACION':
+            liquidaciones_calc += m_d
+        elif t_d == 'ADELANTO':
+            adelantos_calc += m_d
+        elif t_d == 'CASHEA':
+            cashea_calc += m_d
+
+    if abs(saldo_acumulado) < 0.05:
+        saldo_acumulado = 0.0
+
+    desglose_cuenta = {
+        "fecha": fecha_display_desglose,
+        "neto_sistemas": neto_sistemas_calc,
+        "cashea": cashea_calc,
+        "adelantos": adelantos_calc,
+        "abonos": abonos_calc,
+        "liquidaciones": liquidaciones_calc,
+        "saldo_final": saldo_acumulado
+    }
 
 @app.post("/agencia/cambiar-clave")
 def post_cambiar_clave(agencia: str = Form(...), nueva_clave: str = Form(...), confirm_clave: str = Form(...)):
