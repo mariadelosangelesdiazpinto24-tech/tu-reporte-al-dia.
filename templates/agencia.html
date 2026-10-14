@@ -45,7 +45,7 @@
             </div>
         </div>
 
-        <!-- BANNER DE COMUNICADOS / NOTIFICACIONES DEL ADMIN -->
+        <!-- BANNER DE COMUNICADOS -->
         {% if comunicados and comunicados | length > 0 %}
         <div class="mb-4">
             {% for c in comunicados %}
@@ -141,7 +141,7 @@
                 </div>
             </div>
 
-            <!-- 2. PENDIENTES / PAGOS (CON CAJA INTERACTIVA QUE DETALLA EL CÁLCULO) -->
+            <!-- 2. PENDIENTES / PAGOS -->
             <div class="tab-pane fade {% if tab_activa == 'pendiente' %}show active{% endif %}" id="tab-pendiente" role="tabpanel">
                 <div class="card card-custom p-4 bg-white">
                     
@@ -150,7 +150,7 @@
                          style="background: linear-gradient(135deg, #ffffff, #fdf2f4); border: 2px solid #e91e63;">
                         <div>
                             <h6 class="fw-bold text-muted m-0">ESTADO GLOBAL DE TU CUENTA <i class="fas fa-info-circle text-tema ms-1"></i></h6>
-                            <small class="text-muted">Haz clic aquí para ver el desglose matemático exacto</small>
+                            <small class="text-muted">Haz clic para ver el desglose matemático exacto</small>
                         </div>
                         <h2 class="fw-bold m-0 {% if saldo_actual < 0 %}text-success{% elif saldo_actual > 0 %}text-danger{% else %}text-muted{% endif %}">
                             Bs. {{ saldo_actual | dinero }}
@@ -163,29 +163,29 @@
                             <h6 class="fw-bold text-dark border-bottom pb-2 mb-2"><i class="fas fa-calculator text-tema me-2"></i>Justificación de la Cuenta:</h6>
                             <div class="row g-2">
                                 <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
-                                    <span>📊 Total Neto Loterías ({{ desglose_cuenta.fecha if desglose_cuenta else 'Hoy' }}):</span>
-                                    <strong>Bs. {{ (desglose_cuenta.neto_sistemas if desglose_cuenta else 0) | dinero }}</strong>
+                                    <span>📊 Total Neto Loterías ({{ desglose_cuenta.fecha }}):</span>
+                                    <strong>Bs. {{ desglose_cuenta.neto_sistemas | dinero }}</strong>
                                 </div>
                                 <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
                                     <span class="text-info">🛒 Menos Facturas Cashea:</span>
-                                    <strong class="text-info">- Bs. {{ (desglose_cuenta.cashea if desglose_cuenta else 0) | dinero }}</strong>
+                                    <strong class="text-info">- Bs. {{ desglose_cuenta.cashea | dinero }}</strong>
                                 </div>
                                 <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
                                     <span class="text-danger">💸 Más Adelantos Solicitados:</span>
-                                    <strong class="text-danger">+ Bs. {{ (desglose_cuenta.adelantos if desglose_cuenta else 0) | dinero }}</strong>
+                                    <strong class="text-danger">+ Bs. {{ desglose_cuenta.adelantos | dinero }}</strong>
                                 </div>
                                 <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
                                     <span class="text-success">🏦 Menos Abonos/Pagos a Banca:</span>
-                                    <strong class="text-success">- Bs. {{ (desglose_cuenta.abonos if desglose_cuenta else 0) | dinero }}</strong>
+                                    <strong class="text-success">- Bs. {{ desglose_cuenta.abonos | dinero }}</strong>
                                 </div>
                                 <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
                                     <span class="text-primary">📥 Más Liquidaciones Pagadas por Banca:</span>
-                                    <strong class="text-primary">+ Bs. {{ (desglose_cuenta.liquidaciones if desglose_cuenta else 0) | dinero }}</strong>
+                                    <strong class="text-primary">+ Bs. {{ desglose_cuenta.liquidaciones | dinero }}</strong>
                                 </div>
                                 <div class="col-md-6 d-flex justify-content-between border-bottom py-1 bg-white rounded px-2">
                                     <strong>💰 TOTAL PENDIENTE EXACTO:</strong>
-                                    <strong class="{% if (desglose_cuenta.saldo_final if desglose_cuenta else 0) < 0 %}text-success{% elif (desglose_cuenta.saldo_final if desglose_cuenta else 0) > 0 %}text-danger{% else %}text-dark{% endif %}">
-                                        Bs. {{ (desglose_cuenta.saldo_final if desglose_cuenta else 0) | dinero }}
+                                    <strong class="{% if desglose_cuenta.saldo_final < 0 %}text-success{% elif desglose_cuenta.saldo_final > 0 %}text-danger{% else %}text-dark{% endif %}">
+                                        Bs. {{ desglose_cuenta.saldo_final | dinero }}
                                     </strong>
                                 </div>
                             </div>
@@ -273,7 +273,7 @@
                 </div>
             </div>
 
-            <!-- 3. PESTAÑA PROPIA DE CASHEA EN LA AGENCIA -->
+            <!-- 3. CASHEA -->
             <div class="tab-pane fade {% if tab_activa == 'cashea' %}show active{% endif %}" id="tab-cashea" role="tabpanel">
                 <div class="card card-custom p-4 bg-white">
                     <div class="row g-3 mb-4">
@@ -313,7 +313,7 @@
                 </div>
             </div>
 
-            <!-- 4. AUDITORÍA CONSOLIDADA CON FACTURAS CASHEA Y TOTAL FINAL -->
+            <!-- 4. AUDITORÍA CONSOLIDADA -->
             <div class="tab-pane fade {% if tab_activa == 'auditoria' %}show active{% endif %}" id="tab-auditoria" role="tabpanel">
                 <div class="card card-custom p-4 bg-white">
                     <h5 class="fw-bold text-tema mb-3"><i class="fas fa-chart-pie me-1"></i> Auditoría Consolidada por Sistemas</h5>
