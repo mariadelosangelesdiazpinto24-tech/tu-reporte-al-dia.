@@ -399,7 +399,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             pct_excedente = (pct_b - pct_t) * 100.0
             g_excedente = v_sys * (pct_b - pct_t)
             
-            # CÁLCULO DE PARTICIPACIÓN Y DEDUCCIÓN TOTAL - PARTICIPACIÓN
+            # CÁLCULO DE PARTICIPACIÓN Y DEDUCCIÓN TOTAL FINAL = TOTAL - PARTICIPACIÓN
             monto_participacion = t_banquero_sistema * pct_part if pct_part > 0 else 0.0
             total_despues_participacion = t_banquero_sistema - monto_participacion
             g_total = g_excedente + monto_participacion
@@ -417,7 +417,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
                 "total_sistema": t_banquero_sistema,
                 "monto_participacion": monto_participacion,
                 "total_banquero": total_despues_participacion,
-                "total_final": total_despues_participacion,
+                "total_final": total_despues_participacion,  # Total Final exacto con descuento
                 "pct_banquero": int(round(pct_b * 100)),
                 "pct_taquilla": int(round(pct_t * 100)),
                 "pct_excedente": int(round(pct_excedente)),
@@ -466,7 +466,6 @@ def actualizar_ultima_conexion(agencia: str):
         except Exception as e:
             print("Error actualizando conexion:", e)
 
-# MOTOR CONTABLE EXACTO DE REPORTE CON ESTILO TECNOLÓGICO DINÁMICO
 def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     agencia_norm = normalizar(agencia)
     conn = get_db()
@@ -1056,10 +1055,12 @@ def get_agencia(
 
     conn.close()
     
+    # Enviamos tanto 'genero' en minúsculas como 'genero_agencia' para garantizar compatibilidad
     return templates.TemplateResponse(request=request, name="agencia.html", context={
         "agencia": agencia_info,
         "nombre_agencia": agencia_norm,
-        "genero": genero_agencia,
+        "genero": genero_agencia.lower(),
+        "genero_agencia": genero_agencia,
         "reportes": reportes_agencia,
         "pagos": pagos_agencia,
         "casheas_agencia": casheas_agencia,
@@ -1485,7 +1486,7 @@ def post_actualizar_regla_banquero(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/guardar-ajuste-banquero-sistema")
-def post_guardar_ajuste_banquero_sistema(
+def post_guardar_ajuste_banquero-sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     fecha: str = Form(...),
