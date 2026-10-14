@@ -464,7 +464,7 @@ def actualizar_ultima_conexion(agencia: str):
         except Exception as e:
             print("Error actualizando conexion:", e)
 
-# MOTOR CONTABLE EXACTO DE REPORTE
+# MOTOR CONTABLE EXACTO DE REPORTE CON ESTILO TECNOLÓGICO DINÁMICO
 def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     agencia_norm = normalizar(agencia)
     conn = get_db()
@@ -499,39 +499,39 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         monto_p = float(p['monto'] or 0.0)
         tipo_p = str(p['tipo']).strip().upper() if p['tipo'] else 'PAGO_TAQUILLA'
         comp = p['comprobante'] or ''
-        comp_display = f'<a href="/comprobante/{p["id"]}" class="btn btn-sm btn-outline-danger py-0 fw-bold"><i class="fas fa-download me-1"></i> Descargar Capture</a>' if comp else ""
+        comp_display = f'<a href="/comprobante/{p["id"]}" class="btn btn-sm btn-outline-info py-0 fw-bold" style="border-color: var(--tech-primary); color: var(--tech-primary);"><i class="fas fa-download me-1"></i> Capture</a>' if comp else ""
 
         if tipo_p == 'ADELANTO':
             total_adelantos += monto_p
             adelantos_rows_html += f'''
-            <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{comp_display}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #e91e63; font-weight: bold;">Bs. {monto_p:,.2f}</td>
+            <tr style="font-size: 13px; background: rgba(255,255,255,0.02); color: var(--tech-text, #ffffff);">
+                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['fecha']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{comp_display}</td>
+                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1)); text-align: right; color: var(--tech-primary, #ff007f); font-weight: bold;">Bs. {monto_p:,.2f}</td>
             </tr>'''
         elif tipo_p == 'LIQUIDACION':
             total_liquidaciones_admin += monto_p
             adelantos_rows_html += f'''
-            <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['factura']} {comp_display}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #2e7d32; font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
+            <tr style="font-size: 13px; background: rgba(255,255,255,0.02); color: var(--tech-text, #ffffff);">
+                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['fecha']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['factura']} {comp_display}</td>
+                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1)); text-align: right; color: var(--tech-secondary, #ffd700); font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
             </tr>'''
         elif tipo_p == 'CASHEA':
             total_cashea += monto_p
             cashea_rows_html += f'''
-            <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['factura']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #e91e63; font-weight: bold;">Bs. {monto_p:,.2f}</td>
+            <tr style="font-size: 13px; background: rgba(255,255,255,0.02); color: var(--tech-text, #ffffff);">
+                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['fecha']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['factura']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1)); text-align: right; color: var(--tech-primary, #ff007f); font-weight: bold;">Bs. {monto_p:,.2f}</td>
             </tr>'''
         elif tipo_p in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
             total_pagos_taquilla += monto_p
             pagos_banca_rows_html += f'''
-            <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['factura']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #2e7d32; font-weight: bold;">Bs. {monto_p:,.2f}</td>
+            <tr style="font-size: 13px; background: rgba(255,255,255,0.02); color: var(--tech-text, #ffffff);">
+                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['fecha']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['factura']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1)); text-align: right; color: var(--tech-secondary, #ffd700); font-weight: bold;">Bs. {monto_p:,.2f}</td>
             </tr>'''
 
     detalle_original = rep['detalle_html'] or ""
@@ -564,11 +564,12 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if abs(monto_final) < 0.05:
         monto_final = 0.0
 
+    # BLOQUES CON ESTILOS TECNOLÓGICOS DINÁMICOS
     bloque_pagos_banca = f'''
-    <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #2e7d32;">
-        <h5 style="color: #2e7d32; font-weight: bold; border-bottom: 2px solid #2e7d32; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-university"></i> PAGOS / ABONOS A LA BANCA</h5>
+    <div class="mb-3 tech-card" style="background: var(--tech-card-bg, rgba(20,20,30,0.85)); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-left: 6px solid var(--tech-secondary, #ffd700); border-top: 1px solid var(--tech-border, rgba(255,255,255,0.1));">
+        <h5 style="color: var(--tech-secondary, #ffd700); font-weight: bold; border-bottom: 2px solid var(--tech-secondary, #ffd700); padding-bottom: 10px; margin-bottom: 15px; letter-spacing: 0.5px;"><i class="fas fa-university"></i> PAGOS / ABONOS A LA BANCA</h5>
         <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #e8f5e9; color: #1b5e20; font-size: 13px;">
+            <tr style="background: rgba(0,0,0,0.3); color: var(--tech-secondary, #ffd700); font-size: 13px;">
                 <th style="padding: 10px;">FECHA</th>
                 <th style="padding: 10px;">REFERENCIA / DETALLE</th>
                 <th style="padding: 10px; text-align: right;">MONTO ABONADO</th>
@@ -578,10 +579,10 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     </div>'''
 
     bloque_cashea = f'''
-    <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #00bcd4;">
-        <h5 style="color: #00bcd4; font-weight: bold; border-bottom: 2px solid #00bcd4; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-shopping-cart"></i> CASHEA (Registros absorbidos)</h5>
+    <div class="mb-3 tech-card" style="background: var(--tech-card-bg, rgba(20,20,30,0.85)); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-left: 6px solid var(--tech-primary, #ff007f); border-top: 1px solid var(--tech-border, rgba(255,255,255,0.1));">
+        <h5 style="color: var(--tech-primary, #ff007f); font-weight: bold; border-bottom: 2px solid var(--tech-primary, #ff007f); padding-bottom: 10px; margin-bottom: 15px; letter-spacing: 0.5px;"><i class="fas fa-shopping-cart"></i> CASHEA (Registros absorbidos)</h5>
         <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #e0f7fa; color: #006064; font-size: 13px;">
+            <tr style="background: rgba(0,0,0,0.3); color: var(--tech-primary, #ff007f); font-size: 13px;">
                 <th style="padding: 10px;">FECHA</th>
                 <th style="padding: 10px;">DETALLE / FACTURA</th>
                 <th style="padding: 10px; text-align: right;">MONTO ABSORBIDO</th>
@@ -591,10 +592,10 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     </div>'''
 
     bloque_adelantos = f'''
-    <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #e91e63;">
-        <h5 style="color: #e91e63; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-hand-holding-usd"></i> ADELANTOS / LIQUIDACIONES DE BANCA</h5>
+    <div class="mb-3 tech-card" style="background: var(--tech-card-bg, rgba(20,20,30,0.85)); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-left: 6px solid var(--tech-primary, #ff007f); border-top: 1px solid var(--tech-border, rgba(255,255,255,0.1));">
+        <h5 style="color: var(--tech-primary, #ff007f); font-weight: bold; border-bottom: 2px solid var(--tech-primary, #ff007f); padding-bottom: 10px; margin-bottom: 15px; letter-spacing: 0.5px;"><i class="fas fa-hand-holding-usd"></i> ADELANTOS / LIQUIDACIONES DE BANCA</h5>
         <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background-color: #fce4ec; color: #880e4f; font-size: 13px;">
+            <tr style="background: rgba(0,0,0,0.3); color: var(--tech-primary, #ff007f); font-size: 13px;">
                 <th style="padding: 10px;">FECHA</th>
                 <th style="padding: 10px;">DETALLE</th>
                 <th style="padding: 10px; text-align: right;">MONTO APLICADO</th>
@@ -603,13 +604,14 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         </table>
     </div>'''
 
+    color_monto_final = "var(--tech-secondary, #ffd700)" if monto_final <= 0 else "var(--tech-primary, #ff007f)"
     bloque_final = f'''
-    <div class="mb-2" style="background: #ffffff; border-radius: 12px; padding: 20px; color: #1a252c; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 6px solid #e91e63; border: 1px solid #e0e0e0;">
-        <h5 style="color: #e91e63; font-weight: bold; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; margin-bottom: 12px;"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h5>
+    <div class="mb-2 tech-card" style="background: var(--tech-card-bg, rgba(20,20,30,0.85)); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-left: 6px solid {color_monto_final}; border: 1px solid var(--tech-border, rgba(255,255,255,0.1));">
+        <h5 style="color: {color_monto_final}; font-weight: bold; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1)); padding-bottom: 10px; margin-bottom: 12px;"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h5>
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span style="font-size: 14px; color: #333; font-weight: bold;">Fecha: {fecha_reporte}</span>
-            <span style="font-size: 14px; font-weight: bold; color: #333;">{("Cuenta Saldada (0.00 Bs.)" if abs(monto_final) < 0.05 else ("Total a Pagar" if monto_final > 0 else "Saldo a favor / Solicitar"))}</span>
-            <span style="font-size: 18px; font-weight: bold; color: {('#2e7d32' if monto_final <= 0 else '#e91e63')};">Bs. {monto_final:,.2f}</span>
+            <span style="font-size: 14px; color: var(--tech-text, #ffffff); font-weight: bold;">Fecha: {fecha_reporte}</span>
+            <span style="font-size: 14px; font-weight: bold; color: var(--tech-text, #ffffff);">{("Cuenta Saldada (0.00 Bs.)" if abs(monto_final) < 0.05 else ("Total a Pagar" if monto_final > 0 else "Saldo a favor / Solicitar"))}</span>
+            <span style="font-size: 20px; font-weight: bold; color: {color_monto_final}; text-shadow: 0 0 10px {color_monto_final};">Bs. {monto_final:,.2f}</span>
         </div>
     </div>'''
 
@@ -873,9 +875,9 @@ def get_banquero(
 @app.get("/agencia", response_class=HTMLResponse)
 def get_agencia(
     request: Request, 
-    nombre: Optional[str] = None,
-    desde_fecha: Optional[str] = None,
-    hasta_fecha: Optional[str] = None,
+    nombre: Optional[str] = None, 
+    desde_fecha: Optional[str] = None, 
+    hasta_fecha: Optional[str] = None, 
     tab: Optional[str] = "reportes"
 ):
     if not nombre:
@@ -889,6 +891,11 @@ def get_agencia(
     
     cursor.execute("SELECT * FROM usuarios WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
     agencia_info = cursor.fetchone()
+    
+    # Determinamos el género para aplicar la presentación tecnológica
+    genero_agencia = "FEMENINO"
+    if agencia_info and agencia_info.get('genero'):
+        genero_agencia = str(agencia_info['genero']).strip().upper()
     
     f_desde = desde_fecha if desde_fecha else ""
     f_hasta = hasta_fecha if hasta_fecha else ""
@@ -998,9 +1005,7 @@ def get_agencia(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
     
-    # -------------------------------------------------------------
-    # SALDO ACTUAL TOTAL HISTÓRICO (SIN FILTRO DE FECHAS EN PENDIENTES)
-    # -------------------------------------------------------------
+    # SALDO ACTUAL TOTAL HISTÓRICO
     cursor.execute(
         """SELECT SUM(monto) as saldo_total 
            FROM reportes 
@@ -1059,6 +1064,7 @@ def get_agencia(
     return templates.TemplateResponse(request=request, name="agencia.html", context={
         "agencia": agencia_info,
         "nombre_agencia": agencia_norm,
+        "genero": genero_agencia,
         "reportes": reportes_agencia,
         "pagos": pagos_agencia,
         "casheas_agencia": casheas_agencia,
@@ -1238,12 +1244,12 @@ def post_actualizar_reporte_sistema(
                         pass
 
         patron_totales = r'<tr[^>]*>\s*<td[^>]*>\s*TOTALES.*?<\/tr>'
-        nueva_fila_totales = f'''<tr style="background-color: #f5f5f5; font-weight: bold;">
+        nueva_fila_totales = f'''<tr style="background: rgba(0,0,0,0.3); font-weight: bold; border-top: 1px solid var(--tech-border, #444);">
             <td style="padding: 4px 2px; font-size: 10.5px;">TOTALES</td>
             <td style="padding: 4px 2px; text-align: right;">{sum_v:,.2f}</td>
             <td style="padding: 4px 2px; text-align: right;">-</td>
             <td style="padding: 4px 2px; text-align: right;">{sum_p:,.2f}</td>
-            <td style="padding: 4px 2px; text-align: right; color: #0d47a1;">{sum_t:,.2f}</td>
+            <td style="padding: 4px 2px; text-align: right; color: var(--tech-secondary, #ffd700);">{sum_t:,.2f}</td>
         </tr>'''
         html_modificado = re.sub(patron_totales, nueva_fila_totales, html_modificado, flags=re.DOTALL | re.IGNORECASE)
 
@@ -1622,7 +1628,7 @@ def get_admin(
     agencia: Optional[str] = None, 
     desde_fecha: Optional[str] = None, 
     hasta_fecha: Optional[str] = None, 
-    tipo_transaccion: Optional[str] = None,
+    tipo_transaccion: Optional[str] = None, 
     tab: str = "balances"
 ):
     try:
@@ -1664,7 +1670,7 @@ def get_admin(
         ultima_fila = cursor.fetchone()
         fecha_bd_reciente = ultima_fila['fecha'] if (ultima_fila and ultima_fila['fecha']) else hoy_vzla
 
-        # Si estamos en Totalizador o Desglose de Banca, predeterminar de Lunes a Domingo
+        # Rango por defecto de Lunes a Domingo
         lunes_sem, domingo_sem = obtener_rango_semana_actual()
         if tab in ['totalizador', 'desglose_banca'] and not desde_fecha and not hasta_fecha:
             f_desde = lunes_sem
