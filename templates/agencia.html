@@ -37,6 +37,31 @@
             </div>
         </div>
 
+        <!-- BANNER DE COMUNICADOS / NOTIFICACIONES DEL ADMIN -->
+        {% if comunicados and comunicados | length > 0 %}
+        <div class="mb-4">
+            {% for c in comunicados %}
+            <div class="alert alert-warning border-0 shadow-sm d-flex justify-content-between align-items-center flex-wrap gap-2 p-3 mb-2" style="border-radius: 12px; background: #fff3cd; border-left: 6px solid #ff9800 !important;">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fas fa-bullhorn text-warning fs-4"></i>
+                    <div>
+                        <strong class="d-block text-dark" style="font-size: 14px;">COMUNICADO DE ADMINISTRACIÓN:</strong>
+                        <span class="text-dark" style="font-size: 13.5px;">{{ c.mensaje }}</span>
+                        <small class="text-muted d-block mt-1" style="font-size: 11px;"><i class="far fa-clock me-1"></i>{{ c.fecha }}</small>
+                    </div>
+                </div>
+                <form action="/marcar-comunicado-leido" method="POST" class="m-0">
+                    <input type="hidden" name="comunicado_id" value="{{ c.id }}">
+                    <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
+                    <button type="submit" class="btn btn-warning btn-sm fw-bold px-3 shadow-sm rounded-pill text-dark">
+                        <i class="fas fa-check me-1"></i> Entendido
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <!-- BUSCADOR POR RANGO DE FECHAS -->
         <div class="card card-custom p-3 bg-white mb-4">
             <form method="GET" action="/agencia" class="row g-2 align-items-end">
