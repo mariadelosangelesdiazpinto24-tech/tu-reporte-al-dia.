@@ -1819,3 +1819,4 @@ def get_admin(
         print("Error en admin:", e)
         traceback.print_exc()
         return HTMLResponse(content=f"Error interno en admin: {e}", status_code=500)
+ 
