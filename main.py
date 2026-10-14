@@ -242,7 +242,10 @@ init_db()
 def extraer_neto_de_html(detalle_html: str) -> float:
     if not detalle_html:
         return 0.0
-    tablas = re.findall(r'<table[^>]*>(.*?)<\/table>', detalle_html, re.DOTALL | re.IGNORECASE)
+    
+    html_sistemas = detalle_html.split('<!-- BLOQUES_EXTRAS -->')[0]
+    tablas = re.findall(r'<table[^>]*>(.*?)<\/table>', html_sistemas, re.DOTALL | re.IGNORECASE)
+    
     for tabla in tablas:
         filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla, re.DOTALL | re.IGNORECASE)
         for fila in filas:
@@ -253,7 +256,7 @@ def extraer_neto_de_html(detalle_html: str) -> float:
                         return float(re.sub(r'[^\d.-]', '', cols[-1]))
                     except Exception:
                         pass
-    # Si no tiene fila TOTALES, suma la 5ta columna de las filas de sistemas
+
     neto_acumulado = 0.0
     for tabla in tablas:
         filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tabla, re.DOTALL | re.IGNORECASE)
@@ -267,6 +270,13 @@ def extraer_neto_de_html(detalle_html: str) -> float:
                     except Exception:
                         pass
     return neto_acumulado
+
+def calcular_balance_contable_exacto(neto_sistemas: float, cashea: float, abonos: float, adelantos: float, liquidaciones: float) -> float:
+    # La fórmula contable unificada: Total Neto Sistemas - Cashea - Abonos + Adelantos + Liquidaciones
+    total = neto_sistemas - cashea - abonos + adelantos + liquidaciones
+    if abs(total) < 0.05:
+        total = 0.0
+    return total
 
 def obtener_estructura_banqueros_bd():
     conn = get_db()
@@ -310,7 +320,8 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             continue
 
         if rep_db and rep_db['detalle_html']:
-            tablas_encontradas = re.findall(r'<table[^>]*>(.*?)<\/table>', rep_db['detalle_html'], re.DOTALL | re.IGNORECASE)
+            detalle_limpio = rep_db['detalle_html'].split('<!-- BLOQUES_EXTRAS -->')[0]
+            tablas_encontradas = re.findall(r'<table[^>]*>(.*?)<\/table>', detalle_limpio, re.DOTALL | re.IGNORECASE)
             for t_html in tablas_encontradas:
                 filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', t_html, re.DOTALL | re.IGNORECASE)
                 for f in filas:
@@ -579,11 +590,14 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
-    # FÓRMULA EXACTA: Total Neto Sistemas - Cashea - Adelantos + Abonos
-    monto_final = total_neto_sistemas - total_cashea - total_adelantos + total_pagos_taquilla
-
-    if abs(monto_final) < 0.05:
-        monto_final = 0.0
+    # FÓRMULA UNIFICADA: Total Neto Sistemas - Cashea - Abonos + Adelantos + Liquidaciones
+    monto_final = calcular_balance_contable_exacto(
+        total_neto_sistemas, 
+        total_cashea, 
+        total_pagos_taquilla, 
+        total_adelantos, 
+        total_liquidaciones_admin
+    )
 
     bloque_pagos_banca = f'''
     <div class="mb-3 tech-card" style="background: var(--tech-card-bg, rgba(20,20,30,0.85)); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-left: 6px solid var(--tech-secondary, #ffd700); border-top: 1px solid var(--tech-border, rgba(255,255,255,0.1));">
@@ -968,7 +982,8 @@ def get_agencia(
     
     for rep_item in reps_rango:
         if rep_item and rep_item['detalle_html']:
-            t_match = re.search(r'<table[^>]*>(.*?)<\/table>', rep_item['detalle_html'], re.DOTALL | re.IGNORECASE)
+            detalle_limpio = rep_item['detalle_html'].split('<!-- BLOQUES_EXTRAS -->')[0]
+            t_match = re.search(r'<table[^>]*>(.*?)<\/table>', detalle_limpio, re.DOTALL | re.IGNORECASE)
             if t_match:
                 filas_s = re.findall(r'<tr[^>]*>(.*?)<\/tr>', t_match.group(1), re.DOTALL | re.IGNORECASE)
                 for fs in filas_s:
@@ -1022,15 +1037,8 @@ def get_agencia(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
 
-    # Cálculo acumulado
+    # Obtención de registros para cálculo del saldo
     if f_desde and f_hasta:
-        cursor.execute(
-            """SELECT SUM(ventas) as t_v, SUM(premios) as t_p, SUM(monto) as saldo_rep 
-               FROM reportes 
-               WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s""",
-            (agencia_norm, f_desde, f_hasta)
-        )
-        row_rep_sum = cursor.fetchone()
         cursor.execute(
             """SELECT detalle_html FROM reportes 
                WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s""",
@@ -1046,13 +1054,6 @@ def get_agencia(
         filas_desglose = cursor.fetchall()
     else:
         cursor.execute(
-            """SELECT SUM(ventas) as t_v, SUM(premios) as t_p, SUM(monto) as saldo_rep 
-               FROM reportes 
-               WHERE UPPER(TRIM(agencia)) = %s""",
-            (agencia_norm,)
-        )
-        row_rep_sum = cursor.fetchone()
-        cursor.execute(
             """SELECT detalle_html FROM reportes 
                WHERE UPPER(TRIM(agencia)) = %s""",
             (agencia_norm,)
@@ -1066,21 +1067,13 @@ def get_agencia(
         )
         filas_desglose = cursor.fetchall()
 
-    # Extraer el neto directo de los totales del HTML detallado
-    neto_html_sum = 0.0
+    neto_sistemas_calc = 0.0
     for rh in reps_html_ag:
         if rh and rh['detalle_html']:
-            neto_html_sum += extraer_neto_de_html(rh['detalle_html'])
+            neto_sistemas_calc += extraer_neto_de_html(rh['detalle_html'])
 
-    if neto_html_sum != 0.0:
-        neto_sistemas_calc = neto_html_sum
-    elif totales_auditoria["neto"] != 0:
+    if neto_sistemas_calc == 0.0 and totales_auditoria["neto"] != 0:
         neto_sistemas_calc = totales_auditoria["neto"]
-    else:
-        saldo_rep_total = float(row_rep_sum['saldo_rep'] or 0.0) if (row_rep_sum and row_rep_sum['saldo_rep'] is not None) else 0.0
-        v_sum = float(row_rep_sum['t_v'] or 0.0) if row_rep_sum else 0.0
-        p_sum = float(row_rep_sum['t_p'] or 0.0) if row_rep_sum else 0.0
-        neto_sistemas_calc = saldo_rep_total if saldo_rep_total != 0.0 else (v_sum - p_sum)
 
     fecha_display_desglose = "Saldo Acumulado Pendiente"
     abonos_calc = 0.0
@@ -1100,11 +1093,14 @@ def get_agencia(
         elif t_d == 'CASHEA':
             cashea_calc += m_d
 
-    # FÓRMULA EXACTA: Total Neto Sistemas - Cashea - Adelantos + Abonos
-    saldo_acumulado = neto_sistemas_calc - cashea_calc - adelantos_calc + abonos_calc
-
-    if abs(saldo_acumulado) < 0.05:
-        saldo_acumulado = 0.0
+    # FÓRMULA UNIFICADA: Total Neto Sistemas - Cashea - Abonos + Adelantos + Liquidaciones
+    saldo_acumulado = calcular_balance_contable_exacto(
+        neto_sistemas_calc, 
+        cashea_calc, 
+        abonos_calc, 
+        adelantos_calc, 
+        liquidaciones_calc
+    )
 
     desglose_cuenta = {
         "fecha": fecha_display_desglose,
@@ -1780,7 +1776,7 @@ def get_admin(
             
             if hay_filtro_fechas_admin:
                 cursor.execute(
-                    """SELECT SUM(ventas) as total_ventas, SUM(premios) as total_premios, SUM(monto) as saldo_neto, MAX(fecha) as ultima_fecha
+                    """SELECT SUM(ventas) as total_ventas, SUM(premios) as total_premios, MAX(fecha) as ultima_fecha
                        FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s""",
                     (ag_norm, f_desde, f_hasta)
                 )
@@ -1801,7 +1797,7 @@ def get_admin(
                 filas_pagos = cursor.fetchall()
             else:
                 cursor.execute(
-                    """SELECT SUM(ventas) as total_ventas, SUM(premios) as total_premios, SUM(monto) as saldo_neto, MAX(fecha) as ultima_fecha
+                    """SELECT SUM(ventas) as total_ventas, SUM(premios) as total_premios, MAX(fecha) as ultima_fecha
                        FROM reportes WHERE UPPER(TRIM(agencia)) = %s""",
                     (ag_norm,)
                 )
@@ -1820,10 +1816,11 @@ def get_admin(
                     (ag_norm,)
                 )
                 filas_pagos = cursor.fetchall()
-
+            
             sum_abonos = 0.0
             sum_cashea = 0.0
             sum_adelantos = 0.0
+            sum_liquidaciones = 0.0
             for fp in filas_pagos:
                 tipo_fp = str(fp['tipo']).upper()
                 m_fp = float(fp['total_monto'] or 0.0)
@@ -1831,15 +1828,16 @@ def get_admin(
                     sum_abonos += m_fp
                 elif tipo_fp == 'CASHEA':
                     sum_cashea += m_fp
-                elif tipo_fp in ['ADELANTO', 'LIQUIDACION']:
+                elif tipo_fp == 'ADELANTO':
                     sum_adelantos += m_fp
+                elif tipo_fp == 'LIQUIDACION':
+                    sum_liquidaciones += m_fp
 
             v_tot = float(fila_rep['total_ventas'] or 0.0) if fila_rep else 0.0
             p_tot = float(fila_rep['total_premios'] or 0.0) if fila_rep else 0.0
-            saldo_rep_base = float(fila_rep['saldo_neto'] or 0.0) if (fila_rep and fila_rep['saldo_neto'] is not None) else 0.0
             f_rep = fila_rep['ultima_fecha'] if (fila_rep and fila_rep['ultima_fecha']) else f_hasta
 
-            # Obtener el total neto de la columna TOTAL de la fila TOTALES del HTML
+            # Obtener el total neto de la columna TOTAL de la fila TOTALES del HTML (161.404,60)
             neto_desde_html = 0.0
             for r_adm in reps_admin_periodo:
                 if r_adm and r_adm['detalle_html']:
@@ -1847,16 +1845,17 @@ def get_admin(
 
             if neto_desde_html != 0.0:
                 base_sistemas = neto_desde_html
-            elif saldo_rep_base != 0.0:
-                base_sistemas = saldo_rep_base
             else:
                 base_sistemas = (v_tot - p_tot)
 
-            # FÓRMULA EXACTA: Total Neto Sistemas - Cashea - Adelantos + Abonos
-            balance_contable = base_sistemas - sum_cashea - sum_adelantos + sum_abonos
-
-            if abs(balance_contable) < 0.05:
-                balance_contable = 0.0
+            # FÓRMULA UNIFICADA: Total Neto Sistemas - Cashea - Abonos + Adelantos + Liquidaciones
+            balance_contable = calcular_balance_contable_exacto(
+                base_sistemas, 
+                sum_cashea, 
+                sum_abonos, 
+                sum_adelantos, 
+                sum_liquidaciones
+            )
 
             ag['saldo_pendiente'] = balance_contable
             
@@ -1866,10 +1865,10 @@ def get_admin(
                 "monto": balance_contable,
                 "ventas": v_tot,
                 "premios": p_tot,
-                "reporte_neto": base_sistemas,  # Valor de los sistemas (161.404,60)
+                "reporte_neto": base_sistemas,  # Muestra exactamente el neto único de loterías (161.404,60)
                 "abonos": sum_abonos,
                 "cashea": sum_cashea,
-                "adelantos": sum_adelantos,
+                "adelantos": (sum_adelantos + sum_liquidaciones),
                 "pendientes": 0.0
             }
 
