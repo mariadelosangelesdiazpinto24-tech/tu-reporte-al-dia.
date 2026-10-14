@@ -1672,3 +1672,47 @@ def get_admin(
         print("Error en admin:", e)
         traceback.print_exc()
         return HTMLResponse(content=f"Error interno en admin: {e}", status_code=500)
+
+from fastapi.responses import FileResponse, Response
+import base64
+
+@app.get("/comprobante/{pago_id}")
+def ver_o_descargar_comprobante(pago_id: int):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT agencia, fecha, comprobante FROM pagos WHERE id = %s", (pago_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row or not row['comprobante']:
+        return HTMLResponse("<h3>Comprobante no encontrado</h3>", status_code=404)
+
+    comp = str(row['comprobante']).strip()
+    agencia_clean = str(row['agencia']).replace(" ", "_")
+    nombre_archivo = f"Comprobante_{agencia_clean}_{row['fecha']}_{pago_id}.jpg"
+
+    # 1. Si está guardado en disco físico
+    ruta_disco = os.path.join("uploads", os.path.basename(comp))
+    if os.path.exists(ruta_disco):
+        return FileResponse(
+            ruta_disco, 
+            filename=nombre_archivo,
+            headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'}
+        )
+
+    # 2. Si está en formato Base64
+    if comp.startswith("data:image"):
+        try:
+            header, encoded = comp.split(",", 1)
+            mime = header.split(";")[0].split(":")[1]
+            ext = mime.split("/")[-1]
+            nombre_archivo = f"Comprobante_{agencia_clean}_{row['fecha']}_{pago_id}.{ext}"
+            return Response(
+                content=base64.b64decode(encoded),
+                media_type=mime,
+                headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'}
+            )
+        except Exception:
+            pass
+
+    return HTMLResponse(f"<h3>Detalle comprobante: {comp}</h3>")
