@@ -417,7 +417,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
                 "total_sistema": t_banquero_sistema,
                 "monto_participacion": monto_participacion,
                 "total_banquero": total_despues_participacion,
-                "total_final": total_despues_participacion,  # Total Final exacto con descuento
+                "total_final": total_despues_participacion,
                 "pct_banquero": int(round(pct_b * 100)),
                 "pct_taquilla": int(round(pct_t * 100)),
                 "pct_excedente": int(round(pct_excedente)),
@@ -1055,7 +1055,6 @@ def get_agencia(
 
     conn.close()
     
-    # Enviamos tanto 'genero' en minúsculas como 'genero_agencia' para garantizar compatibilidad
     return templates.TemplateResponse(request=request, name="agencia.html", context={
         "agencia": agencia_info,
         "nombre_agencia": agencia_norm,
@@ -1338,24 +1337,29 @@ async def post_procesar_solicitud_dinero(
             (f"Se te ha transferido Bs. {monto_pagar:,.2f} ({accion}) para saldar tu cuenta.", agencia_norm)
         )
 
+        # Saldar el reporte con saldo negativo más reciente a favor de la agencia
         cursor.execute(
-            "SELECT id, fecha FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND monto < -0.05 ORDER BY fecha DESC LIMIT 1",
+            "SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND monto < -0.05 ORDER BY fecha DESC LIMIT 1",
             (agencia_norm,)
         )
         rep_neg = cursor.fetchone()
         if rep_neg:
-            cursor.execute("UPDATE reportes SET monto = 0.0 WHERE id = %s", (rep_neg['id'],))
+            nuevo_neg = min(0.0, float(rep_neg['monto']) + monto_pagar)
+            cursor.execute("UPDATE reportes SET monto = %s WHERE id = %s", (nuevo_neg, rep_neg['id']))
             fecha_rep_ajustar = rep_neg['fecha']
         else:
             fecha_rep_ajustar = fecha
 
         conn.commit()
+        conn.close()
+
+        recalcular_y_actualizar_reporte(agencia_norm, fecha)
+        if fecha_rep_ajustar != fecha:
+            recalcular_y_actualizar_reporte(agencia_norm, fecha_rep_ajustar)
+
+        return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
     conn.close()
-    recalcular_y_actualizar_reporte(agencia, fecha)
-    if 'fecha_rep_ajustar' in locals() and fecha_rep_ajustar != fecha:
-        recalcular_y_actualizar_reporte(agencia, fecha_rep_ajustar)
-
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/validar-pago")
@@ -1367,27 +1371,28 @@ def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
 
     if pago:
         agencia_p = normalizar(pago['agencia'])
-        fecha_p = pago['fecha']
+        fecha_pago = pago['fecha']
         monto_p = float(pago['monto'] or 0.0)
         
         if accion == "APROBAR":
             cursor.execute("UPDATE pagos SET estado = 'APROBADO' WHERE id = %s", (solicitud_id,))
             msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido APROBADO y acreditado a tu cuenta."
             
+            # Buscar el reporte con deuda más reciente para amortizarlo en vivo
             cursor.execute(
                 "SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND monto > 0.05 ORDER BY fecha DESC LIMIT 1",
                 (agencia_p,)
             )
             rep_deuda = cursor.fetchone()
+            fecha_rep = fecha_pago
             if rep_deuda:
-                nuevo_saldo = float(rep_deuda['monto']) - monto_p
-                if abs(nuevo_saldo) < 0.05:
-                    nuevo_saldo = 0.0
+                fecha_rep = rep_deuda['fecha']
+                nuevo_saldo = max(0.0, float(rep_deuda['monto']) - monto_p)
                 cursor.execute("UPDATE reportes SET monto = %s WHERE id = %s", (nuevo_saldo, rep_deuda['id']))
-                fecha_p = rep_deuda['fecha']
         else:
             cursor.execute("UPDATE pagos SET estado = 'RECHAZADO' WHERE id = %s", (solicitud_id,))
             msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido RECHAZADO. Por favor verifica con la administración."
+            fecha_rep = fecha_pago
 
         try:
             cursor.execute(
@@ -1403,7 +1408,11 @@ def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
         conn.commit()
         conn.close()
         
-        recalcular_y_actualizar_reporte(agencia_p, fecha_p)
+        # Sincronizamos las fechas afectadas para reflejar el saldo en Admin y en Agencia
+        recalcular_y_actualizar_reporte(agencia_p, fecha_rep)
+        if fecha_rep != fecha_pago:
+            recalcular_y_actualizar_reporte(agencia_p, fecha_pago)
+            
         return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
     conn.close()
