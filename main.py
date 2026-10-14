@@ -1030,59 +1030,6 @@ def get_agencia(
         comunicados = [dict(row) for row in cursor.fetchall()]
     
     # -------------------------------------------------------------
-    # SALDO ACTUAL Y DESGLOSE INTERACTIVO DEL PENDIENTE
-    # -------------------------------------------------------------
-    cursor.execute("SELECT fecha, monto, ventas, premios FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC LIMIT 1", (agencia_norm,))
-    ult_reporte = cursor.fetchone()
-    
-    fecha_ult = ult_reporte['fecha'] if ult_reporte else hoy_vzla
-    monto_ult_reporte = float(ult_reporte['monto'] or 0.0) if ult_reporte else 0.0
-
-    # Total neto sistemas del último día
-    v_ult = float(ult_reporte['ventas'] or 0.0) if ult_reporte else 0.0
-    p_ult = float(ult_reporte['premios'] or 0.0) if ult_reporte else 0.0
-    neto_sistemas_ult = v_ult - p_ult
-
-    # Pagos, liquidaciones, adelantos y cashea asociados a la última fecha
-    cursor.execute(
-        """SELECT tipo, SUM(monto) as total FROM pagos 
-           WHERE UPPER(TRIM(agencia)) = %s AND (fecha = %s OR factura LIKE %s) AND estado = 'APROBADO' 
-           GROUP BY tipo""",
-        (agencia_norm, fecha_ult, f"%{fecha_ult}%")
-    )
-    filas_desglose = cursor.fetchall()
-    abonos_dia = 0.0
-    liquidaciones_dia = 0.0
-    adelantos_dia = 0.0
-    cashea_dia = 0.0
-
-    for fd in filas_desglose:
-        t_d = str(fd['tipo']).upper()
-        m_d = float(fd['total'] or 0.0)
-        if t_d in ['PAGO_TAQUILLA', 'PAGO_BANCA']:
-            abonos_dia += m_d
-        elif t_d == 'LIQUIDACION':
-            liquidaciones_dia += m_d
-        elif t_d == 'ADELANTO':
-            adelantos_dia += m_d
-        elif t_d == 'CASHEA':
-            cashea_dia += m_d
-
-    saldo_acumulado = monto_ult_reporte
-    if abs(saldo_acumulado) < 0.05:
-        saldo_acumulado = 0.0
-
-    desglose_cuenta = {
-        "fecha": fecha_ult,
-        "neto_sistemas": neto_sistemas_ult,
-        "cashea": cashea_dia,
-        "adelantos": adelantos_dia,
-        "abonos": abonos_dia,
-        "liquidaciones": liquidaciones_dia,
-        "saldo_final": saldo_acumulado
-    }
-
-# -------------------------------------------------------------
     # SALDO ACTUAL Y DESGLOSE INTERACTIVO DEL PENDIENTE (CON FILTRO DE RANGO)
     # -------------------------------------------------------------
     if f_desde and f_hasta:
@@ -1157,6 +1104,33 @@ def get_agencia(
         "liquidaciones": liquidaciones_calc,
         "saldo_final": saldo_acumulado
     }
+
+    cursor.execute("SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND abs(monto) > 0.05 ORDER BY fecha DESC", (agencia_norm,))
+    items_pendientes = [dict(row) for row in cursor.fetchall()]
+
+    conn.close()
+    
+    return templates.TemplateResponse(request=request, name="agencia.html", context={
+        "agencia": agencia_info,
+        "nombre_agencia": agencia_norm,
+        "reportes": reportes_agencia,
+        "pagos": pagos_agencia,
+        "casheas_agencia": casheas_agencia,
+        "total_cashea_periodo": total_cashea_periodo,
+        "total_cashea_dia": total_cashea_dia,
+        "comunicados": comunicados,
+        "sistemas": SISTEMAS_OFICIALES,
+        "saldo_actual": saldo_acumulado,
+        "desglose_cuenta": desglose_cuenta,
+        "items_pendientes": items_pendientes,
+        "auditoria_sistemas": auditoria_sistemas_agencia,
+        "totales_auditoria": totales_auditoria,
+        "auditoria_cashea_monto": auditoria_cashea_monto,
+        "facturas_cashea_auditoria": facturas_cashea_auditoria,
+        "desde_fecha": f_desde,
+        "hasta_fecha": f_hasta,
+        "tab_activa": tab or "reportes"
+    })
 
 @app.post("/agencia/cambiar-clave")
 def post_cambiar_clave(agencia: str = Form(...), nueva_clave: str = Form(...), confirm_clave: str = Form(...)):
@@ -1374,7 +1348,7 @@ def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[st
         return RedirectResponse(url=redirect_to, status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# PROCESAR SOLICITUD DE DINERO (SALDA DE FORMA INMEDIATA EL REPORTE PENDIENTE)
+# PROCESAR SOLICITUD DE DINERO
 @app.post("/admin/procesar-solicitud-dinero")
 async def post_procesar_solicitud_dinero(
     solicitud_id: int = Form(...),
@@ -1421,7 +1395,6 @@ async def post_procesar_solicitud_dinero(
             (f"Se te ha transferido Bs. {monto_pagar:,.2f} ({accion}) para saldar tu cuenta.", agencia_norm)
         )
 
-        # Buscar el reporte que originó el saldo a favor y llevarlo a 0.00
         cursor.execute(
             "SELECT id, fecha FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND monto < -0.05 ORDER BY fecha DESC LIMIT 1",
             (agencia_norm,)
@@ -1442,7 +1415,7 @@ async def post_procesar_solicitud_dinero(
 
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# CONFIRMAR O RECHAZAR PAGO (DESCUENTA DE LA DEUDA DIRECTO)
+# CONFIRMAR O RECHAZAR PAGO
 @app.post("/admin/validar-pago")
 def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
     conn = get_db()
@@ -1804,7 +1777,7 @@ def get_admin(
             
             cursor.execute(
                 """SELECT tipo, SUM(monto) as total_monto FROM pagos 
-                   WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'
+                   WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO' 
                    GROUP BY tipo""",
                 (ag_norm, f_desde, f_hasta)
             )
