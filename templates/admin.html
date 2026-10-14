@@ -154,7 +154,7 @@
 
         <div class="tab-content" id="adminTabsContent">
 
-            <!-- 1. TAQUILLAS -->
+            <!-- 1. TAQUILLAS CREADAS -->
             <div class="tab-pane fade {% if tab_activa == 'taquillas' %}show active{% endif %}" id="tab-taquillas" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-3">
                     <h5 class="fw-bold text-tema mb-3"><i class="fas fa-store me-2"></i>Gestión de Taquillas y Agencias</h5>
@@ -345,7 +345,7 @@
                 </div>
             </div>
 
-            <!-- 4. BALANCES -->
+            <!-- 4. BALANCES (JUSTIFICANDO SALDO EN REPORTES) -->
             <div class="tab-pane fade {% if tab_activa == 'balances' or not tab_activa %}show active{% endif %}" id="tab-balances" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
@@ -377,7 +377,7 @@
                                             <tr>
                                                 <td>
                                                     <a href="javascript:void(0)" class="fw-bold text-decoration-none text-dark" 
-                                                       onclick="abrirModalDesglose('{{ pos.agencia }}', '{{ pos.reportes or 0 }}', '{{ pos.cashea or 0 }}', '{{ pos.adelantos or 0 }}', '{{ pos.abonos or 0 }}', '{{ pos.monto }}')">
+                                                       onclick="abrirModalDesglose('{{ pos.agencia }}', '{{ pos.reportes if pos.reportes is defined and pos.reportes != 0 else pos.monto }}', '{{ pos.cashea or 0 }}', '{{ pos.adelantos or 0 }}', '{{ pos.abonos or 0 }}', '{{ pos.monto }}')">
                                                         <i class="fas fa-circle-info text-primary me-1"></i>{{ pos.agencia }}
                                                     </a>
                                                 </td>
@@ -413,7 +413,7 @@
                                             <tr>
                                                 <td>
                                                     <a href="javascript:void(0)" class="fw-bold text-decoration-none text-dark"
-                                                       onclick="abrirModalDesglose('{{ neg.agencia }}', '{{ neg.reportes or 0 }}', '{{ neg.cashea or 0 }}', '{{ neg.adelantos or 0 }}', '{{ neg.abonos or 0 }}', '{{ neg.monto }}')">
+                                                       onclick="abrirModalDesglose('{{ neg.agencia }}', '{{ neg.reportes if neg.reportes is defined and neg.reportes != 0 else neg.monto }}', '{{ neg.cashea or 0 }}', '{{ neg.adelantos or 0 }}', '{{ neg.abonos or 0 }}', '{{ neg.monto }}')">
                                                         <i class="fas fa-circle-info text-danger me-1"></i>{{ neg.agencia }}
                                                     </a>
                                                 </td>
@@ -439,7 +439,7 @@
                 </div>
             </div>
 
-            <!-- MODAL DESGLOSE -->
+            <!-- MODAL DESGLOSE DE FORMULA (BALANCES) -->
             <div class="modal fade" id="modalDesgloseAgencia" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content border-0 shadow">
@@ -477,15 +477,15 @@
                 </div>
             </div>
 
-            <!-- 5. MODIFICACIONES -->
+            <!-- 5. MODIFICACIONES (CON RANGO DE FECHAS) -->
             <div class="tab-pane fade {% if tab_activa == 'modificaciones' %}show active{% endif %}" id="tab-modificaciones" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-3" style="max-width: 800px; margin: 0 auto;">
                     <h5 class="fw-bold text-tema mb-2"><i class="fas fa-pen-to-square me-1"></i> Modificar Sistema de Cualquier Taquilla</h5>
-                    <p class="text-muted small mb-3">Ajusta ventas y premios en tiempo real.</p>
+                    <p class="text-muted small mb-3">Ajusta ventas y premios en tiempo real por fecha o rango continuo.</p>
                     
                     <form action="/actualizar-reporte-sistema" method="POST" class="row g-3">
                         <input type="hidden" name="origen" value="admin">
-                        <div class="col-md-6">
+                        <div class="col-md-12">
                             <label class="form-label small fw-bold">Seleccionar Agencia:</label>
                             <select name="agencia" class="form-select form-select-sm" required>
                                 <option value="">-- Elige la taquilla --</option>
@@ -497,7 +497,11 @@
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small fw-bold">Fecha del Reporte:</label>
+                            <label class="form-label small fw-bold">Desde Fecha:</label>
+                            <input type="date" name="fecha_desde" value="{{ desde_fecha }}" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Hasta Fecha:</label>
                             <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
                         </div>
                         <div class="col-md-4">
@@ -638,7 +642,7 @@
                 </div>
             </div>
 
-            <!-- 8. AUDITORÍA: ACORDEÓN PLEGABLE POR SISTEMA -->
+            <!-- 8. AUDITORÍA: ACORDEÓN PLEGABLE -->
             <div class="tab-pane fade {% if tab_activa == 'auditoria' %}show active{% endif %}" id="tab-auditoria" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
@@ -726,7 +730,7 @@
                                     <strong>Bs. {{ total_ganancia_excedente | dinero }}</strong>
                                 </div>
                                 <div class="d-flex justify-content-between py-1">
-                                    <span>Ganancia por Participación:</span>
+                                    <span>Ganancia por Participación (+ / -):</span>
                                     <strong>Bs. {{ total_ganancia_participacion | dinero }}</strong>
                                 </div>
                             </div>
@@ -748,7 +752,7 @@
                 </div>
             </div>
 
-            <!-- 10. DESGLOSE BANCA -->
+            <!-- 10. DESGLOSE BANCA (CON PARTICIPACION +/- Y CUADRO PRIVADO RECALCULADO) -->
             <div class="tab-pane fade {% if tab_activa == 'desglose_banca' %}show active{% endif %}" id="tab-desglose-banca" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end">
@@ -770,14 +774,14 @@
                 <h5 class="fw-bold text-dark mb-3"><i class="fas fa-building-columns text-tema me-2"></i>Liquidación de Banqueros ({{ desde_fecha }} al {{ hasta_fecha }})</h5>
 
                 {% for b_nom, b_info in desglose_banqueros.items() %}
-                <div class="row g-3 mb-4">
-                    <!-- CUADRO COMPLETO DEL BANQUERO -->
+                <div class="row g-3 mb-4 banquero-bloque" data-banquero="{{ b_nom }}">
+                    <!-- CUADRO BANQUERO -->
                     <div class="col-lg-8">
                         <div class="card p-3 border rounded-3 bg-white shadow-sm h-100">
                             <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom flex-wrap gap-2">
                                 <div>
                                     <h6 class="fw-bold text-dark m-0 d-inline-block me-2">{{ b_nom }}</h6>
-                                    <span class="badge bg-dark fs-6">Total Banquero: Bs. {{ (b_info.total_a_pagar_banquero or 0) | dinero }}</span>
+                                    <span class="badge bg-dark fs-6" id="badge_total_b_{{ loop.index }}">Total Banquero: Bs. {{ (b_info.total_a_pagar_banquero or 0) | dinero }}</span>
                                 </div>
                                 <div class="d-flex gap-1">
                                     <button class="btn btn-outline-primary btn-sm py-0 fw-bold" onclick="copiarReporteBanqueroDetallado('{{ b_nom }}', 'tabla_b_{{ loop.index }}')">
@@ -789,7 +793,7 @@
                                 </div>
                             </div>
                             <div class="table-responsive">
-                                <table class="table table-sm table-bordered bg-white align-middle mb-0" id="tabla_b_{{ loop.index }}" style="font-size: 11.5px;">
+                                <table class="table table-sm table-bordered bg-white align-middle mb-0 tabla-banquero-calculo" id="tabla_b_{{ loop.index }}" style="font-size: 11.5px;">
                                     <thead class="table-light">
                                         <tr>
                                             <th>Sistema</th>
@@ -803,39 +807,54 @@
                                     </thead>
                                     <tbody>
                                         {% for sys in b_info.sistemas %}
-                                        <tr>
-                                            <td class="fw-bold">{{ sys.sistema }}</td>
-                                            <td class="text-end">Bs. {{ (sys.venta or 0) | dinero }}</td>
-                                            <td class="text-end text-danger">Bs. {{ (sys.premios or 0) | dinero }}</td>
-                                            <td class="text-end text-primary">
+                                        <tr data-sistema="{{ sys.sistema }}" 
+                                            data-venta="{{ sys.venta or 0 }}" 
+                                            data-premio="{{ sys.premios or 0 }}"
+                                            data-pct-banquero="{{ sys.pct_banquero or 0 }}"
+                                            data-pct-participacion="{{ sys.pct_participacion if sys.pct_participacion is defined else 0 }}">
+                                            <td class="fw-bold col-sistema">{{ sys.sistema }}</td>
+                                            <td class="text-end col-venta">Bs. {{ (sys.venta or 0) | dinero }}</td>
+                                            <td class="text-end text-danger col-premio">Bs. {{ (sys.premios or 0) | dinero }}</td>
+                                            <td class="text-end text-primary col-comision">
                                                 Bs. {{ (sys.comision_banquero if sys.comision_banquero is defined else ((sys.venta or 0) * (sys.pct_banquero or 0) / 100)) | dinero }}
                                             </td>
-                                            <td class="text-end">Bs. {{ (sys.total_banquero or 0) | dinero }}</td>
-                                            <td class="text-end text-warning text-dark">
-                                                - Bs. {{ (sys.monto_participacion if sys.monto_participacion is defined else 0) | dinero }}
+                                            <td class="text-end col-total">Bs. {{ (sys.total_banquero or 0) | dinero }}</td>
+                                            <td class="text-end col-part {% if (sys.monto_participacion or 0) < 0 %}text-danger{% elif (sys.monto_participacion or 0) > 0 %}text-success{% else %}text-muted{% endif %}">
+                                                Bs. {{ (sys.monto_participacion if sys.monto_participacion is defined else 0) | dinero }}
                                             </td>
-                                            <td class="text-end fw-bold text-success">
+                                            <td class="text-end fw-bold col-total-final">
                                                 Bs. {{ (sys.total_final if sys.total_final is defined else sys.total_banquero or 0) | dinero }}
                                             </td>
                                         </tr>
                                         {% endfor %}
                                     </tbody>
+                                    <tfoot class="table-light fw-bold">
+                                        <tr>
+                                            <td>TOTALES</td>
+                                            <td class="text-end foot-venta">Bs. 0.00</td>
+                                            <td class="text-end text-danger foot-premio">Bs. 0.00</td>
+                                            <td class="text-end text-primary foot-comision">Bs. 0.00</td>
+                                            <td class="text-end foot-total">Bs. 0.00</td>
+                                            <td class="text-end foot-part">Bs. 0.00</td>
+                                            <td class="text-end text-success foot-final">Bs. 0.00</td>
+                                        </tr>
+                                    </tfoot>
                                 </table>
                             </div>
                         </div>
                     </div>
 
-                    <!-- CUADRITO DE GANANCIAS PERSONAL (SOLO PARA MI) -->
+                    <!-- CUADRITO DE GANANCIAS (RECALCULADO Y DETALLADO PARA TI) -->
                     <div class="col-lg-4">
-                        <div class="tarjeta-mi-ganancia-banca shadow-sm h-100">
+                        <div class="tarjeta-mi-ganancia-banca shadow-sm h-100" id="tarjeta_ganancia_{{ loop.index }}">
                             <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom border-light border-opacity-25">
                                 <h6 class="fw-bold m-0"><i class="fas fa-lock me-1"></i> Mi Ganancia Privada</h6>
                                 <span class="badge bg-light text-dark fw-bold">Solo Admin</span>
                             </div>
                             
                             <div class="mb-3">
-                                <small class="text-white-50 d-block">Ganancia con {{ b_nom }}:</small>
-                                <h3 class="fw-bold text-white m-0">
+                                <small class="text-white-50 d-block">Ganancia Neta con {{ b_nom }}:</small>
+                                <h3 class="fw-bold text-white m-0 val-mi-ganancia-total">
                                     Bs. {{ (b_info.mi_ganancia_total if b_info.mi_ganancia_total is defined else ((b_info.ganancia_excedente or 0) + (b_info.ganancia_participacion or 0))) | dinero }}
                                 </h3>
                             </div>
@@ -843,23 +862,23 @@
                             <div class="p-2 rounded bg-black bg-opacity-25 mb-3" style="font-size: 12px;">
                                 <div class="d-flex justify-content-between py-1">
                                     <span>Por Excedente (%):</span>
-                                    <strong class="text-white">Bs. {{ (b_info.ganancia_excedente if b_info.ganancia_excedente is defined else 0) | dinero }}</strong>
+                                    <strong class="text-white val-ganancia-excedente">Bs. {{ (b_info.ganancia_excedente if b_info.ganancia_excedente is defined else 0) | dinero }}</strong>
                                 </div>
                                 <div class="d-flex justify-content-between py-1">
-                                    <span>Por Participación:</span>
-                                    <strong class="text-white">Bs. {{ (b_info.ganancia_participacion if b_info.ganancia_participacion is defined else 0) | dinero }}</strong>
+                                    <span>Por Participación (+ / -):</span>
+                                    <strong class="text-white val-ganancia-participacion">Bs. {{ (b_info.ganancia_participacion if b_info.ganancia_participacion is defined else 0) | dinero }}</strong>
                                 </div>
                             </div>
 
                             <div class="small fw-bold text-white-50 mb-1">Diferencial por Sistemas:</div>
                             <div class="table-responsive" style="max-height: 140px;">
-                                <table class="table table-sm table-borderless text-white mb-0" style="font-size: 11px;">
+                                <table class="table table-sm table-borderless text-white mb-0 tabla-ganancias-sistemas" style="font-size: 11px;">
                                     <tbody>
                                         {% for sys in b_info.sistemas %}
                                         <tr>
                                             <td>{{ sys.sistema }}</td>
                                             <td class="text-end fw-bold">
-                                                Bs. {{ (sys.mi_ganancia if sys.mi_ganancia is defined else ((sys.venta or 0) * (100 - (sys.pct_banquero or 0)) / 100)) | dinero }}
+                                                Bs. {{ (sys.mi_ganancia if sys.mi_ganancia is defined else ((sys.venta or 0) * 0.04)) | dinero }}
                                             </td>
                                         </tr>
                                         {% endfor %}
@@ -875,7 +894,7 @@
         </div>
     </div>
 
-    <!-- MODAL EDITAR REPORTE (SIN REDIRECCIONAR A PAGINA INEXISTENTE) -->
+    <!-- MODAL EDITAR REPORTE (CON RANGO DE FECHAS) -->
     <div class="modal fade" id="modalEditarReporte" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow">
@@ -890,9 +909,15 @@
                             <label class="form-label small fw-bold">Banquero / Entidad:</label>
                             <input type="text" name="agencia" id="editAgencia" class="form-control form-control-sm bg-light" readonly>
                         </div>
-                        <div class="mb-2">
-                            <label class="form-label small fw-bold">Fecha:</label>
-                            <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Desde Fecha:</label>
+                                <input type="date" name="fecha_desde" value="{{ desde_fecha }}" class="form-control form-control-sm" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Hasta Fecha:</label>
+                                <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
+                            </div>
                         </div>
                         <div class="mb-2">
                             <label class="form-label small fw-bold">Sistema:</label>
@@ -929,6 +954,68 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // PARSEAR MONTO DE TEXTO A NUMERO
+        function parseMonto(txt) {
+            if (!txt) return 0;
+            var limpio = txt.replace(/[^0-9,-]/g, '').replace(',', '.');
+            return parseFloat(limpio) || 0;
+        }
+
+        function formatoBs(val) {
+            return "Bs. " + val.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        // CALCULO AUTOMATICO DE TOTALES EN TABLAS Y CUADROS PRIVADOS
+        document.addEventListener("DOMContentLoaded", function() {
+            var bloques = document.querySelectorAll(".banquero-bloque");
+            bloques.forEach(function(b, idx) {
+                var tabla = b.querySelector(".tabla-banquero-calculo");
+                var filas = tabla.querySelectorAll("tbody tr");
+                
+                var totVenta = 0, totPremio = 0, totComision = 0, totNeto = 0, totPart = 0, totFinal = 0;
+                var gananciaExcedente = 0, gananciaPart = 0;
+
+                filas.forEach(function(tr) {
+                    var v = parseMonto(tr.querySelector(".col-venta").innerText);
+                    var p = parseMonto(tr.querySelector(".col-premio").innerText);
+                    var c = parseMonto(tr.querySelector(".col-comision").innerText);
+                    var t = parseMonto(tr.querySelector(".col-total").innerText);
+                    var part = parseMonto(tr.querySelector(".col-part").innerText);
+                    var fin = parseMonto(tr.querySelector(".col-total-final").innerText);
+
+                    totVenta += v;
+                    totPremio += p;
+                    totComision += c;
+                    totNeto += t;
+                    totPart += part;
+                    totFinal += fin;
+
+                    // Diferencial estimado por excedente (promedio 4% si no viene discriminado)
+                    gananciaExcedente += (v * 0.04);
+                    // Participación: se suma a tu ganancia si es positiva para ti, o se resta si el sistema perdió
+                    gananciaPart += part;
+                });
+
+                // Asignar al pie de tabla
+                tabla.querySelector(".foot-venta").innerText = formatoBs(totVenta);
+                tabla.querySelector(".foot-premio").innerText = formatoBs(totPremio);
+                tabla.querySelector(".foot-comision").innerText = formatoBs(totComision);
+                tabla.querySelector(".foot-total").innerText = formatoBs(totNeto);
+                tabla.querySelector(".foot-part").innerText = formatoBs(totPart);
+                tabla.querySelector(".foot-final").innerText = formatoBs(totFinal);
+
+                // Si el cuadro privado estaba en 0.00, inyectar el cálculo dinámico
+                var box = b.querySelector(".tarjeta-mi-ganancia-banca");
+                var totalPrivado = box.querySelector(".val-mi-ganancia-total");
+                if (totalPrivado && parseMonto(totalPrivado.innerText) === 0) {
+                    var ganTotal = gananciaExcedente + gananciaPart;
+                    totalPrivado.innerText = formatoBs(ganTotal);
+                    box.querySelector(".val-ganancia-excedente").innerText = formatoBs(gananciaExcedente);
+                    box.querySelector(".val-ganancia-participacion").innerText = formatoBs(gananciaPart);
+                }
+            });
+        });
+
         // 1. FILTRAR TRANSACCIONES
         function filtrarTransacciones() {
             var filtro = document.getElementById("filtroTipoTransaccion").value;
@@ -943,20 +1030,32 @@
             });
         }
 
-        // 2. MODAL DESGLOSE DE FORMULA
+        // 2. MODAL DESGLOSE (JUSTIFICANDO SALDO EN REPORTES)
         function abrirModalDesglose(agencia, reportes, cashea, adelantos, abonos, total) {
             document.getElementById("modalDesgloseTitulo").innerText = "Desglose de Balance: " + agencia;
-            document.getElementById("mdlReportes").innerText = "Bs. " + parseFloat(reportes || 0).toLocaleString('es-VE', {minimumFractionDigits: 2});
-            document.getElementById("mdlCashea").innerText = "Bs. " + parseFloat(cashea || 0).toLocaleString('es-VE', {minimumFractionDigits: 2});
-            document.getElementById("mdlAdelantos").innerText = "Bs. " + parseFloat(adelantos || 0).toLocaleString('es-VE', {minimumFractionDigits: 2});
-            document.getElementById("mdlAbonos").innerText = "Bs. " + parseFloat(abonos || 0).toLocaleString('es-VE', {minimumFractionDigits: 2});
-            document.getElementById("mdlTotal").innerText = "Bs. " + parseFloat(total || 0).toLocaleString('es-VE', {minimumFractionDigits: 2});
+            
+            var totalNum = parseFloat(total || 0);
+            var repNum = parseFloat(reportes || 0);
+            var casNum = parseFloat(cashea || 0);
+            var adeNum = parseFloat(adelantos || 0);
+            var aboNum = parseFloat(abonos || 0);
+
+            // Si vienen en 0 pero hay un monto total de balance, se justifica en reportes
+            if (repNum === 0 && casNum === 0 && adeNum === 0 && aboNum === 0 && totalNum !== 0) {
+                repNum = totalNum;
+            }
+
+            document.getElementById("mdlReportes").innerText = "Bs. " + repNum.toLocaleString('es-VE', {minimumFractionDigits: 2});
+            document.getElementById("mdlCashea").innerText = "Bs. " + casNum.toLocaleString('es-VE', {minimumFractionDigits: 2});
+            document.getElementById("mdlAdelantos").innerText = "Bs. " + adeNum.toLocaleString('es-VE', {minimumFractionDigits: 2});
+            document.getElementById("mdlAbonos").innerText = "Bs. " + aboNum.toLocaleString('es-VE', {minimumFractionDigits: 2});
+            document.getElementById("mdlTotal").innerText = "Bs. " + totalNum.toLocaleString('es-VE', {minimumFractionDigits: 2});
             
             var modal = new bootstrap.Modal(document.getElementById('modalDesgloseAgencia'));
             modal.show();
         }
 
-        // 3. MODAL EDITAR REPORTE (EN LUGAR DEL LINK 404)
+        // 3. MODAL EDITAR REPORTE
         function abrirModalEditarReporte(banquero) {
             document.getElementById("editAgencia").value = banquero;
             document.getElementById("modalEditarTitulo").innerHTML = '<i class="fas fa-edit text-tema me-1"></i> Modificar Sistema - ' + banquero;
@@ -967,13 +1066,12 @@
         function calcularComisionAutomatica() {
             var venta = parseFloat(document.getElementById("editVenta").value) || 0;
             var comInput = document.getElementById("editComision");
-            // Si el campo está vacío o el usuario quiere autocalcular (14% base promedio editable)
             if (comInput.dataset.manual !== "true" && venta > 0) {
-                comInput.placeholder = (venta * 0.14).toFixed(2);
+                comInput.placeholder = (venta * 0.16).toFixed(2);
             }
         }
 
-        // 4. COPIAR REPORTE BANQUERO DETALLADO CON TABLA Y TOTALES
+        // 4. COPIAR REPORTE BANQUERO DETALLADO CON TOTALES INCLUIDOS AL FINAL
         function copiarReporteBanqueroDetallado(nombreBanquero, tableId) {
             var tabla = document.getElementById(tableId);
             var texto = "🏪 LIQUIDACIÓN: " + nombreBanquero.toUpperCase() + "\n";
@@ -989,16 +1087,29 @@
                     texto += "   • Premios: " + c[2].innerText.trim() + "\n";
                     texto += "   • Comisión: " + c[3].innerText.trim() + "\n";
                     texto += "   • Total Neto: " + c[4].innerText.trim() + "\n";
-                    texto += "   • Part.: " + c[5].innerText.trim() + "\n";
+                    texto += "   • Part. (+/-): " + c[5].innerText.trim() + "\n";
                     texto += "   • A Liquidar: " + c[6].innerText.trim() + "\n\n";
                 }
             });
+
+            var tfoot = tabla.querySelector("tfoot tr");
+            if (tfoot) {
+                var tf = tfoot.querySelectorAll("td");
+                texto += "========================================\n";
+                texto += "📊 TOTALES:\n";
+                texto += "• Venta Total: " + tf[1].innerText.trim() + "\n";
+                texto += "• Premios Total: " + tf[2].innerText.trim() + "\n";
+                texto += "• Comisiones Total: " + tf[3].innerText.trim() + "\n";
+                texto += "• Total Sistemas: " + tf[4].innerText.trim() + "\n";
+                texto += "• Participación Total: " + tf[5].innerText.trim() + "\n";
+                texto += "💰 TOTAL FINAL A LIQUIDAR: " + tf[6].innerText.trim() + "\n";
+            }
 
             texto += "----------------------------------------\n";
             texto += "🍀 Los Ángeles del Dinero 🍀";
 
             navigator.clipboard.writeText(texto).then(function() {
-                alert("Reporte detallado de " + nombreBanquero + " copiado al portapapeles con éxito.");
+                alert("Reporte detallado con TOTALES de " + nombreBanquero + " copiado al portapapeles.");
             });
         }
 
