@@ -454,7 +454,7 @@ def actualizar_ultima_conexion(agencia: str):
         except Exception as e:
             print("Error actualizando conexion:", e)
 
-# RECALCULAR Y ACTUALIZAR REPORTE (SIN INVENTAR PENDIENTES NI DUPLICAR CASHEA)
+# RECALCULAR Y ACTUALIZAR REPORTE (SIN DUPLICAR CASHEA NI INVENTAR DIFERENCIALES)
 def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     agencia_norm = normalizar(agencia)
     conn = get_db()
@@ -540,7 +540,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     detalle_original = rep['detalle_html'] or ""
 
-    # Extraer la tabla pura de sistemas sin duplicar
     if '<!-- BLOQUES_EXTRAS -->' in detalle_original:
         tabla_sistemas_html = detalle_original.split('<!-- BLOQUES_EXTRAS -->')[0].strip()
     elif 'PAGOS / ABONOS A LA BANCA' in detalle_original:
@@ -549,7 +548,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     else:
         tabla_sistemas_html = detalle_original.strip()
 
-    # Si la tabla ya contenía el bloque cashea inyectado por Colab, limpiarlo para evitar duplicidad
+    # Eliminar cualquier Cashea inyectado previamente en la tabla para que no se duplique
     if 'CASHEA (Registros absorbidos)' in tabla_sistemas_html:
         pos_c_sub = tabla_sistemas_html.find('<div class="mb-3"')
         if pos_c_sub != -1:
@@ -569,7 +568,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
-    # Balance del día
+    # Balance neto del día
     monto_final = total_neto_sistemas - total_pagos_taquilla + total_adelantos - total_cashea + total_ajustes_pendientes
 
     bloque_pagos_banca = f'''
@@ -879,45 +878,36 @@ def get_agencia(
     cursor.execute("SELECT * FROM usuarios WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
     agencia_info = cursor.fetchone()
     
-    f_desde = desde_fecha if desde_fecha else ""
-    f_hasta = hasta_fecha if hasta_fecha else ""
+    cursor.execute("SELECT fecha FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC LIMIT 1", (agencia_norm,))
+    ultima_fila = cursor.fetchone()
+    fecha_reciente = ultima_fila['fecha'] if (ultima_fila and ultima_fila['fecha']) else hoy_vzla
 
-    # Filtrar reportes si hay rango definido
-    if f_desde and f_hasta:
-        cursor.execute(
-            "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha DESC", 
-            (agencia_norm, f_desde, f_hasta)
-        )
-    else:
-        cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
-    
+    f_desde = desde_fecha if desde_fecha else fecha_reciente
+    f_hasta = hasta_fecha if hasta_fecha else fecha_reciente
+
+    cursor.execute(
+        "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha DESC", 
+        (agencia_norm, f_desde, f_hasta)
+    )
     reportes_agencia_raw = cursor.fetchall()
-    reportes_agencia = []
-    for r in reportes_agencia_raw:
-        r_dict = dict(r)
-        reportes_agencia.append(r_dict)
+    reportes_agencia = [dict(r) for r in reportes_agencia_raw]
 
-    # Filtrar pagos
-    if f_desde and f_hasta:
-        cursor.execute(
-            "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", 
-            (agencia_norm, f_desde, f_hasta)
-        )
-    else:
-        cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
+    # Reporte específico a mostrar directamente en pantalla
+    reporte_seleccionado = reportes_agencia[0] if reportes_agencia else None
+
+    # Filtrar pagos por el rango de fechas
+    cursor.execute(
+        "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", 
+        (agencia_norm, f_desde, f_hasta)
+    )
     pagos_agencia = [dict(row) for row in cursor.fetchall()]
 
-    # Auditoría por sistemas
-    cursor.execute(
-        "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha ASC", 
-        (agencia_norm, f_desde or hoy_vzla, f_hasta or hoy_vzla)
-    )
-    reps_rango = cursor.fetchall()
-    
+    # Auditoría por sistemas pura (sin transacciones, con Cashea separado)
     auditoria_sistemas_agencia = {}
     totales_auditoria = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
+    cashea_auditoria_total = 0.0
     
-    for rep_item in reps_rango:
+    for rep_item in reportes_agencia:
         if rep_item and rep_item['detalle_html']:
             t_match = re.search(r'<table[^>]*>(.*?)<\/table>', rep_item['detalle_html'], re.DOTALL | re.IGNORECASE)
             if t_match:
@@ -930,7 +920,6 @@ def get_agencia(
                             continue
                         
                         s_name = normalizar_sistema(s_raw)
-
                         try:
                             sv = float(re.sub(r'[^\d.-]', '', cols_s[1]))
                             sc = float(re.sub(r'[^\d.-]', '', cols_s[2]))
@@ -952,6 +941,14 @@ def get_agencia(
                         totales_auditoria["premio"] += sp
                         totales_auditoria["neto"] += st
 
+    cursor.execute(
+        "SELECT SUM(monto) as sum_c FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'",
+        (agencia_norm, f_desde, f_hasta)
+    )
+    row_cashea = cursor.fetchone()
+    cashea_auditoria_total = float(row_cashea['sum_c'] or 0.0) if row_cashea else 0.0
+    total_auditoria_definitivo = totales_auditoria["neto"] - cashea_auditoria_total
+
     try:
         cursor.execute(
             """SELECT c.* FROM comunicados c
@@ -971,7 +968,7 @@ def get_agencia(
     row_rep = cursor.fetchone()
     saldo_acumulado = float(row_rep['total_rep'] or 0.0) if row_rep else 0.0
 
-    # Desglose de reportes pendientes con saldo
+    # Desglose de reportes con saldo para checkboxes de pago
     cursor.execute("SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND abs(monto) > 0.01 ORDER BY fecha DESC", (agencia_norm,))
     items_pendientes = [dict(row) for row in cursor.fetchall()]
 
@@ -981,6 +978,7 @@ def get_agencia(
         "agencia": agencia_info,
         "nombre_agencia": agencia_norm,
         "reportes": reportes_agencia,
+        "reporte_seleccionado": reporte_seleccionado,
         "pagos": pagos_agencia,
         "comunicados": comunicados,
         "sistemas": SISTEMAS_OFICIALES,
@@ -988,6 +986,8 @@ def get_agencia(
         "items_pendientes": items_pendientes,
         "auditoria_sistemas": auditoria_sistemas_agencia,
         "totales_auditoria": totales_auditoria,
+        "cashea_auditoria_total": cashea_auditoria_total,
+        "total_auditoria_definitivo": total_auditoria_definitivo,
         "desde_fecha": f_desde,
         "hasta_fecha": f_hasta,
         "tab_activa": tab or "reportes"
@@ -997,7 +997,7 @@ def get_agencia(
 def post_cambiar_clave(agencia: str = Form(...), nueva_clave: str = Form(...), confirm_clave: str = Form(...)):
     agencia_norm = normalizar(agencia)
     if not nueva_clave or nueva_clave != confirm_clave:
-        return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=usuario&error=claves_no_coinciden", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=cuenta&error=claves_no_coinciden", status_code=status.HTTP_303_SEE_OTHER)
 
     conn = get_db()
     cursor = conn.cursor()
@@ -1005,7 +1005,7 @@ def post_cambiar_clave(agencia: str = Form(...), nueva_clave: str = Form(...), c
     conn.commit()
     conn.close()
 
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=usuario&success=clave_actualizada", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=cuenta&success=clave_actualizada", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/marcar-comunicado-leido")
 def post_marcar_leido(comunicado_id: int = Form(...), agencia: str = Form(...)):
@@ -1061,22 +1061,6 @@ async def post_reportar(
     conn.commit()
     conn.close()
 
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/solicitar-adelanto")
-def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), monto: float = Form(...), observacion: str = Form(...)):
-    agencia_norm = normalizar(agencia)
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-           VALUES (%s, %s, %s, %s, %s, 'ADELANTO', 'APROBADO')""",
-        (agencia_norm, fecha, monto, observacion, f"Adelanto: {observacion}")
-    )
-    conn.commit()
-    conn.close()
-    
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/actualizar-reporte-sistema")
@@ -1184,7 +1168,7 @@ def post_actualizar_reporte_sistema(
     if fecha != hoy_vzla:
         recalcular_y_actualizar_reporte(agencia_norm, hoy_vzla)
 
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=reportes", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=modificaciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/eliminar-transaccion")
 @app.post("/admin/eliminar-transaccion")
@@ -1449,6 +1433,7 @@ def post_eliminar_agencia(agencia_id: int = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
 
+# EDITAR SALDO DE REPORTE O RESTABLECER A LO QUE ENVIÓ COLAB
 @app.post("/admin/editar-monto-reporte")
 def post_editar_monto_reporte(
     agencia: str = Form(...),
@@ -1464,6 +1449,28 @@ def post_editar_monto_reporte(
     )
     conn.commit()
     conn.close()
+    return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
+
+# RESTABLECER EL MONTO DE LA AGENCIA A LO QUE ENVIÓ COLAB (VENTAS - COMISIÓN - PREMIOS)
+@app.post("/admin/restablecer-monto-reporte-colab")
+def post_restablecer_monto_reporte_colab(
+    agencia: str = Form(...),
+    fecha: str = Form(...)
+):
+    agencia_norm = normalizar(agencia)
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # 1. Eliminar cualquier diferencial residual
+    cursor.execute(
+        "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo = 'AJUSTE_PENDIENTE'",
+        (agencia_norm, fecha)
+    )
+    conn.commit()
+    conn.close()
+
+    # 2. Recalcular fielmente desde la tabla de Colab
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/eliminar-ajustes-agencia")
