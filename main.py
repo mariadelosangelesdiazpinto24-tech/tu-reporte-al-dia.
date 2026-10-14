@@ -6,11 +6,12 @@ import unicodedata
 import re
 import shutil
 import traceback
+import base64
 from zoneinfo import ZoneInfo
 from typing import Optional
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, UploadFile, File, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -454,7 +455,7 @@ def actualizar_ultima_conexion(agencia: str):
         except Exception as e:
             print("Error actualizando conexion:", e)
 
-# RECALCULAR Y ACTUALIZAR REPORTE (SIN DUPLICAR CASHEA NI INVENTAR DIFERENCIALES)
+# RECALCULAR Y ACTUALIZAR REPORTE (CON DESCARGA DE COMPROBANTES VÍA ID)
 def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     agencia_norm = normalizar(agencia)
     conn = get_db()
@@ -496,7 +497,8 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         tipo_p = str(p['tipo']).strip().upper() if p['tipo'] else 'PAGO_TAQUILLA'
         comp = p['comprobante'] or ''
         
-        comp_display = f'<a href="/uploads/{comp}" target="_blank">Ver Comprobante</a>' if (comp and (comp.endswith('.png') or comp.endswith('.jpg') or comp.endswith('.jpeg') or comp.endswith('.pdf'))) else comp
+        # Enlace a descarga directa sin 404
+        comp_display = f'<a href="/comprobante/{p["id"]}" class="btn btn-sm btn-outline-danger py-0 fw-bold"><i class="fas fa-download me-1"></i> Descargar Capture</a>' if comp else ""
 
         if tipo_p in ['ADELANTO', 'LIQUIDACION']:
             total_adelantos += monto_p
@@ -548,7 +550,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     else:
         tabla_sistemas_html = detalle_original.strip()
 
-    # Eliminar cualquier Cashea inyectado previamente en la tabla para que no se duplique
     if 'CASHEA (Registros absorbidos)' in tabla_sistemas_html:
         pos_c_sub = tabla_sistemas_html.find('<div class="mb-3"')
         if pos_c_sub != -1:
@@ -568,7 +569,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
-    # Balance neto del día
     monto_final = total_neto_sistemas - total_pagos_taquilla + total_adelantos - total_cashea + total_ajustes_pendientes
 
     bloque_pagos_banca = f'''
@@ -647,6 +647,48 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     cursor.execute("UPDATE reportes SET monto = %s, detalle_html = %s WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (monto_final, detalle_actualizado, agencia_norm, fecha_reporte))
     conn.commit()
     conn.close()
+
+# RUTA PARA DESCARGAR O VER COMPROBANTE SIN ERROR 404
+@app.get("/comprobante/{pago_id}")
+def ver_o_descargar_comprobante(pago_id: int):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT agencia, fecha, comprobante FROM pagos WHERE id = %s", (pago_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row or not row['comprobante']:
+        return HTMLResponse("<h3>Comprobante no disponible o no adjuntado.</h3>", status_code=404)
+
+    comp = str(row['comprobante']).strip()
+    agencia_clean = str(row['agencia']).replace(" ", "_")
+    nombre_archivo = f"Comprobante_{agencia_clean}_{row['fecha']}_{pago_id}.jpg"
+
+    # 1. En disco
+    ruta_disco = os.path.join("uploads", os.path.basename(comp))
+    if os.path.exists(ruta_disco):
+        return FileResponse(
+            ruta_disco, 
+            filename=nombre_archivo,
+            headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'}
+        )
+
+    # 2. En Base64 persistente
+    if comp.startswith("data:image"):
+        try:
+            header, encoded = comp.split(",", 1)
+            mime = header.split(";")[0].split(":")[1]
+            ext = mime.split("/")[-1]
+            nombre_archivo = f"Comprobante_{agencia_clean}_{row['fecha']}_{pago_id}.{ext}"
+            return Response(
+                content=base64.b64decode(encoded),
+                media_type=mime,
+                headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'}
+            )
+        except Exception:
+            pass
+
+    return HTMLResponse(f"<h3>Comprobante: {comp}</h3>")
 
 @app.post("/admin/guardar-ajustes-banquero-global")
 def post_guardar_ajustes_banquero_global(
@@ -878,36 +920,39 @@ def get_agencia(
     cursor.execute("SELECT * FROM usuarios WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
     agencia_info = cursor.fetchone()
     
-    cursor.execute("SELECT fecha FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC LIMIT 1", (agencia_norm,))
-    ultima_fila = cursor.fetchone()
-    fecha_reciente = ultima_fila['fecha'] if (ultima_fila and ultima_fila['fecha']) else hoy_vzla
+    f_desde = desde_fecha if desde_fecha else ""
+    f_hasta = hasta_fecha if hasta_fecha else ""
 
-    f_desde = desde_fecha if desde_fecha else fecha_reciente
-    f_hasta = hasta_fecha if hasta_fecha else fecha_reciente
+    if f_desde and f_hasta:
+        cursor.execute(
+            "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha DESC", 
+            (agencia_norm, f_desde, f_hasta)
+        )
+    else:
+        cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
+    
+    reportes_agencia = [dict(r) for r in cursor.fetchall()]
 
-    cursor.execute(
-        "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha DESC", 
-        (agencia_norm, f_desde, f_hasta)
-    )
-    reportes_agencia_raw = cursor.fetchall()
-    reportes_agencia = [dict(r) for r in reportes_agencia_raw]
-
-    # Reporte específico a mostrar directamente en pantalla
-    reporte_seleccionado = reportes_agencia[0] if reportes_agencia else None
-
-    # Filtrar pagos por el rango de fechas
-    cursor.execute(
-        "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", 
-        (agencia_norm, f_desde, f_hasta)
-    )
+    if f_desde and f_hasta:
+        cursor.execute(
+            "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", 
+            (agencia_norm, f_desde, f_hasta)
+        )
+    else:
+        cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
     pagos_agencia = [dict(row) for row in cursor.fetchall()]
 
-    # Auditoría por sistemas pura (sin transacciones, con Cashea separado)
+    # Auditoría por sistemas
+    cursor.execute(
+        "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha ASC", 
+        (agencia_norm, f_desde or hoy_vzla, f_hasta or hoy_vzla)
+    )
+    reps_rango = cursor.fetchall()
+    
     auditoria_sistemas_agencia = {}
     totales_auditoria = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
-    cashea_auditoria_total = 0.0
     
-    for rep_item in reportes_agencia:
+    for rep_item in reps_rango:
         if rep_item and rep_item['detalle_html']:
             t_match = re.search(r'<table[^>]*>(.*?)<\/table>', rep_item['detalle_html'], re.DOTALL | re.IGNORECASE)
             if t_match:
@@ -920,6 +965,7 @@ def get_agencia(
                             continue
                         
                         s_name = normalizar_sistema(s_raw)
+
                         try:
                             sv = float(re.sub(r'[^\d.-]', '', cols_s[1]))
                             sc = float(re.sub(r'[^\d.-]', '', cols_s[2]))
@@ -942,12 +988,11 @@ def get_agencia(
                         totales_auditoria["neto"] += st
 
     cursor.execute(
-        "SELECT SUM(monto) as sum_c FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'",
-        (agencia_norm, f_desde, f_hasta)
+        "SELECT SUM(monto) as total_c FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'",
+        (agencia_norm, f_desde or hoy_vzla, f_hasta or hoy_vzla)
     )
-    row_cashea = cursor.fetchone()
-    cashea_auditoria_total = float(row_cashea['sum_c'] or 0.0) if row_cashea else 0.0
-    total_auditoria_definitivo = totales_auditoria["neto"] - cashea_auditoria_total
+    row_c = cursor.fetchone()
+    auditoria_cashea_monto = float(row_c['total_c'] or 0.0) if row_c else 0.0
 
     try:
         cursor.execute(
@@ -963,12 +1008,10 @@ def get_agencia(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
     
-    # Saldo acumulado real de la agencia
     cursor.execute("SELECT SUM(monto) AS total_rep FROM reportes WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
     row_rep = cursor.fetchone()
     saldo_acumulado = float(row_rep['total_rep'] or 0.0) if row_rep else 0.0
 
-    # Desglose de reportes con saldo para checkboxes de pago
     cursor.execute("SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND abs(monto) > 0.01 ORDER BY fecha DESC", (agencia_norm,))
     items_pendientes = [dict(row) for row in cursor.fetchall()]
 
@@ -978,7 +1021,6 @@ def get_agencia(
         "agencia": agencia_info,
         "nombre_agencia": agencia_norm,
         "reportes": reportes_agencia,
-        "reporte_seleccionado": reporte_seleccionado,
         "pagos": pagos_agencia,
         "comunicados": comunicados,
         "sistemas": SISTEMAS_OFICIALES,
@@ -986,8 +1028,7 @@ def get_agencia(
         "items_pendientes": items_pendientes,
         "auditoria_sistemas": auditoria_sistemas_agencia,
         "totales_auditoria": totales_auditoria,
-        "cashea_auditoria_total": cashea_auditoria_total,
-        "total_auditoria_definitivo": total_auditoria_definitivo,
+        "auditoria_cashea_monto": auditoria_cashea_monto,
         "desde_fecha": f_desde,
         "hasta_fecha": f_hasta,
         "tab_activa": tab or "reportes"
@@ -1045,22 +1086,44 @@ async def post_reportar(
     comprobante: UploadFile = File(...)
 ):
     agencia_norm = normalizar(agencia)
+    contenido = await comprobante.read()
+    
     nombre_archivo = f"pago_{agencia_norm}_{datetime.now(TZ_VENEZUELA).strftime('%Y%m%d_%H%M%S')}_{comprobante.filename}"
     ruta_guardar = os.path.join("uploads", nombre_archivo)
-    
     with open(ruta_guardar, "wb") as buffer:
-        shutil.copyfileobj(comprobante.file, buffer)
+        buffer.write(contenido)
+
+    comprobante_valor = nombre_archivo
+    if len(contenido) < 1500000:
+        mime_tipo = comprobante.content_type or "image/jpeg"
+        comprobante_valor = f"data:{mime_tipo};base64,{base64.b64encode(contenido).decode('utf-8')}"
 
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
         """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
            VALUES (%s, %s, %s, %s, %s, 'PAGO_TAQUILLA', 'PENDIENTE')""",
-        (agencia_norm, fecha, monto, factura, nombre_archivo)
+        (agencia_norm, fecha, monto, factura, comprobante_valor)
     )
     conn.commit()
     conn.close()
 
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/solicitar-adelanto")
+def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), monto: float = Form(...), observacion: str = Form(...)):
+    agencia_norm = normalizar(agencia)
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+           VALUES (%s, %s, %s, %s, %s, 'ADELANTO', 'APROBADO')""",
+        (agencia_norm, fecha, monto, observacion, f"Adelanto: {observacion}")
+    )
+    conn.commit()
+    conn.close()
+    
+    recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/actualizar-reporte-sistema")
@@ -1207,12 +1270,17 @@ async def post_procesar_solicitud_dinero(
         
         nombre_guardado = f"Liquidación Saldo #{solicitud_id}"
         if comprobante_file and comprobante_file.filename:
+            contenido = await comprobante_file.read()
             ext = comprobante_file.filename.split('.')[-1]
             nombre_archivo = f"liquidacion_{solicitud_id}_{datetime.now(TZ_VENEZUELA).strftime('%Y%m%d_%H%M%S')}.{ext}"
             ruta_destino = os.path.join("uploads", nombre_archivo)
             with open(ruta_destino, "wb") as buffer:
-                shutil.copyfileobj(comprobante_file.file, buffer)
+                buffer.write(contenido)
+
             nombre_guardado = nombre_archivo
+            if len(contenido) < 1500000:
+                mime = comprobante_file.content_type or "image/jpeg"
+                nombre_guardado = f"data:{mime};base64,{base64.b64encode(contenido).decode('utf-8')}"
 
         cursor.execute("UPDATE pagos SET estado = 'PROCESADO' WHERE id = %s", (solicitud_id,))
         
@@ -1280,11 +1348,17 @@ async def post_liquidar_saldo_negativo(
 ):
     agencia_norm = normalizar(agencia)
     monto_pago = abs(monto)
+    contenido = await comprobante_file.read()
 
     nombre_archivo = f"liquidacion_negativo_{agencia_norm}_{datetime.now(TZ_VENEZUELA).strftime('%Y%m%d_%H%M%S')}_{comprobante_file.filename}"
     ruta_guardar = os.path.join("uploads", nombre_archivo)
     with open(ruta_guardar, "wb") as buffer:
-        shutil.copyfileobj(comprobante_file.file, buffer)
+        buffer.write(contenido)
+
+    comprobante_valor = nombre_archivo
+    if len(contenido) < 1500000:
+        mime = comprobante_file.content_type or "image/jpeg"
+        comprobante_valor = f"data:{mime};base64,{base64.b64encode(contenido).decode('utf-8')}"
 
     conn = get_db()
     cursor = conn.cursor()
@@ -1292,7 +1366,7 @@ async def post_liquidar_saldo_negativo(
     cursor.execute(
         """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
            VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
-        (agencia_norm, fecha, monto_pago, "Liquidación Saldo a Favor", nombre_archivo)
+        (agencia_norm, fecha, monto_pago, "Liquidación Saldo a Favor", comprobante_valor)
     )
 
     mensaje = f"✅ Tu saldo a favor de Bs. {monto_pago:,.2f} del día {fecha} ha sido LIQUIDADO. Ya puedes revisar tu capture."
@@ -1433,7 +1507,6 @@ def post_eliminar_agencia(agencia_id: int = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
 
-# EDITAR SALDO DE REPORTE O RESTABLECER A LO QUE ENVIÓ COLAB
 @app.post("/admin/editar-monto-reporte")
 def post_editar_monto_reporte(
     agencia: str = Form(...),
@@ -1451,7 +1524,6 @@ def post_editar_monto_reporte(
     conn.close()
     return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 
-# RESTABLECER EL MONTO DE LA AGENCIA A LO QUE ENVIÓ COLAB (VENTAS - COMISIÓN - PREMIOS)
 @app.post("/admin/restablecer-monto-reporte-colab")
 def post_restablecer_monto_reporte_colab(
     agencia: str = Form(...),
@@ -1460,16 +1532,12 @@ def post_restablecer_monto_reporte_colab(
     agencia_norm = normalizar(agencia)
     conn = get_db()
     cursor = conn.cursor()
-    
-    # 1. Eliminar cualquier diferencial residual
     cursor.execute(
         "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo = 'AJUSTE_PENDIENTE'",
         (agencia_norm, fecha)
     )
     conn.commit()
     conn.close()
-
-    # 2. Recalcular fielmente desde la tabla de Colab
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -1506,7 +1574,6 @@ def get_admin(
         cursor.execute("SELECT * FROM reportes ORDER BY id DESC")
         reportes = [dict(row) for row in cursor.fetchall()]
         
-        # Filtro avanzado de transacciones
         query_pagos = "SELECT * FROM pagos WHERE tipo != 'CASHEA'"
         params_pagos = []
         if tipo_transaccion:
@@ -1553,7 +1620,6 @@ def get_admin(
         pend_row = cursor.fetchone()
         solicitudes_pendientes_count = pend_row['total_pendientes'] if pend_row else 0
 
-        # Data Cashea y suma absorbida en el rango
         if agencia_filtro:
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (normalizar(agencia_filtro), f_desde, f_hasta))
         else:
@@ -1672,47 +1738,3 @@ def get_admin(
         print("Error en admin:", e)
         traceback.print_exc()
         return HTMLResponse(content=f"Error interno en admin: {e}", status_code=500)
-
-from fastapi.responses import FileResponse, Response
-import base64
-
-@app.get("/comprobante/{pago_id}")
-def ver_o_descargar_comprobante(pago_id: int):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT agencia, fecha, comprobante FROM pagos WHERE id = %s", (pago_id,))
-    row = cursor.fetchone()
-    conn.close()
-
-    if not row or not row['comprobante']:
-        return HTMLResponse("<h3>Comprobante no encontrado</h3>", status_code=404)
-
-    comp = str(row['comprobante']).strip()
-    agencia_clean = str(row['agencia']).replace(" ", "_")
-    nombre_archivo = f"Comprobante_{agencia_clean}_{row['fecha']}_{pago_id}.jpg"
-
-    # 1. Si está guardado en disco físico
-    ruta_disco = os.path.join("uploads", os.path.basename(comp))
-    if os.path.exists(ruta_disco):
-        return FileResponse(
-            ruta_disco, 
-            filename=nombre_archivo,
-            headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'}
-        )
-
-    # 2. Si está en formato Base64
-    if comp.startswith("data:image"):
-        try:
-            header, encoded = comp.split(",", 1)
-            mime = header.split(";")[0].split(":")[1]
-            ext = mime.split("/")[-1]
-            nombre_archivo = f"Comprobante_{agencia_clean}_{row['fecha']}_{pago_id}.{ext}"
-            return Response(
-                content=base64.b64decode(encoded),
-                media_type=mime,
-                headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'}
-            )
-        except Exception:
-            pass
-
-    return HTMLResponse(f"<h3>Detalle comprobante: {comp}</h3>")
