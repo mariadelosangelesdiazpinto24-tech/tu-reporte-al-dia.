@@ -9,22 +9,24 @@
     
     <style>
         {% if genero == 'masculino' %}
-            /* PALETA MASCULINA: AZUL Y AMARILLO */
+            /* PALETA MASCULINA: AZUL + AMARILLO + VERDE */
             :root {
-                --color-primario: #0d47a1;
-                --color-secundario: #ffc107;
-                --color-fondo: #eef5fc;
+                --color-primario: #0d47a1;       /* Azul principal */
+                --color-secundario: #ffc107;     /* Amarillo vibrante */
+                --color-acento-verde: #00897b;   /* Verde esmeralda de soporte */
+                --color-fondo: #eef5fc;          /* Fondo suave azulado */
                 --color-hover: #083375;
-                --color-texto-btn: #000000;
+                --color-texto-btn: #ffffff;
             }
         {% else %}
-            /* PALETA FEMENINA: ROSADO Y AMARILLO */
+            /* PALETA FEMENINA: ROSADO + AMARILLO + VERDE */
             :root {
-                --color-primario: #e91e63;
-                --color-secundario: #ffd54f;
-                --color-fondo: #fdf2f4;
+                --color-primario: #e91e63;       /* Rosa principal */
+                --color-secundario: #ffd54f;     /* Amarillo dorado */
+                --color-acento-verde: #2e7d32;   /* Verde armónico */
+                --color-fondo: #fdf2f4;          /* Fondo suave rosado */
                 --color-hover: #c2185b;
-                --color-texto-btn: #212529;
+                --color-texto-btn: #ffffff;
             }
         {% endif %}
 
@@ -36,7 +38,7 @@
         .bg-tema { 
             background: linear-gradient(135deg, var(--color-primario) 0%, #1a1a24 100%) !important; 
             color: white !important; 
-            border-bottom: 3px solid var(--color-secundario);
+            border-bottom: 4px solid var(--color-secundario);
         }
 
         .text-tema { 
@@ -44,51 +46,69 @@
         }
 
         .btn-tema { 
-            background-color: var(--color-primario) !important; 
-            color: white !important; 
-            border: none; 
+            background: linear-gradient(135deg, var(--color-primario), var(--color-hover)) !important; 
+            color: var(--color-texto-btn) !important; 
+            border: 1px solid var(--color-secundario); 
             transition: all 0.2s ease-in-out;
         }
 
         .btn-tema:hover { 
-            background-color: var(--color-hover) !important; 
-            color: white !important; 
+            background: var(--color-hover) !important; 
+            color: #ffffff !important; 
             transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
         }
 
-        .nav-tabs .nav-link.active {
-            background-color: var(--color-primario) !important;
-            color: #ffffff !important;
-            border-color: var(--color-primario) !important;
-            border-bottom: 3px solid var(--color-secundario) !important;
-            font-weight: bold;
+        .nav-tabs {
+            border-bottom: 2px solid var(--color-acento-verde);
         }
 
         .nav-tabs .nav-link { 
             color: var(--color-primario); 
-            font-weight: 500; 
+            font-weight: 600; 
+            border: none;
+            border-radius: 10px 10px 0 0;
+            margin-right: 4px;
+        }
+
+        .nav-tabs .nav-link:hover {
+            color: var(--color-hover);
+            background-color: rgba(255, 255, 255, 0.6);
+        }
+
+        .nav-tabs .nav-link.active { 
+            background-color: var(--color-primario) !important; 
+            color: #ffffff !important; 
+            border: none !important;
+            border-bottom: 3px solid var(--color-secundario) !important; 
+            font-weight: bold; 
         }
 
         .card-custom { 
             border-radius: 15px; 
-            border: none; 
+            border: 1px solid rgba(0,0,0,0.05); 
             box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
         }
 
-        .caja-balance-interactiva {
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            border: 2px solid var(--color-primario) !important;
-            background: linear-gradient(135deg, #ffffff, var(--color-fondo)) !important;
+        .caja-balance-interactiva { 
+            cursor: pointer; 
+            transition: transform 0.2s, box-shadow 0.2s; 
+            border: 2px solid var(--color-primario) !important; 
+            border-left: 6px solid var(--color-acento-verde) !important;
+            background: linear-gradient(135deg, #ffffff, var(--color-fondo)) !important; 
         }
 
-        .caja-balance-interactiva:hover {
-            transform: scale(1.01);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12) !important;
+        .caja-balance-interactiva:hover { 
+            transform: scale(1.01); 
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12) !important; 
         }
 
-        .accent-amarillo {
-            color: var(--color-secundario);
+        .accent-amarillo { 
+            color: var(--color-secundario); 
+        }
+
+        .accent-verde {
+            color: var(--color-acento-verde);
         }
     </style>
 </head>
@@ -105,7 +125,7 @@
                     </h3>
                     <small class="text-white-50">Panel de Operaciones Financieras</small>
                 </div>
-                <a href="/login" class="btn btn-warning btn-sm fw-bold rounded-pill px-3 shadow-sm text-dark">
+                <a href="/login" class="btn btn-warning btn-sm fw-bold rounded-pill px-3 shadow-sm text-dark border-0">
                     <i class="fas fa-sign-out-alt me-1"></i> Salir
                 </a>
             </div>
@@ -115,7 +135,7 @@
         {% if comunicados and comunicados | length > 0 %}
         <div class="mb-4">
             {% for c in comunicados %}
-            <div class="alert alert-warning border-0 shadow-sm d-flex justify-content-between align-items-center flex-wrap gap-2 p-3 mb-2" style="border-radius: 12px; background: #fff8e1; border-left: 6px solid #ffb300 !important;">
+            <div class="alert alert-warning border-0 shadow-sm d-flex justify-content-between align-items-center flex-wrap gap-2 p-3 mb-2" style="border-radius: 12px; background: #fff8e1; border-left: 6px solid var(--color-secundario) !important;">
                 <div class="d-flex align-items-center gap-2">
                     <i class="fas fa-bullhorn text-warning fs-4"></i>
                     <div>
@@ -150,7 +170,7 @@
                     <input type="date" name="hasta_fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm">
                 </div>
                 <div class="col-md-2">
-                    <button type="submit" class="btn btn-tema btn-sm w-100 fw-bold py-2"><i class="fas fa-search me-1"></i> Filtrar 🍀</button>
+                    <button type="submit" class="btn btn-tema btn-sm w-100 fw-bold py-2"><i class="fas fa-search me-1 accent-amarillo"></i> Filtrar 🍀</button>
                 </div>
             </form>
         </div>
@@ -260,12 +280,12 @@
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
                             <button class="btn btn-success btn-lg w-100 fw-bold shadow-sm rounded-pill py-3" data-bs-toggle="collapse" data-bs-target="#seccionPagar">
-                                <i class="fas fa-credit-card me-2"></i> Registrar Pago o Abono a la Banca
+                                <i class="fas fa-credit-card me-2 accent-amarillo"></i> Registrar Pago o Abono a la Banca
                             </button>
                         </div>
                         <div class="col-md-6">
-                            <button class="btn btn-primary btn-lg w-100 fw-bold shadow-sm rounded-pill py-3" data-bs-toggle="collapse" data-bs-target="#seccionSolicitar">
-                                <i class="fas fa-university me-2"></i> Solicitar Saldo a Favor a la Banca
+                            <button class="btn btn-tema btn-lg w-100 fw-bold shadow-sm rounded-pill py-3" data-bs-toggle="collapse" data-bs-target="#seccionSolicitar">
+                                <i class="fas fa-university me-2 accent-amarillo"></i> Solicitar Saldo a Favor a la Banca
                             </button>
                         </div>
                     </div>
@@ -317,7 +337,7 @@
 
                     <div class="collapse mb-4" id="seccionSolicitar">
                         <div class="card p-3 border rounded-3 bg-light shadow-sm">
-                            <h5 class="fw-bold text-primary mb-2"><i class="fas fa-hand-holding-usd me-2"></i>Solicitar Dinero a la Administración</h5>
+                            <h5 class="fw-bold text-tema mb-2"><i class="fas fa-hand-holding-usd me-2"></i>Solicitar Dinero a la Administración</h5>
                             <form action="/solicitar-banca-directo" method="POST" class="row g-3">
                                 <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
                                 <div class="col-md-6">
@@ -329,7 +349,7 @@
                                     <input type="number" step="0.01" name="monto" class="form-control form-control-sm" placeholder="Monto total a favor" required>
                                 </div>
                                 <div class="col-12">
-                                    <button type="submit" class="btn btn-primary fw-bold w-100 shadow-sm rounded-pill">Enviar Solicitud</button>
+                                    <button type="submit" class="btn btn-tema fw-bold w-100 shadow-sm rounded-pill">Enviar Solicitud</button>
                                 </div>
                             </form>
                         </div>
