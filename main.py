@@ -218,7 +218,7 @@ def init_db():
         )
     ''')
 
-    agencias_base = ["MILA", "ANA MARIA", "NABEL", "VIP23", "DESTINO SUERTE", "VALLEMIL", "ALEXA", "PALOMITA", "GEGE", "LILI LA LOBA"]
+    agencias_base = ["MILA", "ANA MARIA", "NABEL", "VIP23", "DESTINO SUERTE", "VALLEMIL", "ALEXA", "PALOMITA", "GEGE", "LILI LA LOBA", "LAS VECINAS"]
     for ag in agencias_base:
         try:
             cursor.execute("INSERT INTO usuarios (agencia, clave, genero, rol) VALUES (%s, '123456', 'FEMENINO', 'TAQUILLA') ON CONFLICT (agencia) DO NOTHING", (ag,))
@@ -459,6 +459,7 @@ def actualizar_ultima_conexion(agencia: str):
         except Exception as e:
             print("Error actualizando conexion:", e)
 
+# MOTOR CONTABLE AUTOMÁTICO DE REPORTE Y ARRASTRE DE PENDIENTES
 def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     agencia_norm = normalizar(agencia)
     conn = get_db()
@@ -471,22 +472,38 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         conn.close()
         return
 
+    # Buscar pagos asociados a este día o liquidaciones aplicadas
     cursor.execute(
-        "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND estado = 'APROBADO' AND tipo != 'AJUSTE_PENDIENTE'", 
-        (agencia_norm, fecha_reporte)
+        "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND (fecha = %s OR factura LIKE %s) AND estado = 'APROBADO' AND tipo != 'AJUSTE_PENDIENTE'", 
+        (agencia_norm, fecha_reporte, f"%{fecha_reporte}%")
     )
     todos_pagos = cursor.fetchall()
     
+    # Buscar si hubo diferencial o pendiente anterior registrado
     cursor.execute(
         "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo = 'AJUSTE_PENDIENTE' AND estado = 'APROBADO'", 
         (agencia_norm, fecha_reporte)
     )
     ajustes_anteriores = cursor.fetchall()
 
+    # COMPROBAR ARRASTRE: Buscar si el día anterior inmediato quedó con saldo pendiente (para sumarlo o restarlo automáticamente)
+    cursor.execute(
+        "SELECT fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha < %s ORDER BY fecha DESC LIMIT 1",
+        (agencia_norm, fecha_reporte)
+    )
+    rep_anterior = cursor.fetchone()
+    arrastre_anterior_monto = 0.0
+    arrastre_anterior_fecha = ""
+    if rep_anterior and abs(float(rep_anterior['monto'] or 0.0)) > 0.05:
+        # Verificar que no se haya liquidado ya
+        arrastre_anterior_monto = float(rep_anterior['monto'])
+        arrastre_anterior_fecha = rep_anterior['fecha']
+
     conn.close()
 
     total_adelantos = 0.0
     total_pagos_taquilla = 0.0
+    total_liquidaciones_admin = 0.0
     total_cashea = 0.0
     total_ajustes_pendientes = 0.0
     
@@ -502,13 +519,22 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         
         comp_display = f'<a href="/comprobante/{p["id"]}" class="btn btn-sm btn-outline-danger py-0 fw-bold"><i class="fas fa-download me-1"></i> Descargar Capture</a>' if comp else ""
 
-        if tipo_p in ['ADELANTO', 'LIQUIDACION']:
+        if tipo_p in ['ADELANTO']:
             total_adelantos += monto_p
             adelantos_rows_html += f'''
             <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{comp_display}</td>
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #e91e63; font-weight: bold;">Bs. {monto_p:,.2f}</td>
+            </tr>
+            '''
+        elif tipo_p in ['LIQUIDACION']:
+            total_liquidaciones_admin += monto_p
+            adelantos_rows_html += f'''
+            <tr style="font-size: 13px; background-color: #ffffff; color: #1a252c;">
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['fecha']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{p['factura']} {comp_display}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #2e7d32; font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
             </tr>
             '''
         elif tipo_p == 'CASHEA':
@@ -542,6 +568,17 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         </tr>
         '''
 
+    if arrastre_anterior_monto != 0.0:
+        total_ajustes_pendientes += arrastre_anterior_monto
+        color_ant = "#2e7d32" if arrastre_anterior_monto < 0 else "#e91e63"
+        ajustes_rows_html += f'''
+        <tr style="font-size: 13px; background-color: #fffde7; color: #1a252c;">
+            <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{arrastre_anterior_fecha}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;"><strong>Saldo Pendiente Arrastrado del día anterior</strong></td>
+            <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: {color_ant}; font-weight: bold;">Bs. {arrastre_anterior_monto:,.2f}</td>
+        </tr>
+        '''
+
     detalle_original = rep['detalle_html'] or ""
 
     if '<!-- BLOQUES_EXTRAS -->' in detalle_original:
@@ -571,7 +608,12 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
-    monto_final = total_neto_sistemas - total_pagos_taquilla + total_adelantos - total_cashea + total_ajustes_pendientes
+    # FÓRMULA CONTABLE INTEGRADA:
+    # Neto sistemas - Pagos taquilla + Adelantos + Liquidaciones pagadas por banca - Cashea + Pendientes acumulados
+    monto_final = total_neto_sistemas - total_pagos_taquilla + total_adelantos + total_liquidaciones_admin - total_cashea + total_ajustes_pendientes
+
+    if abs(monto_final) < 0.05:
+        monto_final = 0.0
 
     bloque_pagos_banca = f'''
     <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #2e7d32;">
@@ -619,14 +661,14 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
 
     bloque_adelantos = f'''
     <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #e91e63;">
-        <h5 style="color: #e91e63; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-hand-holding-usd"></i> ADELANTOS / LIQUIDACIÓN (Plata entregada por Admin)</h5>
+        <h5 style="color: #e91e63; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-hand-holding-usd"></i> ADELANTOS / LIQUIDACIONES DE BANCA</h5>
         <table class="table table-sm align-middle mb-0" style="width: 100%;">
             <tr style="background-color: #fce4ec; color: #880e4f; font-size: 13px;">
                 <th style="padding: 10px;">FECHA</th>
-                <th style="padding: 10px;">MOTIVO</th>
+                <th style="padding: 10px;">DETALLE</th>
                 <th style="padding: 10px; text-align: right;">MONTO APLICADO</th>
             </tr>
-            {adelantos_rows_html if adelantos_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Adelanto: 0.00 Bs.</td></tr>'}
+            {adelantos_rows_html if adelantos_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Sin adelantos o liquidaciones registradas hoy.</td></tr>'}
         </table>
     </div>
     '''
@@ -636,8 +678,8 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         <h5 style="color: #e91e63; font-weight: bold; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; margin-bottom: 12px;"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h5>
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span style="font-size: 14px; color: #333; font-weight: bold;">Fecha: {fecha_reporte}</span>
-            <span style="font-size: 14px; font-weight: bold; color: #333;">{("Total a Pagar" if monto_final >= 0 else "Saldo a favor / Solicitar")}</span>
-            <span style="font-size: 18px; font-weight: bold; color: {('#2e7d32' if monto_final < 0 else '#e91e63')};">Bs. {monto_final:,.2f}</span>
+            <span style="font-size: 14px; font-weight: bold; color: #333;">{("Cuenta Saldada (0.00 Bs.)" if abs(monto_final) < 0.05 else ("Total a Pagar" if monto_final > 0 else "Saldo a favor / Solicitar"))}</span>
+            <span style="font-size: 18px; font-weight: bold; color: {('#2e7d32' if monto_final <= 0 else '#e91e63')};">Bs. {monto_final:,.2f}</span>
         </div>
     </div>
     '''
@@ -650,6 +692,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     conn.commit()
     conn.close()
 
+# RUTA PARA DESCARGAR O VER COMPROBANTE SIN ERROR 404
 @app.get("/comprobante/{pago_id}")
 def ver_o_descargar_comprobante(pago_id: int):
     conn = get_db()
@@ -941,6 +984,7 @@ def get_agencia(
         cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
     pagos_agencia = [dict(row) for row in cursor.fetchall()]
 
+    # Pestaña Cashea propia de la agencia
     if f_desde and f_hasta:
         cursor.execute(
             "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s ORDER BY fecha DESC, id DESC",
@@ -961,6 +1005,7 @@ def get_agencia(
     row_cdia = cursor.fetchone()
     total_cashea_dia = float(row_cdia['total_dia'] or 0.0) if row_cdia else 0.0
 
+    # Auditoría por sistemas
     cursor.execute(
         "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha ASC", 
         (agencia_norm, f_desde or hoy_vzla, f_hasta or hoy_vzla)
@@ -1026,11 +1071,27 @@ def get_agencia(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
     
-    cursor.execute("SELECT SUM(monto) AS total_rep FROM reportes WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
-    row_rep = cursor.fetchone()
-    saldo_acumulado = float(row_rep['total_rep'] or 0.0) if row_rep else 0.0
+    # CÁLCULO CONTABLE EXACTO PARA EL BALANCE GLOBAL DE LA TAQUILLA
+    cursor.execute("SELECT SUM(monto) as sum_rep_base FROM reportes WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
+    row_base_rep = cursor.fetchone()
+    base_rep_total = float(row_base_rep['sum_rep_base'] or 0.0) if row_base_rep else 0.0
 
-    cursor.execute("SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND abs(monto) > 0.01 ORDER BY fecha DESC", (agencia_norm,))
+    # Total de abonos realizados por la taquilla
+    cursor.execute("SELECT SUM(monto) as sum_abonos FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo IN ('PAGO_TAQUILLA', 'PAGO_BANCA') AND estado = 'APROBADO'", (agencia_norm,))
+    row_ab = cursor.fetchone()
+    tot_abonos = float(row_ab['sum_abonos'] or 0.0) if row_ab else 0.0
+
+    # Total de liquidaciones pagadas por la administración a la taquilla
+    cursor.execute("SELECT SUM(monto) as sum_liq FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'LIQUIDACION' AND estado = 'APROBADO'", (agencia_norm,))
+    row_liq = cursor.fetchone()
+    tot_liquidaciones = float(row_liq['sum_liq'] or 0.0) if row_liq else 0.0
+
+    # El saldo acumulado actual de la cuenta
+    saldo_acumulado = base_rep_total + tot_liquidaciones - tot_abonos
+    if abs(saldo_acumulado) < 0.05:
+        saldo_acumulado = 0.0
+
+    cursor.execute("SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND abs(monto) > 0.05 ORDER BY fecha DESC", (agencia_norm,))
     items_pendientes = [dict(row) for row in cursor.fetchall()]
 
     conn.close()
@@ -1272,6 +1333,7 @@ def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[st
         return RedirectResponse(url=redirect_to, status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
+# PROCESAR SOLICITUD DE DINERO (SALDA INMEDIATAMENTE EL REPORTE PENDIENTE)
 @app.post("/admin/procesar-solicitud-dinero")
 async def post_procesar_solicitud_dinero(
     solicitud_id: int = Form(...),
@@ -1289,7 +1351,8 @@ async def post_procesar_solicitud_dinero(
     if solicitud:
         monto_original = float(solicitud['monto'] or 0.0)
         monto_pagar = monto_original if accion == "COMPLETO" else float(monto_abono or 0.0)
-        
+        agencia_norm = normalizar(agencia)
+
         nombre_guardado = f"Liquidación Saldo #{solicitud_id}"
         if comprobante_file and comprobante_file.filename:
             contenido = await comprobante_file.read()
@@ -1309,19 +1372,38 @@ async def post_procesar_solicitud_dinero(
         cursor.execute(
             """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) 
                VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
-            (normalizar(agencia), fecha, monto_pagar, f"Liquidación {accion}", nombre_guardado)
+            (agencia_norm, fecha, monto_pagar, f"Liquidación {accion} (Saldo del {fecha})", nombre_guardado)
         )
 
         cursor.execute(
             "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
-            (f"Se te ha transferido Bs. {monto_pagar:,.2f} ({accion}) para saldar tu cuenta.", normalizar(agencia))
+            (f"Se te ha transferido Bs. {monto_pagar:,.2f} ({accion}) para saldar tu cuenta.", agencia_norm)
         )
+
+        # Saldar directamente el reporte que tenía el saldo negativo
+        cursor.execute(
+            "SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND monto < -0.05 ORDER BY fecha DESC LIMIT 1",
+            (agencia_norm,)
+        )
+        rep_negativo = cursor.fetchone()
+        fecha_rep_ajustar = rep_negativo['fecha'] if rep_negativo else fecha
+
+        if rep_negativo:
+            nuevo_monto_rep = float(rep_negativo['monto']) + monto_pagar
+            if abs(nuevo_monto_rep) < 0.05:
+                nuevo_monto_rep = 0.0
+            cursor.execute("UPDATE reportes SET monto = %s WHERE id = %s", (nuevo_monto_rep, rep_negativo['id']))
+
         conn.commit()
 
     conn.close()
     recalcular_y_actualizar_reporte(agencia, fecha)
+    if 'fecha_rep_ajustar' in locals() and fecha_rep_ajustar != fecha:
+        recalcular_y_actualizar_reporte(agencia, fecha_rep_ajustar)
+
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
+# CONFIRMAR O RECHAZAR PAGO DE LA TAQUILLA (DESCUENTA DE INMEDIATO LA DEUDA)
 @app.post("/admin/validar-pago")
 def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
     conn = get_db()
@@ -1330,13 +1412,26 @@ def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
     pago = cursor.fetchone()
 
     if pago:
-        agencia_p = pago['agencia']
+        agencia_p = normalizar(pago['agencia'])
         fecha_p = pago['fecha']
         monto_p = float(pago['monto'] or 0.0)
         
         if accion == "APROBAR":
             cursor.execute("UPDATE pagos SET estado = 'APROBADO' WHERE id = %s", (solicitud_id,))
-            msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido APROBADO y aplicado a tu cuenta."
+            msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido APROBADO y acreditado a tu cuenta."
+            
+            # Buscar el reporte deudor más reciente y descontar el pago
+            cursor.execute(
+                "SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND monto > 0.05 ORDER BY fecha DESC LIMIT 1",
+                (agencia_p,)
+            )
+            rep_deuda = cursor.fetchone()
+            if rep_deuda:
+                nuevo_saldo = float(rep_deuda['monto']) - monto_p
+                if abs(nuevo_saldo) < 0.05:
+                    nuevo_saldo = 0.0
+                cursor.execute("UPDATE reportes SET monto = %s WHERE id = %s", (nuevo_saldo, rep_deuda['id']))
+                fecha_p = rep_deuda['fecha']
         else:
             cursor.execute("UPDATE pagos SET estado = 'RECHAZADO' WHERE id = %s", (solicitud_id,))
             msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido RECHAZADO. Por favor verifica con la administración."
@@ -1389,6 +1484,12 @@ async def post_liquidar_saldo_negativo(
         """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
            VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
         (agencia_norm, fecha, monto_pago, "Liquidación Saldo a Favor", comprobante_valor)
+    )
+
+    # Saldar el reporte de la fecha correspondiente
+    cursor.execute(
+        "UPDATE reportes SET monto = 0.0 WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s",
+        (agencia_norm, fecha)
     )
 
     mensaje = f"✅ Tu saldo a favor de Bs. {monto_pago:,.2f} del día {fecha} ha sido LIQUIDADO. Ya puedes revisar tu capture."
