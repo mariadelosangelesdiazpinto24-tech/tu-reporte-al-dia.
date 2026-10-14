@@ -72,7 +72,7 @@
             </div>
         </div>
 
-        <!-- CREAR/ACTUALIZAR TAQUILLAS (SIN BANQUERO) -->
+        <!-- CREAR/ACTUALIZAR TAQUILLAS -->
         <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
             <div class="card-body">
                 <h5 class="fw-bold text-admin-theme mb-3"><i class="fas fa-store"></i> Crear o Actualizar Taquilla / Agencia 🍀</h5>
@@ -217,14 +217,13 @@
                 </div>
             </div>
 
-            <!-- 3. TRANSACCIONES (CON FILTRO DE TIPO DE PAGO) -->
+            <!-- 3. TRANSACCIONES (CON COMPROBANTES CORREGIDOS Y FILTRO) -->
             <div class="tab-pane fade {% if tab == 'transacciones' or tab_activa == 'transacciones' or not tab %}show active{% endif %}" id="transacciones" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                             <h5 class="fw-bold text-admin-theme m-0"><i class="fas fa-history"></i> Transacciones y Solicitudes</h5>
                             
-                            <!-- FILTRO POR TIPO DE TRANSACCIÓN -->
                             <form method="GET" action="/admin" class="d-flex align-items-center gap-2">
                                 <input type="hidden" name="tab" value="transacciones">
                                 <select name="tipo_transaccion" class="form-select form-select-sm border-admin-theme" onchange="this.form.submit()">
@@ -317,7 +316,7 @@
                 </div>
             </div>
 
-            <!-- 4. BALANCES GLOBALES (DETALLADOS CON REPORTE, CASHEA, PENDIENTE, ADELANTOS, ABONOS) -->
+            <!-- 4. BALANCES GLOBALES -->
             <div class="tab-pane fade {% if tab == 'balances' or tab_activa == 'balances' %}show active{% endif %}" id="balances" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4 p-3 bg-light rounded">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
@@ -365,6 +364,13 @@
                                                         <button type="button" class="btn btn-outline-primary btn-sm rounded-circle shadow-sm" data-bs-toggle="modal" data-bs-target="#modalEditarPos{{ loop.index }}" title="Editar Monto Manual">
                                                             <i class="fas fa-pencil-alt"></i>
                                                         </button>
+                                                        <form action="/admin/restablecer-monto-reporte-colab" method="POST" style="display:inline;" onsubmit="return confirm('¿Restablecer saldo de {{ pos.agencia }} al cálculo original de Colab?');">
+                                                            <input type="hidden" name="agencia" value="{{ pos.agencia }}">
+                                                            <input type="hidden" name="fecha" value="{{ pos.fecha }}">
+                                                            <button type="submit" class="btn btn-outline-secondary btn-sm rounded-circle shadow-sm" title="Restablecer a lo que envió Colab">
+                                                                <i class="fas fa-undo"></i>
+                                                            </button>
+                                                        </form>
                                                         <form action="/admin/eliminar-ajustes-agencia" method="POST" style="display:inline;" onsubmit="return confirm('¿Eliminar diferenciales de {{ pos.agencia }}?');">
                                                             <input type="hidden" name="agencia" value="{{ pos.agencia }}">
                                                             <input type="hidden" name="fecha" value="{{ pos.fecha }}">
@@ -375,7 +381,6 @@
                                                     </div>
                                                 </td>
                                             </tr>
-                                            <!-- DESGLOSE DETALLADO SOLICITADO -->
                                             <tr class="collapse bg-light" id="desglosePos{{ loop.index }}">
                                                 <td colspan="4" class="p-3">
                                                     <div class="p-2 border rounded bg-white shadow-sm small">
@@ -394,7 +399,6 @@
                                                 </td>
                                             </tr>
 
-                                            <!-- MODAL EDITAR POSITIVO -->
                                             <div class="modal fade" id="modalEditarPos{{ loop.index }}" tabindex="-1" aria-hidden="true">
                                                 <div class="modal-dialog modal-dialog-centered modal-sm">
                                                     <div class="modal-content" style="border-radius: 12px; overflow: hidden;">
@@ -448,6 +452,13 @@
                                                         <button type="button" class="btn btn-outline-primary btn-sm rounded-circle shadow-sm" data-bs-toggle="modal" data-bs-target="#modalEditarNeg{{ neg_idx }}" title="Corregir saldo a mano">
                                                             <i class="fas fa-pencil-alt"></i>
                                                         </button>
+                                                        <form action="/admin/restablecer-monto-reporte-colab" method="POST" style="display:inline;" onsubmit="return confirm('¿Restablecer saldo de {{ neg.agencia }} al cálculo original de Colab?');">
+                                                            <input type="hidden" name="agencia" value="{{ neg.agencia }}">
+                                                            <input type="hidden" name="fecha" value="{{ neg.fecha }}">
+                                                            <button type="submit" class="btn btn-outline-secondary btn-sm rounded-circle shadow-sm" title="Restablecer a lo que envió Colab">
+                                                                <i class="fas fa-undo"></i>
+                                                            </button>
+                                                        </form>
                                                         <form action="/admin/eliminar-ajustes-agencia" method="POST" style="display:inline;" onsubmit="return confirm('¿Eliminar diferenciales de {{ neg.agencia }}?');">
                                                             <input type="hidden" name="agencia" value="{{ neg.agencia }}">
                                                             <input type="hidden" name="fecha" value="{{ neg.fecha }}">
@@ -458,7 +469,6 @@
                                                     </div>
                                                 </td>
                                             </tr>
-                                            <!-- DESGLOSE DETALLADO SOLICITADO -->
                                             <tr class="collapse bg-light" id="desgloseNeg{{ neg_idx }}">
                                                 <td colspan="4" class="p-3">
                                                     <div class="p-2 border rounded bg-white shadow-sm small mb-2">
@@ -480,7 +490,6 @@
                                                 </td>
                                             </tr>
 
-                                            <!-- MODAL EDITAR NEGATIVO -->
                                             <div class="modal fade" id="modalEditarNeg{{ neg_idx }}" tabindex="-1" aria-hidden="true">
                                                 <div class="modal-dialog modal-dialog-centered modal-sm">
                                                     <div class="modal-content" style="border-radius: 12px; overflow: hidden;">
@@ -503,7 +512,6 @@
                                                 </div>
                                             </div>
 
-                                            <!-- MODAL LIQUIDAR CON CAPTURE -->
                                             <div class="modal fade" id="modalPagarNeg{{ neg_idx }}" tabindex="-1">
                                                 <div class="modal-dialog modal-dialog-centered">
                                                     <div class="modal-content text-start">
@@ -535,16 +543,14 @@
                 </div>
             </div>
 
-            <!-- 5. CASHEA GENERAL (CON TARJETA DE TOTAL ABSORBIDO) -->
+            <!-- 5. CASHEA GENERAL -->
             <div class="tab-pane fade {% if tab == 'cashea' or tab_activa == 'cashea' %}show active{% endif %}" id="cashea" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #00bcd4; border-radius: 15px;">
                     <div class="card-body">
-                        
-                        <!-- TARJETA DESTACADA: TOTAL CASHEA ABSORBIDO EN EL RANGO -->
                         <div class="p-3 mb-3 rounded shadow-sm d-flex justify-content-between align-items-center flex-wrap gap-2" style="background: linear-gradient(135deg, #e0f7fa, #ffffff); border: 2px solid #00bcd4;">
                             <div>
                                 <h6 class="fw-bold text-dark m-0"><i class="fas fa-shopping-cart text-info me-2"></i>TOTAL CASHEA ABSORBIDO EN EL PERÍODO</h6>
-                                <small class="text-muted">Monto total absorbido por la banca en el rango de fechas seleccionado</small>
+                                <small class="text-muted">Monto total absorbido por la banca en el rango de fechas</small>
                             </div>
                             <h3 class="fw-bold text-info m-0">Bs. {{ total_cashea_filtrado | dinero }}</h3>
                         </div>
@@ -745,15 +751,12 @@
                 </div>
             </div>
 
-            <!-- 8. TOTALIZADOR (CON BUSCADOR POR RANGO DE FECHAS) -->
+            <!-- 8. TOTALIZADOR -->
             <div class="tab-pane fade {% if tab == 'totalizador' or tab_activa == 'totalizador' %}show active{% endif %}" id="totalizador" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #0d47a1;">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                            <h5 class="fw-bold text-primary m-0"><i class="fas fa-calculator me-2"></i>Totalizador Financiero Global</h5>
-                        </div>
+                        <h5 class="fw-bold text-primary mb-3"><i class="fas fa-calculator me-2"></i>Totalizador Financiero Global</h5>
 
-                        <!-- FILTRO POR FECHAS PARA TOTALIZADOR -->
                         <form method="GET" action="/admin" class="row g-3 align-items-end mb-4 p-3 bg-light rounded shadow-sm border">
                             <input type="hidden" name="tab" value="totalizador">
                             <div class="col-md-5">
@@ -803,7 +806,7 @@
                 </div>
             </div>
 
-            <!-- 9. DESGLOSE BANCA (CON BOTÓN DIRECTO DE RESTABLECER SI FUE EDITADO) -->
+            <!-- 9. DESGLOSE BANCA (BOTÓN RESTABLECER SIEMPRE VISIBLE) -->
             <div class="tab-pane fade {% if tab == 'desglose_banca' or tab_activa == 'desglose_banca' %}show active{% endif %}" id="desglose_banca" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
@@ -893,16 +896,13 @@
                                                             <div class="d-inline-flex gap-1 align-items-center">
                                                                 <button class="btn btn-sm btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#modalEditVal{{ b_idx }}_{{ s_idx }}" title="Editar Montos"><i class="fas fa-edit"></i></button>
                                                                 
-                                                                <!-- BOTÓN DIRECTO DE RESTABLECER SI FUE EDITADO -->
-                                                                {% if sys.ajustado_manual %}
-                                                                <form method="POST" action="/admin/restablecer-ajuste-banquero-sistema" style="display:inline;" onsubmit="return confirm('¿Restablecer {{ sys.sistema }} a los valores originales de Colab?');">
+                                                                <form method="POST" action="/admin/restablecer-ajuste-banquero-sistema" style="display:inline;" onsubmit="return confirm('¿Restablecer {{ sys.sistema }} a los datos originales de Colab?');">
                                                                     <input type="hidden" name="banquero" value="{{ banquero }}">
                                                                     <input type="hidden" name="sistema" value="{{ sys.sistema }}">
                                                                     <input type="hidden" name="desde_fecha" value="{{ desde_fecha }}">
                                                                     <input type="hidden" name="hasta_fecha" value="{{ hasta_fecha }}">
-                                                                    <button type="submit" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Restablecer valores"><i class="fas fa-undo"></i></button>
+                                                                    <button type="submit" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Restablecer a valores de Colab"><i class="fas fa-undo"></i></button>
                                                                 </form>
-                                                                {% endif %}
                                                             </div>
 
                                                             <div class="modal fade" id="modalEditVal{{ b_idx }}_{{ s_idx }}" tabindex="-1">
