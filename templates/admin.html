@@ -49,7 +49,7 @@
             border-radius: 10px 10px 0 0;
             transition: all 0.2s ease;
         }
-        .nav-tabs .nav-link:hover {
+        .nav-tabs .nav-link:hover { 
             color: var(--primary-tema);
             background: rgba(233, 30, 99, 0.05);
         }
@@ -252,6 +252,7 @@
                                 <option value="TODOS">Todos los tipos</option>
                                 <option value="MODIFICACION">MODIFICACION</option>
                                 <option value="PAGO_TAQUILLA">PAGO TAQUILLA (ABONO)</option>
+                                <option value="AJUSTE_BANCA">AJUSTE DE BANCA</option>
                                 <option value="LIQUIDACION">LIQUIDACION</option>
                                 <option value="ADELANTO">ADELANTO</option>
                                 <option value="SOLICITUD_BANCA">SOLICITUD BANCA</option>
@@ -364,6 +365,7 @@
                     </form>
 
                     <div class="row g-3">
+                        <!-- DEBEN A LA BANCA -->
                         <div class="col-md-6">
                             <div class="border rounded-3 p-3 bg-light">
                                 <h6 class="fw-bold text-success mb-3"><i class="fas fa-arrow-down me-1"></i> Deben a la Banca (+)</h6>
@@ -377,17 +379,28 @@
                                             <tr>
                                                 <td>
                                                     <a href="javascript:void(0)" class="fw-bold text-decoration-none text-dark" 
-                                                       onclick="abrirModalDesglose('{{ pos.agencia }}', '{{ pos.reportes if pos.reportes is defined and pos.reportes != 0 else pos.monto }}', '{{ pos.cashea or 0 }}', '{{ pos.adelantos or 0 }}', '{{ pos.abonos or 0 }}', '{{ pos.monto }}')">
+                                                       onclick="abrirModalDesglose('{{ pos.agencia }}', '{{ pos.reporte_neto or 0 }}', '{{ pos.cashea or 0 }}', '{{ pos.adelantos or 0 }}', '{{ pos.abonos or 0 }}', '{{ pos.monto }}')">
                                                         <i class="fas fa-circle-info text-primary me-1"></i>{{ pos.agencia }}
                                                     </a>
                                                 </td>
                                                 <td>{{ pos.fecha }}</td>
                                                 <td class="text-end fw-bold text-success">Bs. {{ pos.monto | dinero }}</td>
                                                 <td class="text-center">
-                                                    <form action="/admin/restablecer-monto-reporte-colab" method="POST" class="d-inline" onsubmit="return confirm('¿Saldar cuenta a 0.00?');">
+                                                    <!-- Botón Saldar Deuda a 0.00 (Ajuste de Banca) -->
+                                                    <form action="/admin/saldar-deuda-taquilla" method="POST" class="d-inline" onsubmit="return confirm('¿Saldar la deuda de {{ pos.agencia }} y llevarla a 0.00 Bs? Se guardará un AJUSTE DE BANCA.');">
+                                                        <input type="hidden" name="agencia" value="{{ pos.agencia }}">
+                                                        <input type="hidden" name="monto_restante" value="{{ pos.monto }}">
+                                                        <input type="hidden" name="fecha" value="{{ pos.fecha }}">
+                                                        <button type="submit" class="btn btn-outline-success btn-sm py-0 px-2 rounded-circle me-1" title="Saldar Deuda a 0.00 Bs">
+                                                            <i class="fas fa-check-double"></i>
+                                                        </button>
+                                                    </form>
+
+                                                    <!-- Botón Limpiar / Reiniciar -->
+                                                    <form action="/admin/restablecer-monto-reporte-colab" method="POST" class="d-inline" onsubmit="return confirm('¿Reiniciar reporte de {{ pos.agencia }} a 0.00?');">
                                                         <input type="hidden" name="agencia" value="{{ pos.agencia }}">
                                                         <input type="hidden" name="fecha" value="{{ pos.fecha }}">
-                                                        <button type="submit" class="btn btn-outline-secondary btn-sm py-0 rounded-circle"><i class="fas fa-rotate-left"></i></button>
+                                                        <button type="submit" class="btn btn-outline-secondary btn-sm py-0 rounded-circle" title="Restablecer monto"><i class="fas fa-rotate-left"></i></button>
                                                     </form>
                                                 </td>
                                             </tr>
@@ -400,6 +413,7 @@
                             </div>
                         </div>
 
+                        <!-- A PAGARLES -->
                         <div class="col-md-6">
                             <div class="border rounded-3 p-3 bg-light">
                                 <h6 class="fw-bold text-danger mb-3"><i class="fas fa-arrow-up me-1"></i> A Pagarles (-)</h6>
@@ -413,17 +427,28 @@
                                             <tr>
                                                 <td>
                                                     <a href="javascript:void(0)" class="fw-bold text-decoration-none text-dark"
-                                                       onclick="abrirModalDesglose('{{ neg.agencia }}', '{{ neg.reportes if neg.reportes is defined and neg.reportes != 0 else neg.monto }}', '{{ neg.cashea or 0 }}', '{{ neg.adelantos or 0 }}', '{{ neg.abonos or 0 }}', '{{ neg.monto }}')">
+                                                       onclick="abrirModalDesglose('{{ neg.agencia }}', '{{ neg.reporte_neto or 0 }}', '{{ neg.cashea or 0 }}', '{{ neg.adelantos or 0 }}', '{{ neg.abonos or 0 }}', '{{ neg.monto }}')">
                                                         <i class="fas fa-circle-info text-danger me-1"></i>{{ neg.agencia }}
                                                     </a>
                                                 </td>
                                                 <td>{{ neg.fecha }}</td>
                                                 <td class="text-end fw-bold text-danger">Bs. {{ neg.monto | dinero }}</td>
                                                 <td class="text-center">
-                                                    <form action="/admin/restablecer-monto-reporte-colab" method="POST" class="d-inline" onsubmit="return confirm('¿Saldar cuenta a 0.00?');">
+                                                    <!-- Botón Saldar Saldo a Favor a 0.00 -->
+                                                    <form action="/admin/saldar-deuda-taquilla" method="POST" class="d-inline" onsubmit="return confirm('¿Saldar la cuenta a favor de {{ neg.agencia }} y llevarla a 0.00 Bs? Se guardará una LIQUIDACION.');">
+                                                        <input type="hidden" name="agencia" value="{{ neg.agencia }}">
+                                                        <input type="hidden" name="monto_restante" value="-{{ neg.monto }}">
+                                                        <input type="hidden" name="fecha" value="{{ neg.fecha }}">
+                                                        <button type="submit" class="btn btn-outline-success btn-sm py-0 px-2 rounded-circle me-1" title="Saldar a 0.00 Bs">
+                                                            <i class="fas fa-check-double"></i>
+                                                        </button>
+                                                    </form>
+
+                                                    <!-- Botón Limpiar / Reiniciar -->
+                                                    <form action="/admin/restablecer-monto-reporte-colab" method="POST" class="d-inline" onsubmit="return confirm('¿Reiniciar reporte de {{ neg.agencia }} a 0.00?');">
                                                         <input type="hidden" name="agencia" value="{{ neg.agencia }}">
                                                         <input type="hidden" name="fecha" value="{{ neg.fecha }}">
-                                                        <button type="submit" class="btn btn-outline-secondary btn-sm py-0 rounded-circle"><i class="fas fa-rotate-left"></i></button>
+                                                        <button type="submit" class="btn btn-outline-secondary btn-sm py-0 rounded-circle" title="Restablecer monto"><i class="fas fa-rotate-left"></i></button>
                                                     </form>
                                                 </td>
                                             </tr>
@@ -527,7 +552,7 @@
                 </div>
             </div>
 
-            <!-- 6. DATA CASHEA: CONSOLIDADO POR AGENCIA EN RANGO + TOTALES AL COPIAR -->
+            <!-- 6. DATA CASHEA -->
             <div class="tab-pane fade {% if tab_activa == 'cashea' %}show active{% endif %}" id="tab-cashea" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
@@ -555,7 +580,6 @@
                         <span class="badge bg-info text-dark fs-6 px-3 py-2 rounded-pill" id="badgeTotalCashea">Total Absorbido: Bs. {{ total_cashea_filtrado | dinero }}</span>
                     </div>
 
-                    <!-- TABLA AGRUPADA POR AGENCIA -->
                     <div class="table-responsive">
                         <table class="table table-sm table-hover align-middle mb-0" id="tablaCasheaAgrupada">
                             <thead class="table-light">
@@ -566,7 +590,6 @@
                                 </tr>
                             </thead>
                             <tbody id="tbodyCasheaAgrupado">
-                                <!-- Se llena dinámicamente con JS garantizando suma limpia -->
                             </tbody>
                             <tfoot class="table-light fw-bold">
                                 <tr>
@@ -577,7 +600,6 @@
                         </table>
                     </div>
 
-                    <!-- TABLA FUENTE OCULTA DE REGISTROS PARA EL JS -->
                     <table class="d-none" id="tablaFuenteCashea">
                         <tbody>
                             {% for c in casheas_generales %}
@@ -656,7 +678,7 @@
                 </div>
             </div>
 
-            <!-- 8. AUDITORÍA: ACORDEÓN -->
+            <!-- 8. AUDITORÍA -->
             <div class="tab-pane fade {% if tab_activa == 'auditoria' %}show active{% endif %}" id="tab-auditoria" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
@@ -766,7 +788,7 @@
                 </div>
             </div>
 
-            <!-- 10. DESGLOSE BANCA (MONTOS MATEMÁTICAMENTE EXACTOS) -->
+            <!-- 10. DESGLOSE BANCA -->
             <div class="tab-pane fade {% if tab_activa == 'desglose_banca' %}show active{% endif %}" id="tab-desglose-banca" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end">
@@ -789,7 +811,6 @@
 
                 {% for b_nom, b_info in desglose_banqueros.items() %}
                 <div class="row g-3 mb-4 banquero-bloque" data-banquero="{{ b_nom }}">
-                    <!-- CUADRO BANQUERO -->
                     <div class="col-lg-8">
                         <div class="card p-3 border rounded-3 bg-white shadow-sm h-100">
                             <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom flex-wrap gap-2">
@@ -854,7 +875,6 @@
                         </div>
                     </div>
 
-                    <!-- CUADRO DE GANANCIAS PERSONAL (SIN MONTOS MILLONARIOS ANÓMALOS) -->
                     <div class="col-lg-4">
                         <div class="tarjeta-mi-ganancia-banca shadow-sm h-100" id="tarjeta_ganancia_{{ loop.index }}">
                             <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom border-light border-opacity-25">
@@ -964,11 +984,9 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // PARSEAR MONTO RESPETANDO MILES (.) Y DECIMALES (,) EN VENEZUELA
         function parseMonto(txt) {
             if (!txt) return 0;
-            var str = txt.replace('Bs.', '').trim();
-            // Si tiene punto como separador de miles y coma decimal (ej: 282.910,00)
+            var str = String(txt).replace('Bs.', '').trim();
             if (str.indexOf('.') > -1 && str.indexOf(',') > -1) {
                 str = str.replace(/\./g, '').replace(',', '.');
             } else if (str.indexOf(',') > -1) {
@@ -979,11 +997,10 @@
         }
 
         function formatoBs(val) {
-            return "Bs. " + val.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return "Bs. " + Number(val).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
         document.addEventListener("DOMContentLoaded", function() {
-            // 1. CALCULO EXACTO DE BANQUEROS Y MIS GANANCIAS PRIVADAS
             var bloques = document.querySelectorAll(".banquero-bloque");
             bloques.forEach(function(b) {
                 var tabla = b.querySelector(".tabla-banquero-calculo");
@@ -1007,7 +1024,6 @@
                     totFinal += fin;
                 });
 
-                // Totales exactos en el pie de tabla
                 tabla.querySelector(".foot-venta").innerText = formatoBs(totVenta);
                 tabla.querySelector(".foot-premio").innerText = formatoBs(totPremio);
                 tabla.querySelector(".foot-comision").innerText = formatoBs(totComision);
@@ -1015,7 +1031,6 @@
                 tabla.querySelector(".foot-part").innerText = formatoBs(totPart);
                 tabla.querySelector(".foot-final").innerText = formatoBs(totFinal);
 
-                // Cuadro de ganancias privadas: suma exacta de los diferenciales por sistema
                 var box = b.querySelector(".tarjeta-mi-ganancia-banca");
                 var difFilas = box.querySelectorAll(".fila-dif-sistema");
                 var gananciaExcedente = 0;
@@ -1023,7 +1038,7 @@
                     gananciaExcedente += parseMonto(df.querySelector(".dif-monto").innerText);
                 });
 
-                var gananciaParticipacion = totPart; // La participación calculada
+                var gananciaParticipacion = totPart;
                 var gananciaTotal = gananciaExcedente + gananciaParticipacion;
 
                 box.querySelector(".val-mi-ganancia-total").innerText = formatoBs(gananciaTotal);
@@ -1031,11 +1046,9 @@
                 box.querySelector(".val-ganancia-participacion").innerText = formatoBs(gananciaParticipacion);
             });
 
-            // 2. CONSOLIDAR DATA CASHEA POR AGENCIA
             consolidarCasheaPorAgencia();
         });
 
-        // AGRUPADOR INTELIGENTE DE CASHEA
         var casheaAgrupadoGlobal = {};
 
         function consolidarCasheaPorAgencia() {
@@ -1088,7 +1101,6 @@
             document.getElementById("tfootTotalCashea").innerText = formatoBs(granTotal);
         }
 
-        // COPIAR CASHEA CON SU TOTAL CORRESPONDIENTE
         function copiarCasheaGlobal() {
             var texto = "🛒 FACTURAS CASHEA ABSORBIDAS POR AGENCIA 🛒\n";
             texto += "Período: {{ desde_fecha }} al {{ hasta_fecha }}\n";
@@ -1113,7 +1125,6 @@
             });
         }
 
-        // COPIAR REPORTE BANQUERO DETALLADO CON TOTALES INCLUIDOS AL FINAL
         function copiarReporteBanqueroDetallado(nombreBanquero, tableId) {
             var tabla = document.getElementById(tableId);
             var texto = "🏪 LIQUIDACIÓN: " + nombreBanquero.toUpperCase() + "\n";
@@ -1155,7 +1166,6 @@
             });
         }
 
-        // FILTRAR TRANSACCIONES
         function filtrarTransacciones() {
             var filtro = document.getElementById("filtroTipoTransaccion").value;
             var filas = document.querySelectorAll("#tablaTransacciones .fila-transaccion");
@@ -1169,31 +1179,31 @@
             });
         }
 
-        // MODAL DESGLOSE DE FORMULA (BALANCES)
-        function abrirModalDesglose(agencia, reportes, cashea, adelantos, abonos, total) {
+        // MODAL DESGLOSE DE FÓRMULA EXACTA
+        function abrirModalDesglose(agencia, reportes, cashea, adelantos, abonos, totalBackend) {
             document.getElementById("modalDesgloseTitulo").innerText = "Desglose de Balance: " + agencia;
             
-            var totalNum = parseMonto(total);
             var repNum = parseMonto(reportes);
             var casNum = parseMonto(cashea);
             var adeNum = parseMonto(adelantos);
             var aboNum = parseMonto(abonos);
 
-            if (repNum === 0 && casNum === 0 && adeNum === 0 && aboNum === 0 && totalNum !== 0) {
-                repNum = totalNum;
+            // Fórmula: Reportes - Cashea - Adelantos + Abonos
+            var calculoExacto = repNum - casNum - adeNum + aboNum;
+            if (Math.abs(calculoExacto) < 0.05) {
+                calculoExacto = 0;
             }
 
             document.getElementById("mdlReportes").innerText = formatoBs(repNum);
             document.getElementById("mdlCashea").innerText = formatoBs(casNum);
             document.getElementById("mdlAdelantos").innerText = formatoBs(adeNum);
             document.getElementById("mdlAbonos").innerText = formatoBs(aboNum);
-            document.getElementById("mdlTotal").innerText = formatoBs(totalNum);
+            document.getElementById("mdlTotal").innerText = formatoBs(calculoExacto);
             
             var modal = new bootstrap.Modal(document.getElementById('modalDesgloseAgencia'));
             modal.show();
         }
 
-        // MODAL EDITAR REPORTE
         function abrirModalEditarReporte(banquero) {
             document.getElementById("editAgencia").value = banquero;
             document.getElementById("modalEditarTitulo").innerHTML = '<i class="fas fa-edit text-tema me-1"></i> Modificar Sistema - ' + banquero;
@@ -1209,7 +1219,6 @@
             }
         }
 
-        // COPIAR BALANCES GLOBALES
         function copiarReporteGlobal() {
             var texto = "🍀 BALANCES GLOBALES - LOS ÁNGELES DEL DINERO 🍀\n\n";
             texto += "📥 DEBEN A LA BANCA (+):\n";
