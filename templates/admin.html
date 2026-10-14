@@ -59,9 +59,9 @@
                 <h3 class="fw-bold m-0"><i class="fas fa-crown"></i> Administrador - Los Ángeles del Dinero 🍀🌺</h3>
                 
                 <div class="d-flex align-items-center gap-2">
-                    <a href="/admin?tab=transacciones" class="btn btn-campanita text-decoration-none" title="Solicitudes pendientes">
+                    <a href="/admin?tab=transacciones" class="btn btn-campanita text-decoration-none" title="Solicitudes y Pagos pendientes">
                         <i class="fas fa-bell"></i>
-                        <span>Solicitudes</span>
+                        <span>Pendientes</span>
                         {% if solicitudes_pendientes_count > 0 %}
                         <span class="campana-badge">{{ solicitudes_pendientes_count }}</span>
                         {% endif %}
@@ -71,6 +71,78 @@
                 </div>
             </div>
         </div>
+
+        <!-- CAJÓN DE ACCIÓN RÁPIDA: PAGOS Y SOLICITUDES PENDIENTES POR CONFIRMAR -->
+        {% if solicitudes_pendientes and solicitudes_pendientes | length > 0 %}
+        <div class="card border-0 shadow-sm mb-4" style="border-radius: 15px; border-left: 6px solid #ff9800 !important; background: #fffde7;">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="fw-bold text-warning m-0" style="color: #e65100 !important;">
+                        <i class="fas fa-exclamation-circle me-1"></i> Notificaciones Pendientes de Confirmación ({{ solicitudes_pendientes | length }})
+                    </h5>
+                    <span class="badge bg-warning text-dark fw-bold">Atención requerida</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0 bg-white border rounded">
+                        <thead class="table-light">
+                            <tr><th>Agencia</th><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Capture / Ref</th><th class="text-center">Confirmar / Acción</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for sp in solicitudes_pendientes %}
+                            <tr>
+                                <td class="fw-bold">{{ sp.agencia }}</td>
+                                <td>{{ sp.fecha }}</td>
+                                <td>
+                                    {% if sp.tipo == 'PAGO_TAQUILLA' %}
+                                        <span class="badge bg-success">Pago Recibido</span>
+                                    {% elif sp.tipo == 'SOLICITUD_BANCA' %}
+                                        <span class="badge bg-primary">Solicitud a Banca</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ sp.tipo }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="fw-bold text-dark">Bs. {{ sp.monto | dinero }}</td>
+                                <td>
+                                    {% if sp.comprobante %}
+                                        <a href="/comprobante/{{ sp.id }}" class="btn btn-sm btn-outline-primary py-0"><i class="fas fa-download me-1"></i> Capture</a>
+                                    {% else %}
+                                        {{ sp.factura }}
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if sp.tipo == 'PAGO_TAQUILLA' %}
+                                    <form action="/admin/validar-pago" method="POST" style="display:inline;">
+                                        <input type="hidden" name="solicitud_id" value="{{ sp.id }}">
+                                        <input type="hidden" name="accion" value="APROBAR">
+                                        <button type="submit" class="btn btn-success btn-sm fw-bold px-2" title="Aprobar pago"><i class="fas fa-check me-1"></i> Confirmar Pago</button>
+                                    </form>
+                                    <form action="/admin/validar-pago" method="POST" style="display:inline;">
+                                        <input type="hidden" name="solicitud_id" value="{{ sp.id }}">
+                                        <input type="hidden" name="accion" value="RECHAZAR">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm fw-bold px-2" title="Rechazar"><i class="fas fa-times"></i></button>
+                                    </form>
+                                    {% elif sp.tipo == 'SOLICITUD_BANCA' %}
+                                    <form action="/admin/procesar-solicitud-dinero" method="POST" enctype="multipart/form-data" class="d-inline-flex gap-1 align-items-center">
+                                        <input type="hidden" name="solicitud_id" value="{{ sp.id }}">
+                                        <input type="hidden" name="agencia" value="{{ sp.agencia }}">
+                                        <input type="hidden" name="fecha" value="{{ sp.fecha }}">
+                                        <select name="accion" class="form-select form-select-sm" style="width: 100px;">
+                                            <option value="COMPLETO">Completo</option>
+                                            <option value="ABONO">Abono</option>
+                                        </select>
+                                        <input type="file" name="comprobante_file" class="form-control form-control-sm" style="width: 120px;" accept="image/*,.pdf" required>
+                                        <button type="submit" class="btn btn-primary btn-sm fw-bold"><i class="fas fa-paper-plane me-1"></i> Transferir</button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- CREAR/ACTUALIZAR TAQUILLAS -->
         <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
@@ -217,7 +289,7 @@
                 </div>
             </div>
 
-            <!-- 3. TRANSACCIONES (CON COMPROBANTES CORREGIDOS Y FILTRO) -->
+            <!-- 3. TRANSACCIONES -->
             <div class="tab-pane fade {% if tab == 'transacciones' or tab_activa == 'transacciones' or not tab %}show active{% endif %}" id="transacciones" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #e91e63 !important;">
                     <div class="card-body">
@@ -252,10 +324,10 @@
                                             Bs. {{ p.monto | default(0) | dinero }}
                                         </td>
                                         <td>
-                                            {% if p.comprobante and (p.comprobante.endswith('.png') or p.comprobante.endswith('.jpg') or p.comprobante.endswith('.jpeg') or p.comprobante.endswith('.pdf')) %}
-                                                <a href="/uploads/{{ p.comprobante }}" target="_blank" class="btn btn-sm btn-outline-primary py-0"><i class="fas fa-image me-1"></i>Ver Capture</a>
+                                            {% if p.comprobante %}
+                                                <a href="/comprobante/{{ p.id }}" class="btn btn-sm btn-outline-primary py-0"><i class="fas fa-download me-1"></i> Descargar Capture</a>
                                             {% else %}
-                                                {{ p.factura or p.comprobante }}
+                                                {{ p.factura }}
                                             {% endif %}
                                         </td>
                                         <td>
@@ -276,11 +348,11 @@
                                                     <input type="hidden" name="solicitud_id" value="{{ p.id }}">
                                                     <input type="hidden" name="agencia" value="{{ p.agencia }}">
                                                     <input type="hidden" name="fecha" value="{{ p.fecha }}">
-                                                    <select name="accion" class="form-select form-select-sm" style="width: 140px;">
-                                                        <option value="COMPLETO">Pago Completo</option>
+                                                    <select name="accion" class="form-select form-select-sm" style="width: 100px;">
+                                                        <option value="COMPLETO">Completo</option>
                                                         <option value="ABONO">Abono</option>
                                                     </select>
-                                                    <input type="file" name="comprobante_file" class="form-control form-control-sm" style="width: 140px;" accept="image/*,.pdf" required>
+                                                    <input type="file" name="comprobante_file" class="form-control form-control-sm" style="width: 120px;" accept="image/*,.pdf" required>
                                                     <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-check"></i></button>
                                                 </form>
                                                 {% endif %}
@@ -298,10 +370,11 @@
                                                 </form>
                                                 {% endif %}
                                                 
-                                                <form action="/eliminar-transaccion" method="POST" style="display:inline;" onsubmit="return confirm('¿Eliminar transacción?');">
+                                                <!-- BOTÓN BORRAR TRANSACCIÓN (SOLO ADMIN) -->
+                                                <form action="/admin/eliminar-transaccion" method="POST" style="display:inline;" onsubmit="return confirm('¿Seguro deseas eliminar permanentemente esta transacción?');">
                                                     <input type="hidden" name="pago_id" value="{{ p.id }}">
                                                     <input type="hidden" name="redirect_to" value="/admin?tab=transacciones">
-                                                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash"></i></button>
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar Transacción"><i class="fas fa-trash-alt"></i></button>
                                                 </form>
                                             </div>
                                         </td>
@@ -369,13 +442,6 @@
                                                             <input type="hidden" name="fecha" value="{{ pos.fecha }}">
                                                             <button type="submit" class="btn btn-outline-secondary btn-sm rounded-circle shadow-sm" title="Restablecer a lo que envió Colab">
                                                                 <i class="fas fa-undo"></i>
-                                                            </button>
-                                                        </form>
-                                                        <form action="/admin/eliminar-ajustes-agencia" method="POST" style="display:inline;" onsubmit="return confirm('¿Eliminar diferenciales de {{ pos.agencia }}?');">
-                                                            <input type="hidden" name="agencia" value="{{ pos.agencia }}">
-                                                            <input type="hidden" name="fecha" value="{{ pos.fecha }}">
-                                                            <button type="submit" class="btn btn-outline-danger btn-sm rounded-circle shadow-sm" title="Eliminar ajustes residuales">
-                                                                <i class="fas fa-trash-alt"></i>
                                                             </button>
                                                         </form>
                                                     </div>
@@ -457,13 +523,6 @@
                                                             <input type="hidden" name="fecha" value="{{ neg.fecha }}">
                                                             <button type="submit" class="btn btn-outline-secondary btn-sm rounded-circle shadow-sm" title="Restablecer a lo que envió Colab">
                                                                 <i class="fas fa-undo"></i>
-                                                            </button>
-                                                        </form>
-                                                        <form action="/admin/eliminar-ajustes-agencia" method="POST" style="display:inline;" onsubmit="return confirm('¿Eliminar diferenciales de {{ neg.agencia }}?');">
-                                                            <input type="hidden" name="agencia" value="{{ neg.agencia }}">
-                                                            <input type="hidden" name="fecha" value="{{ neg.fecha }}">
-                                                            <button type="submit" class="btn btn-outline-danger btn-sm rounded-circle shadow-sm" title="Eliminar diferencial residual">
-                                                                <i class="fas fa-trash-alt"></i>
                                                             </button>
                                                         </form>
                                                     </div>
@@ -610,7 +669,7 @@
                                             <form action="/admin/eliminar-transaccion" method="POST" style="display:inline;" onsubmit="return confirm('¿Eliminar este registro de Cashea?');">
                                                 <input type="hidden" name="pago_id" value="{{ c.id }}">
                                                 <input type="hidden" name="redirect_to" value="/admin?tab=cashea">
-                                                <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2">
+                                                <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2" title="Eliminar Registro">
                                                     <i class="fas fa-trash-alt"></i>
                                                 </button>
                                             </form>
@@ -626,7 +685,7 @@
                 </div>
             </div>
 
-            <!-- 6. CONSOLIDADO POR SISTEMAS -->
+            <!-- 6. CONSOLIDADO POR SISTEMAS CON FACTURAS CASHEA Y TOTAL FINAL -->
             <div class="tab-pane fade {% if tab == 'consolidado' or tab_activa == 'consolidado' %}show active{% endif %}" id="consolidado" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-top: 4px solid #e91e63;">
                     <div class="card-body p-3">
@@ -687,7 +746,7 @@
                                     </tr>
                                     {% endfor %}
                                     <tr style="background-color: #212529; color: #ffffff; font-weight: bold; font-size: 11.5px;">
-                                        <td style="padding: 6px 3px;">TOTALES GENERALES</td>
+                                        <td style="padding: 6px 3px;">TOTALES SISTEMAS</td>
                                         <td style="padding: 6px 3px; text-align: right;">Bs. {{ totales_generales.venta | default(0) | dinero }}</td>
                                         <td style="padding: 6px 3px; text-align: right; color: #90caf9;">Bs. {{ totales_generales.comision | default(0) | dinero }}</td>
                                         <td style="padding: 6px 3px; text-align: right; color: #ef9a9a;">Bs. {{ totales_generales.premio | default(0) | dinero }}</td>
@@ -698,6 +757,33 @@
                                 </tbody>
                             </table>
                         </div>
+
+                        <!-- DESGLOSE DE CASHEA Y TOTAL DEFINITIVO -->
+                        <div class="mt-3 p-3 bg-white border rounded shadow-sm">
+                            <h6 class="fw-bold text-info mb-2"><i class="fas fa-shopping-cart me-1"></i> Facturas Cashea del Período</h6>
+                            <table class="table table-sm align-middle mb-2" style="font-size: 11px;">
+                                <thead class="table-light"><tr><th>Agencia</th><th>Fecha</th><th>Factura</th><th class="text-end">Monto Absorbido</th></tr></thead>
+                                <tbody>
+                                    {% for c in casheas_generales %}
+                                    <tr>
+                                        <td class="fw-bold">{{ c.agencia }}</td>
+                                        <td>{{ c.fecha }}</td>
+                                        <td>{{ c.factura or c.comprobante }}</td>
+                                        <td class="text-end fw-bold text-danger">Bs. {{ c.monto | dinero }}</td>
+                                    </tr>
+                                    {% else %}
+                                    <tr><td colspan="4" class="text-center text-muted py-2">Sin facturas de Cashea en este rango.</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            <div class="d-flex justify-content-between align-items-center p-2 rounded bg-light border fw-bold fs-6">
+                                <span>TOTAL GENERAL NETO (SISTEMAS - CASHEA):</span>
+                                <span class="{% if (totales_generales.neto - total_cashea_filtrado) < 0 %}text-danger{% else %}text-success{% endif %}">
+                                    Bs. {{ (totales_generales.neto - total_cashea_filtrado) | dinero }}
+                                </span>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -806,7 +892,7 @@
                 </div>
             </div>
 
-            <!-- 9. DESGLOSE BANCA (BOTÓN RESTABLECER SIEMPRE VISIBLE) -->
+            <!-- 9. DESGLOSE BANCA -->
             <div class="tab-pane fade {% if tab == 'desglose_banca' or tab_activa == 'desglose_banca' %}show active{% endif %}" id="desglose_banca" role="tabpanel">
                 <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px; border-top: 4px solid #198754 !important;">
                     <div class="card-body">
