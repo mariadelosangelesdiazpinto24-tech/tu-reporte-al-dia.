@@ -1041,9 +1041,7 @@ def get_agencia(
     row_pend_glob = cursor.fetchone()
     
     saldo_acumulado = float(row_pend_glob['saldo_total'] or 0.0) if row_pend_glob else 0.0
-    v_tot = float(row_pend_glob['v_tot'] or 0.0) if row_pend_glob else 0.0
-    p_tot = float(row_pend_glob['p_tot'] or 0.0) if row_pend_glob else 0.0
-    neto_sistemas_calc = v_tot - p_tot
+    neto_sistemas_calc = saldo_acumulado
 
     cursor.execute(
         """SELECT tipo, SUM(monto) as total FROM pagos 
