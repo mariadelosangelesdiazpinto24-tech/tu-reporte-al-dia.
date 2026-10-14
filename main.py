@@ -371,7 +371,8 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             pct_t = item["pct_taquilla"]
             pct_part = item["pct_participacion"]
 
-cursor.execute(
+            # SUMA PRECISA EN EL RANGO DE FECHAS (ARREGLO DE GUACA Y CALAMAR)
+            cursor.execute(
                 """SELECT SUM(venta) as total_v, SUM(comision) as total_c, SUM(premios) as total_p, COUNT(*) as cant 
                    FROM ajustes_banqueros_manuales 
                    WHERE banquero = %s AND sistema = %s AND fecha >= %s AND fecha <= %s""",
@@ -416,7 +417,7 @@ cursor.execute(
                 "pct_excedente": int(round(pct_excedente)),
                 "pct_participacion": int(round(pct_part * 100)),
                 "ganancia_total": g_total,
-                "ajustado_manual": bool(ajuste_manual)
+                "ajustado_manual": hay_ajuste
             })
 
             subtotal_banquero += total_despues_participacion
@@ -501,7 +502,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         tipo_p = str(p['tipo']).strip().upper() if p['tipo'] else 'PAGO_TAQUILLA'
         comp = p['comprobante'] or ''
         
-        # Enlace a descarga directa sin 404
         comp_display = f'<a href="/comprobante/{p["id"]}" class="btn btn-sm btn-outline-danger py-0 fw-bold"><i class="fas fa-download me-1"></i> Descargar Capture</a>' if comp else ""
 
         if tipo_p in ['ADELANTO', 'LIQUIDACION']:
@@ -668,7 +668,6 @@ def ver_o_descargar_comprobante(pago_id: int):
     agencia_clean = str(row['agencia']).replace(" ", "_")
     nombre_archivo = f"Comprobante_{agencia_clean}_{row['fecha']}_{pago_id}.jpg"
 
-    # 1. En disco
     ruta_disco = os.path.join("uploads", os.path.basename(comp))
     if os.path.exists(ruta_disco):
         return FileResponse(
@@ -677,7 +676,6 @@ def ver_o_descargar_comprobante(pago_id: int):
             headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'}
         )
 
-    # 2. En Base64 persistente
     if comp.startswith("data:image"):
         try:
             header, encoded = comp.split(",", 1)
@@ -946,7 +944,6 @@ def get_agencia(
         cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
     pagos_agencia = [dict(row) for row in cursor.fetchall()]
 
-    # Auditoría por sistemas
     cursor.execute(
         "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha ASC", 
         (agencia_norm, f_desde or hoy_vzla, f_hasta or hoy_vzla)
