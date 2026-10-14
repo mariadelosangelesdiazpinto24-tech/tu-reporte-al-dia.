@@ -27,7 +27,6 @@ def obtener_fechahora_venezuela() -> str:
 
 def obtener_rango_semana_actual():
     hoy = datetime.now(TZ_VENEZUELA).date()
-    # lunes = hoy - hoy.weekday(), domingo = lunes + 6 días
     lunes = hoy - timedelta(days=hoy.weekday())
     domingo = lunes + timedelta(days=6)
     return lunes.strftime('%Y-%m-%d'), domingo.strftime('%Y-%m-%d')
@@ -66,7 +65,9 @@ ALIAS_AGENCIAS = {
     "FRANYE🕊️": "PALOMITA",
     "GEGE🐼": "GEGE",
     "LILI LA LOBA": "LILI LA LOBA",
-    "LAS VECINAS": "LAS VECINAS"
+    "LAS VECINAS": "LAS VECINAS",
+    "LA MOROCHA": "LA MOROCHA",
+    "LOS LLANOS": "LOS LLANOS"
 }
 
 def normalizar(texto: str) -> str:
@@ -226,7 +227,7 @@ def init_db():
         )
     ''')
 
-    agencias_base = ["MILA", "ANA MARIA", "NABEL", "VIP23", "DESTINO SUERTE", "VALLEMIL", "ALEXA", "PALOMITA", "GEGE", "LILI LA LOBA", "LAS VECINAS"]
+    agencias_base = ["MILA", "ANA MARIA", "NABEL", "VIP23", "DESTINO SUERTE", "VALLEMIL", "ALEXA", "PALOMITA", "GEGE", "LILI LA LOBA", "LAS VECINAS", "LA MOROCHA", "LOS LLANOS"]
     for ag in agencias_base:
         try:
             cursor.execute("INSERT INTO usuarios (agencia, clave, genero, rol) VALUES (%s, '123456', 'FEMENINO', 'TAQUILLA') ON CONFLICT (agencia) DO NOTHING", (ag,))
@@ -265,7 +266,6 @@ def obtener_estructura_banqueros_bd():
 def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
     conn = get_db()
     cursor = conn.cursor()
-
     ag_filtro_norm = normalizar(agencia_filtro) if agencia_filtro else ""
 
     cursor.execute("SELECT * FROM reportes WHERE fecha >= %s AND fecha <= %s", (f_desde, f_hasta))
@@ -277,7 +277,6 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
 
     for rep_db in reps_db:
         ag_origen = normalizar(rep_db['agencia'])
-
         if ag_filtro_norm and ag_origen != ag_filtro_norm:
             continue
 
@@ -293,7 +292,6 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
                             continue
                         
                         sys_nombre = normalizar_sistema(sys_raw)
-
                         try:
                             v = float(re.sub(r'[^\d.-]', '', cols[1]))
                             c = float(re.sub(r'[^\d.-]', '', cols[2]))
@@ -397,7 +395,6 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
                 hay_ajuste = False
 
             t_banquero_sistema = v_sys - c_banquero - p_sys
-
             c_taquilla = v_sys * pct_t
             pct_excedente = (pct_b - pct_t) * 100.0
             g_excedente = v_sys * (pct_b - pct_t)
@@ -467,7 +464,7 @@ def actualizar_ultima_conexion(agencia: str):
         except Exception as e:
             print("Error actualizando conexion:", e)
 
-# MOTOR CONTABLE EXACTO DE REPORTE Y ARRASTRE
+# MOTOR CONTABLE EXACTO DE REPORTE
 def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     agencia_norm = normalizar(agencia)
     conn = get_db()
@@ -480,22 +477,12 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         conn.close()
         return
 
+    # Buscar pagos válidos de la fecha (excluyendo ajustes duplicados)
     cursor.execute(
-        "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND estado = 'APROBADO' AND tipo != 'AJUSTE_PENDIENTE'", 
+        "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND estado = 'APROBADO' AND tipo NOT IN ('AJUSTE_PENDIENTE', 'MODIFICACION')", 
         (agencia_norm, fecha_reporte)
     )
     todos_pagos = cursor.fetchall()
-
-    cursor.execute(
-        "SELECT fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha < %s ORDER BY fecha DESC LIMIT 1",
-        (agencia_norm, fecha_reporte)
-    )
-    rep_anterior = cursor.fetchone()
-    arrastre_anterior_monto = 0.0
-    arrastre_anterior_fecha = ""
-    if rep_anterior and abs(float(rep_anterior['monto'] or 0.0)) > 0.05:
-        arrastre_anterior_monto = float(rep_anterior['monto'])
-        arrastre_anterior_fecha = rep_anterior['fecha']
 
     conn.close()
 
@@ -507,7 +494,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     adelantos_rows_html = ""
     cashea_rows_html = ""
     pagos_banca_rows_html = ""
-    ajustes_rows_html = ""
 
     for p in todos_pagos:
         monto_p = float(p['monto'] or 0.0)
@@ -548,15 +534,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
                 <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #2e7d32; font-weight: bold;">Bs. {monto_p:,.2f}</td>
             </tr>'''
 
-    if arrastre_anterior_monto != 0.0:
-        color_ant = "#2e7d32" if arrastre_anterior_monto < 0 else "#e91e63"
-        ajustes_rows_html += f'''
-        <tr style="font-size: 13px; background-color: #fffde7; color: #1a252c;">
-            <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">{arrastre_anterior_fecha}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #e0e0e0;"><strong>Saldo Pendiente Arrastrado del día anterior</strong></td>
-            <td style="padding: 10px; border-bottom: 1px solid #e0e0e0; text-align: right; color: {color_ant}; font-weight: bold;">Bs. {arrastre_anterior_monto:,.2f}</td>
-        </tr>'''
-
     detalle_original = rep['detalle_html'] or ""
 
     if '<!-- BLOQUES_EXTRAS -->' in detalle_original:
@@ -581,8 +558,8 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
-    # FÓRMULA ESTRICTA:
-    monto_final = total_neto_sistemas - total_cashea + total_adelantos - total_pagos_taquilla + total_liquidaciones_admin + arrastre_anterior_monto
+    # FÓRMULA ESTRICTA DEL DÍA
+    monto_final = total_neto_sistemas - total_cashea + total_adelantos - total_pagos_taquilla + total_liquidaciones_admin
 
     if abs(monto_final) < 0.05:
         monto_final = 0.0
@@ -613,21 +590,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         </table>
     </div>'''
 
-    bloque_ajustes = ""
-    if ajustes_rows_html:
-        bloque_ajustes = f'''
-        <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #ff9800;">
-            <h5 style="color: #ff9800; font-weight: bold; border-bottom: 2px solid #ff9800; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-exclamation-triangle"></i> PENDIENTES / AJUSTES DE DÍAS ANTERIORES</h5>
-            <table class="table table-sm align-middle mb-0" style="width: 100%;">
-                <tr style="background-color: #fff3e0; color: #e65100; font-size: 13px;">
-                    <th style="padding: 10px;">FECHA</th>
-                    <th style="padding: 10px;">DETALLE AJUSTE</th>
-                    <th style="padding: 10px; text-align: right;">DIFERENCIAL ACUMULADO</th>
-                </tr>
-                {ajustes_rows_html}
-            </table>
-        </div>'''
-
     bloque_adelantos = f'''
     <div class="mb-3" style="background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #e91e63;">
         <h5 style="color: #e91e63; font-weight: bold; border-bottom: 2px solid #e91e63; padding-bottom: 10px; margin-bottom: 15px;"><i class="fas fa-hand-holding-usd"></i> ADELANTOS / LIQUIDACIONES DE BANCA</h5>
@@ -651,7 +613,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         </div>
     </div>'''
 
-    detalle_actualizado = tabla_sistemas_html + "\n<!-- BLOQUES_EXTRAS -->\n" + bloque_pagos_banca + bloque_cashea + bloque_ajustes + bloque_adelantos + bloque_final
+    detalle_actualizado = tabla_sistemas_html + "\n<!-- BLOQUES_EXTRAS -->\n" + bloque_pagos_banca + bloque_cashea + bloque_adelantos + bloque_final
 
     conn = get_db()
     cursor = conn.cursor()
@@ -1208,17 +1170,18 @@ def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), mo
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
+# ACTUALIZAR REPORTE SISTEMA SIN ACUMULAR SALDOS FANTASMAS
 @app.post("/actualizar-reporte-sistema")
 def post_actualizar_reporte_sistema(
     agencia: str = Form(...),
     fecha: str = Form(...),
     sistema: str = Form(...),
     venta: float = Form(...),
-    premio: float = Form(...)
+    premio: float = Form(...),
+    origen: Optional[str] = Form("agencia")
 ):
     agencia_norm = normalizar(agencia)
     sistema_norm = normalizar_sistema(sistema)
-    hoy_vzla = obtener_fecha_venezuela()
 
     conn = get_db()
     cursor = conn.cursor()
@@ -1285,10 +1248,16 @@ def post_actualizar_reporte_sistema(
         html_modificado = re.sub(patron_totales, nueva_fila_totales, html_modificado, flags=re.DOTALL | re.IGNORECASE)
 
         cursor.execute(
-            "UPDATE reportes SET detalle_html = %s, ventas = %s, premios = %s WHERE id = %s",
-            (html_modificado, sum_v, sum_p, rep['id'])
+            "UPDATE reportes SET detalle_html = %s, ventas = %s, premios = %s, monto = %s WHERE id = %s",
+            (html_modificado, sum_v, sum_p, sum_t, rep['id'])
         )
         conn.commit()
+
+        # Limpiar cualquier ajuste fantasma anterior para que el cálculo sea 100% puro
+        cursor.execute(
+            "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND (factura LIKE %s OR tipo = 'AJUSTE_PENDIENTE')",
+            (agencia_norm, f"%Modif. {sistema}%")
+        )
 
         cursor.execute(
             """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
@@ -1297,24 +1266,14 @@ def post_actualizar_reporte_sistema(
         )
         conn.commit()
 
-        if fecha < hoy_vzla:
-            diferencial = sum_t - float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
-            if abs(diferencial) > 0.01:
-                cursor.execute(
-                    """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) 
-                       VALUES (%s, %s, %s, %s, %s, 'AJUSTE_PENDIENTE', 'APROBADO')""",
-                    (agencia_norm, hoy_vzla, diferencial, f"Modificación {sistema} del {fecha}", f"Diferencial acumulado: Bs. {diferencial:,.2f}")
-                )
-                conn.commit()
-
     conn.close()
-
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    if fecha != hoy_vzla:
-        recalcular_y_actualizar_reporte(agencia_norm, hoy_vzla)
 
+    if origen == "admin":
+        return RedirectResponse(url="/admin?tab=modificaciones&msg=actualizado", status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=modificaciones", status_code=status.HTTP_303_SEE_OTHER)
 
+# ELIMINAR TRANSACCIÓN Y REESTABLECER
 @app.post("/eliminar-transaccion")
 @app.post("/admin/eliminar-transaccion")
 def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[str] = Form(None)):
@@ -1323,9 +1282,11 @@ def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[st
     cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = %s", (pago_id,))
     p_data = cursor.fetchone()
     if p_data:
+        ag_elim = p_data['agencia']
+        fe_elim = p_data['fecha']
         cursor.execute("DELETE FROM pagos WHERE id = %s", (pago_id,))
         conn.commit()
-        recalcular_y_actualizar_reporte(p_data['agencia'], p_data['fecha'])
+        recalcular_y_actualizar_reporte(ag_elim, fe_elim)
     conn.close()
 
     if redirect_to:
@@ -1502,10 +1463,6 @@ async def post_liquidar_saldo_negativo(
     conn.close()
 
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    hoy_vzla = obtener_fecha_venezuela()
-    if fecha != hoy_vzla:
-        recalcular_y_actualizar_reporte(agencia_norm, hoy_vzla)
-
     return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/actualizar-regla-banquero")
@@ -1624,23 +1581,6 @@ def post_eliminar_agencia(agencia_id: int = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
 
-@app.post("/admin/editar-monto-reporte")
-def post_editar_monto_reporte(
-    agencia: str = Form(...),
-    fecha: str = Form(...),
-    nuevo_monto: float = Form(...)
-):
-    agencia_norm = normalizar(agencia)
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE reportes SET monto = %s WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s",
-        (nuevo_monto, agencia_norm, fecha)
-    )
-    conn.commit()
-    conn.close()
-    return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
-
 @app.post("/admin/restablecer-monto-reporte-colab")
 def post_restablecer_monto_reporte_colab(
     agencia: str = Form(...),
@@ -1650,9 +1590,10 @@ def post_restablecer_monto_reporte_colab(
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo = 'AJUSTE_PENDIENTE'",
+        "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND (fecha = %s OR tipo = 'AJUSTE_PENDIENTE')",
         (agencia_norm, fecha)
     )
+    cursor.execute("UPDATE reportes SET monto = 0.0 WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha))
     conn.commit()
     conn.close()
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
@@ -1682,7 +1623,7 @@ def get_admin(
     desde_fecha: Optional[str] = None, 
     hasta_fecha: Optional[str] = None, 
     tipo_transaccion: Optional[str] = None,
-    tab: str = "transacciones"
+    tab: str = "balances"
 ):
     try:
         conn = get_db()
@@ -1723,7 +1664,7 @@ def get_admin(
         ultima_fila = cursor.fetchone()
         fecha_bd_reciente = ultima_fila['fecha'] if (ultima_fila and ultima_fila['fecha']) else hoy_vzla
 
-        # Si estamos en Totalizador o Desglose de Banca y no se envió filtro manual, usar de Lunes a Domingo
+        # Si estamos en Totalizador o Desglose de Banca, predeterminar de Lunes a Domingo
         lunes_sem, domingo_sem = obtener_rango_semana_actual()
         if tab in ['totalizador', 'desglose_banca'] and not desde_fecha and not hasta_fecha:
             f_desde = lunes_sem
@@ -1745,8 +1686,6 @@ def get_admin(
         casheas_generales = [dict(row) for row in cursor.fetchall()]
         total_cashea_filtrado = sum(float(c.get('monto') or 0.0) for c in casheas_generales)
 
-        # BALANCES GLOBALES (+ / -)
-        # Si el usuario usó el buscador de fechas, filtra por fechas. Si no, muestra el balance pendiente histórico total.
         hay_filtro_fechas_admin = bool(desde_fecha and hasta_fecha)
 
         positivos = []
@@ -1773,7 +1712,6 @@ def get_admin(
                 )
                 filas_pagos = cursor.fetchall()
             else:
-                # Saldo total histórico acumulado pendiente de la taquilla
                 cursor.execute(
                     """SELECT SUM(ventas) as total_ventas, SUM(premios) as total_premios, SUM(monto) as saldo_neto, MAX(fecha) as ultima_fecha
                        FROM reportes WHERE UPPER(TRIM(agencia)) = %s""",
@@ -1792,7 +1730,6 @@ def get_admin(
             sum_abonos = 0.0
             sum_cashea = 0.0
             sum_adelantos = 0.0
-            sum_pendientes_ajustes = 0.0
             for fp in filas_pagos:
                 tipo_fp = str(fp['tipo']).upper()
                 m_fp = float(fp['total_monto'] or 0.0)
@@ -1802,8 +1739,6 @@ def get_admin(
                     sum_cashea += m_fp
                 elif tipo_fp in ['ADELANTO', 'LIQUIDACION']:
                     sum_adelantos += m_fp
-                elif tipo_fp == 'AJUSTE_PENDIENTE':
-                    sum_pendientes_ajustes += m_fp
 
             v_tot = float(fila_rep['total_ventas'] or 0.0) if fila_rep else 0.0
             p_tot = float(fila_rep['total_premios'] or 0.0) if fila_rep else 0.0
@@ -1822,7 +1757,7 @@ def get_admin(
                 "abonos": sum_abonos,
                 "cashea": sum_cashea,
                 "adelantos": sum_adelantos,
-                "pendientes": sum_pendientes_ajustes
+                "pendientes": 0.0
             }
 
             if saldo_val > 0.009:
@@ -1850,6 +1785,7 @@ def get_admin(
             "reportes": reportes,
             "pagos": pagos,
             "agencias": agencias,
+            "sistemas": SISTEMAS_OFICIALES,
             "comunicados": comunicados,
             "casheas_generales": casheas_generales,
             "total_cashea_filtrado": total_cashea_filtrado,
