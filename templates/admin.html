@@ -12,13 +12,18 @@
         .text-tema { color: #e91e63 !important; }
         .btn-tema { background-color: #e91e63 !important; color: white !important; border: none; }
         .btn-tema:hover { background-color: #c2185b !important; color: white !important; }
-        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 13.5px; }
-        .nav-pills .nav-link.active {
+        
+        .tag-femenino { background-color: #fce4ec; color: #c2185b; border: 1px solid #f8bbd0; }
+        .tag-masculino { background-color: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
+
+        body { background-color: #fdf2f4; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 13.5px; }
+        .nav-tabs .nav-link.active {
             background-color: #e91e63 !important;
             color: white !important;
+            border-color: #e91e63 !important;
             font-weight: bold;
         }
-        .nav-pills .nav-link { color: #e91e63; font-weight: 500; }
+        .nav-tabs .nav-link { color: #e91e63; font-weight: 500; }
         .card-custom { border-radius: 12px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
     </style>
 </head>
@@ -32,432 +37,560 @@
                     <h4 class="fw-bold m-0"><i class="fas fa-user-shield me-2"></i>Panel de Administración</h4>
                     <small>Control Central - Los Ángeles del Dinero 🍀</small>
                 </div>
-                <a href="/login" class="btn btn-light btn-sm fw-bold text-dark rounded-pill px-3"><i class="fas fa-sign-out-alt"></i> Salir</a>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-light btn-sm fw-bold text-dark rounded-pill px-3" onclick="copiarReporteGlobal()"><i class="fas fa-copy me-1"></i> Copiar Balances</button>
+                    <a href="/login" class="btn btn-light btn-sm fw-bold text-dark rounded-pill px-3"><i class="fas fa-sign-out-alt"></i> Salir</a>
+                </div>
             </div>
         </div>
 
-        <!-- PESTAÑAS ADMIN -->
-        <ul class="nav nav-pills mb-3 flex-wrap gap-1 bg-white p-2 rounded shadow-sm" id="adminTabs" role="tablist">
+        <!-- PESTAÑAS ADMIN COMPLETAS -->
+        <ul class="nav nav-tabs mb-3 flex-wrap" id="adminTabs" role="tablist">
             <li class="nav-item">
-                <a class="nav-link {% if tab_activa == 'balances' %}active{% endif %}" href="/admin?tab=balances"><i class="fas fa-balance-scale me-1"></i> Balances Globales (+ / -)</a>
+                <button class="nav-link {% if tab_activa == 'taquillas' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-taquillas" type="button"><i class="fas fa-store me-1"></i> Taquillas Creadas 📱</button>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if tab_activa == 'transacciones' %}active{% endif %}" href="/admin?tab=transacciones">
+                <button class="nav-link {% if tab_activa == 'comunicados' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-comunicados" type="button"><i class="fas fa-bullhorn me-1"></i> Notificaciones 📢</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link {% if tab_activa == 'transacciones' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-transacciones" type="button">
                     <i class="fas fa-list me-1"></i> Transacciones
                     {% if solicitudes_pendientes_count > 0 %}
                     <span class="badge bg-danger rounded-pill ms-1">{{ solicitudes_pendientes_count }}</span>
                     {% endif %}
-                </a>
+                </button>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if tab_activa == 'modificaciones' %}active{% endif %}" href="/admin?tab=modificaciones"><i class="fas fa-edit me-1"></i> Modificaciones</a>
+                <button class="nav-link {% if tab_activa == 'balances' or not tab_activa %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-balances" type="button"><i class="fas fa-balance-scale me-1"></i> Balances Globales (+ / -)</button>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if tab_activa == 'totalizador' %}active{% endif %}" href="/admin?tab=totalizador"><i class="fas fa-chart-line me-1"></i> Totalizador</a>
+                <button class="nav-link {% if tab_activa == 'modificaciones' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-modificaciones" type="button"><i class="fas fa-edit me-1"></i> Modificaciones</button>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if tab_activa == 'desglose_banca' %}active{% endif %}" href="/admin?tab=desglose_banca"><i class="fas fa-university me-1"></i> Desglose Banca</a>
+                <button class="nav-link {% if tab_activa == 'cashea' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-cashea" type="button"><i class="fas fa-shopping-cart me-1"></i> Data Cashea General</button>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if tab_activa == 'taquillas' %}active{% endif %}" href="/admin?tab=taquillas"><i class="fas fa-store me-1"></i> Taquillas Creadas</a>
+                <button class="nav-link {% if tab_activa == 'consolidado' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-consolidado" type="button"><i class="fas fa-chart-pie me-1"></i> Consolidado Sistemas</button>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if tab_activa == 'comunicados' %}active{% endif %}" href="/admin?tab=comunicados"><i class="fas fa-bullhorn me-1"></i> Notificaciones</a>
+                <button class="nav-link {% if tab_activa == 'auditoria' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-auditoria" type="button"><i class="fas fa-search me-1"></i> Auditoría Sistemas 🔍</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link {% if tab_activa == 'totalizador' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-totalizador" type="button"><i class="fas fa-chart-bar me-1"></i> Totalizador 📊</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link {% if tab_activa == 'desglose_banca' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-desglose-banca" type="button"><i class="fas fa-university me-1"></i> Desglose Banca 🏪</button>
             </li>
         </ul>
 
-        <!-- CONTENIDO SEGÚN LA PESTAÑA SELECCIONADA -->
+        <div class="tab-content" id="adminTabsContent">
 
-        <!-- 1. BALANCES GLOBALES (+ / -) -->
-        {% if tab_activa == 'balances' %}
-        <div class="card card-custom p-3 bg-white mb-3">
-            <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
-                <input type="hidden" name="tab" value="balances">
-                <div class="col-md-5">
-                    <label class="form-label small fw-bold text-muted">Desde:</label>
-                    <input type="date" name="desde_fecha" value="{{ desde_fecha }}" class="form-control form-control-sm">
-                </div>
-                <div class="col-md-5">
-                    <label class="form-label small fw-bold text-muted">Hasta:</label>
-                    <input type="date" name="hasta_fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm">
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold"><i class="fas fa-search me-1"></i> Filtrar</button>
-                </div>
-            </form>
-
-            <div class="row g-3">
-                <!-- DEUDAS: DEBEN A LA BANCA (+) -->
-                <div class="col-md-6">
-                    <div class="border rounded p-3 bg-light">
-                        <h6 class="fw-bold text-success mb-3"><i class="fas fa-arrow-down me-1"></i> Deben a la Banca (+)</h6>
-                        <div class="table-responsive">
-                            <table class="table table-sm table-hover align-middle mb-0 bg-white">
-                                <thead class="table-light">
-                                    <tr><th>AGENCIA</th><th>FECHA</th><th class="text-end">DEUDA</th><th class="text-center">ACCIÓN</th></tr>
-                                </thead>
-                                <tbody>
-                                    {% for pos in positivos %}
-                                    <tr>
-                                        <td class="fw-bold">{{ pos.agencia }}</td>
-                                        <td>{{ pos.fecha }}</td>
-                                        <td class="text-end fw-bold text-success">Bs. {{ pos.monto | dinero }}</td>
-                                        <td class="text-center">
-                                            <form action="/admin/restablecer-monto-reporte-colab" method="POST" class="d-inline" onsubmit="return confirm('¿Saldar cuenta de {{ pos.agencia }} a 0.00?');">
-                                                <input type="hidden" name="agencia" value="{{ pos.agencia }}">
-                                                <input type="hidden" name="fecha" value="{{ pos.fecha }}">
-                                                <button type="submit" class="btn btn-outline-secondary btn-sm py-0" title="Saldar a 0.00"><i class="fas fa-undo"></i></button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                    {% else %}
-                                    <tr><td colspan="4" class="text-center text-muted py-2">Sin deudas pendientes.</td></tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
+            <!-- 1. TAQUILLAS CREADAS CON COLORES POR GÉNERO -->
+            <div class="tab-pane fade {% if tab_activa == 'taquillas' %}show active{% endif %}" id="tab-taquillas" role="tabpanel">
+                <div class="card card-custom p-4 bg-white mb-3">
+                    <h5 class="fw-bold text-tema mb-3"><i class="fas fa-store me-2"></i>Gestión de Taquillas y Agencias</h5>
+                    <form action="/admin/crear-taquilla" method="POST" class="row g-2 mb-4 bg-light p-3 rounded border">
+                        <div class="col-md-4">
+                            <input type="text" name="agencia" class="form-control form-control-sm" placeholder="Nombre de la Agencia" required>
                         </div>
-                    </div>
-                </div>
-
-                <!-- SALDO A FAVOR: A PAGARLES (-) -->
-                <div class="col-md-6">
-                    <div class="border rounded p-3 bg-light">
-                        <h6 class="fw-bold text-danger mb-3"><i class="fas fa-arrow-up me-1"></i> A Pagarles (-)</h6>
-                        <div class="table-responsive">
-                            <table class="table table-sm table-hover align-middle mb-0 bg-white">
-                                <thead class="table-light">
-                                    <tr><th>AGENCIA</th><th>FECHA</th><th class="text-end">MONTO</th><th class="text-center">ACCIÓN</th></tr>
-                                </thead>
-                                <tbody>
-                                    {% for neg in negativos %}
-                                    <tr>
-                                        <td class="fw-bold">{{ neg.agencia }}</td>
-                                        <td>{{ neg.fecha }}</td>
-                                        <td class="text-end fw-bold text-danger">Bs. {{ neg.monto | dinero }}</td>
-                                        <td class="text-center">
-                                            <form action="/admin/restablecer-monto-reporte-colab" method="POST" class="d-inline" onsubmit="return confirm('¿Saldar cuenta de {{ neg.agencia }} a 0.00?');">
-                                                <input type="hidden" name="agencia" value="{{ neg.agencia }}">
-                                                <input type="hidden" name="fecha" value="{{ neg.fecha }}">
-                                                <button type="submit" class="btn btn-outline-secondary btn-sm py-0" title="Saldar a 0.00"><i class="fas fa-undo"></i></button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                    {% else %}
-                                    <tr><td colspan="4" class="text-center text-muted py-2">Sin saldos a favor pendientes.</td></tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
+                        <div class="col-md-3">
+                            <input type="text" name="clave" class="form-control form-control-sm" placeholder="Contraseña de acceso" required>
                         </div>
+                        <div class="col-md-3">
+                            <select name="genero" class="form-select form-select-sm" required>
+                                <option value="FEMENINO">Femenino (Rosado)</option>
+                                <option value="MASCULINO">Masculino (Azul)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-tema btn-sm w-100 fw-bold">Crear / Actualizar</button>
+                        </div>
+                    </form>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light"><tr><th>ID</th><th>Agencia</th><th>Género / Perfil</th><th>Clave</th><th>Última Conexión</th><th>Acciones</th></tr></thead>
+                            <tbody>
+                                {% for ag in agencias %}
+                                <tr>
+                                    <td>{{ ag.id }}</td>
+                                    <td class="fw-bold">
+                                        <a href="/agencia?nombre={{ ag.agencia }}" target="_blank" class="text-decoration-none {% if ag.genero == 'MASCULINO' %}text-primary{% else %}text-tema{% endif %}">
+                                            {{ ag.agencia }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        {% if ag.genero == 'MASCULINO' %}
+                                        <span class="badge rounded-pill tag-masculino"><i class="fas fa-male me-1"></i> MASCULINO</span>
+                                        {% else %}
+                                        <span class="badge rounded-pill tag-femenino"><i class="fas fa-female me-1"></i> FEMENINO</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><code>{{ ag.clave }}</code></td>
+                                    <td><small class="text-muted">{{ ag.ultima_conexion or 'Nunca' }}</small></td>
+                                    <td>
+                                        <form action="/admin/eliminar-agencia" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar agencia?');">
+                                            <input type="hidden" name="agencia_id" value="{{ ag.id }}">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm py-0"><i class="fas fa-trash-alt"></i></button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
-        </div>
-        {% endif %}
 
-        <!-- 2. TRANSACCIONES -->
-        {% if tab_activa == 'transacciones' %}
-        <div class="card card-custom p-3 bg-white mb-3">
-            <h5 class="fw-bold text-dark mb-3"><i class="fas fa-exchange-alt me-1"></i> Control de Transacciones</h5>
-
-            <!-- SOLICITUDES PENDIENTES DE VALIDACIÓN -->
-            {% if solicitudes_pendientes and solicitudes_pendientes | length > 0 %}
-            <div class="alert alert-warning border-0 p-3 mb-4 rounded-3 shadow-sm">
-                <h6 class="fw-bold text-dark mb-2"><i class="fas fa-bell me-2 text-danger"></i> Solicitudes y Pagos por Aprobar</h6>
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover align-middle bg-white rounded mb-0">
-                        <thead class="table-light"><tr><th>Fecha</th><th>Agencia</th><th>Tipo</th><th>Monto</th><th>Detalle</th><th>Acción</th></tr></thead>
-                        <tbody>
-                            {% for sp in solicitudes_pendientes %}
-                            <tr>
-                                <td>{{ sp.fecha }}</td>
-                                <td class="fw-bold">{{ sp.agencia }}</td>
-                                <td><span class="badge bg-warning text-dark">{{ sp.tipo }}</span></td>
-                                <td class="fw-bold text-success">Bs. {{ sp.monto | dinero }}</td>
-                                <td>
-                                    {{ sp.factura }}<br>
-                                    {% if sp.comprobante %}
-                                    <a href="/comprobante/{{ sp.id }}" class="small fw-bold text-primary"><i class="fas fa-download"></i> Ver Comprobante</a>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if sp.tipo == 'SOLICITUD_BANCA' %}
-                                    <form action="/admin/procesar-solicitud-dinero" method="POST" enctype="multipart/form-data" class="d-flex gap-1 align-items-center">
-                                        <input type="hidden" name="solicitud_id" value="{{ sp.id }}">
-                                        <input type="hidden" name="agencia" value="{{ sp.agencia }}">
-                                        <input type="hidden" name="fecha" value="{{ sp.fecha }}">
-                                        <input type="hidden" name="accion" value="COMPLETO">
-                                        <input type="file" name="comprobante_file" class="form-control form-control-sm" style="max-width: 150px;" required>
-                                        <button type="submit" class="btn btn-success btn-sm fw-bold">Liquidar</button>
-                                    </form>
-                                    {% else %}
-                                    <div class="d-flex gap-1">
-                                        <form action="/admin/validar-pago" method="POST">
-                                            <input type="hidden" name="solicitud_id" value="{{ sp.id }}">
-                                            <input type="hidden" name="accion" value="APROBAR">
-                                            <button type="submit" class="btn btn-success btn-sm py-0 fw-bold">Aprobar</button>
-                                        </form>
-                                        <form action="/admin/validar-pago" method="POST">
-                                            <input type="hidden" name="solicitud_id" value="{{ sp.id }}">
-                                            <input type="hidden" name="accion" value="RECHAZAR">
-                                            <button type="submit" class="btn btn-danger btn-sm py-0 fw-bold">Rechazar</button>
-                                        </form>
-                                    </div>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- HISTORIAL GENERAL DE TRANSACCIONES -->
-            <div class="table-responsive">
-                <table class="table table-hover table-sm align-middle mb-0">
-                    <thead class="table-light"><tr><th>Fecha</th><th>Agencia</th><th>Tipo</th><th>Monto</th><th>Detalle / Comprobante</th><th>Estado</th><th>Eliminar</th></tr></thead>
-                    <tbody>
-                        {% for p in pagos %}
-                        <tr>
-                            <td>{{ p.fecha }}</td>
-                            <td class="fw-bold">{{ p.agencia }}</td>
-                            <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
-                            <td class="fw-bold {% if p.tipo in ['ADELANTO', 'LIQUIDACION'] %}text-danger{% else %}text-success{% endif %}">Bs. {{ p.monto | dinero }}</td>
-                            <td>
-                                {{ p.factura }}<br>
-                                {% if p.comprobante %}
-                                <a href="/comprobante/{{ p.id }}" class="small fw-bold text-primary"><i class="fas fa-download"></i> Descargar</a>
-                                {% endif %}
-                            </td>
-                            <td><span class="badge {% if p.estado == 'APROBADO' %}bg-success{% elif p.estado == 'PROCESADO' %}bg-info text-dark{% else %}bg-warning text-dark{% endif %}">{{ p.estado }}</span></td>
-                            <td>
-                                <form action="/admin/eliminar-transaccion" method="POST" onsubmit="return confirm('¿Eliminar transacción y reestablecer cuenta?');">
-                                    <input type="hidden" name="pago_id" value="{{ p.id }}">
-                                    <input type="hidden" name="redirect_to" value="/admin?tab=transacciones">
-                                    <button type="submit" class="btn btn-outline-danger btn-sm py-0"><i class="fas fa-trash-alt"></i></button>
-                                </form>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="7" class="text-center text-muted py-3">No hay transacciones registradas.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- 3. MODIFICACIONES (NUEVA PESTAÑA CENTRALIZADA) -->
-        {% if tab_activa == 'modificaciones' %}
-        <div class="card card-custom p-4 bg-white mb-3" style="max-width: 800px; margin: 0 auto;">
-            <h5 class="fw-bold text-tema mb-2"><i class="fas fa-edit me-1"></i> Modificar Sistema de Taquilla</h5>
-            <p class="text-muted small mb-3">Actualiza la venta o premio de cualquier agencia en una fecha específica. Los paneles del administrador y la taquilla se sincronizarán al instante.</p>
-            
-            <form action="/actualizar-reporte-sistema" method="POST" class="row g-3">
-                <input type="hidden" name="origen" value="admin">
-                <div class="col-md-6">
-                    <label class="form-label small fw-bold">Seleccionar Agencia:</label>
-                    <select name="agencia" class="form-select form-select-sm" required>
-                        <option value="">-- Elige la taquilla --</option>
-                        {% for ag in agencias %}
-                            {% if ag.rol != 'BANQUERO' %}
-                            <option value="{{ ag.agencia }}">{{ ag.agencia }}</option>
-                            {% endif %}
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label small fw-bold">Fecha del Reporte:</label>
-                    <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label small fw-bold">Sistema:</label>
-                    <select name="sistema" class="form-select form-select-sm" required>
-                        {% for s in sistemas %}
-                        <option value="{{ s }}">{{ s }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label small fw-bold">Nueva Venta (Bs.):</label>
-                    <input type="number" step="0.01" name="venta" class="form-control form-control-sm" placeholder="0.00" required>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label small fw-bold">Nuevo Premio (Bs.):</label>
-                    <input type="number" step="0.01" name="premio" class="form-control form-control-sm" placeholder="0.00" required>
-                </div>
-                <div class="col-12 mt-4">
-                    <button type="submit" class="btn btn-tema fw-bold w-100 rounded-pill shadow-sm py-2">Guardar Modificación Simultánea</button>
-                </div>
-            </form>
-        </div>
-        {% endif %}
-
-        <!-- 4. TOTALIZADOR (PREDETERMINADO DE LUNES A DOMINGO) -->
-        {% if tab_activa == 'totalizador' %}
-        <div class="card card-custom p-3 bg-white mb-3">
-            <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
-                <input type="hidden" name="tab" value="totalizador">
-                <div class="col-md-5">
-                    <label class="form-label small fw-bold text-muted">Desde:</label>
-                    <input type="date" name="desde_fecha" value="{{ desde_fecha }}" class="form-control form-control-sm">
-                </div>
-                <div class="col-md-5">
-                    <label class="form-label small fw-bold text-muted">Hasta:</label>
-                    <input type="date" name="hasta_fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm">
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold"><i class="fas fa-search me-1"></i> Filtrar</button>
-                </div>
-            </form>
-
-            <h5 class="fw-bold text-dark mb-3"><i class="fas fa-chart-line text-tema me-2"></i>Consolidado de Sistemas ({{ desde_fecha }} al {{ hasta_fecha }})</h5>
-            <div class="table-responsive">
-                <table class="table table-bordered table-sm align-middle mb-0">
-                    <thead class="table-dark">
-                        <tr><th>SISTEMA</th><th class="text-end">VENTA</th><th class="text-end">COMISIÓN</th><th class="text-end">PREMIOS</th><th class="text-end">TOTAL NETO</th></tr>
-                    </thead>
-                    <tbody>
-                        {% for s_nom, s_data in sistemas_consolidados.items() %}
-                        <tr>
-                            <td class="fw-bold">{{ s_nom }}</td>
-                            <td class="text-end">Bs. {{ s_data.venta | dinero }}</td>
-                            <td class="text-end text-primary">Bs. {{ s_data.comision | dinero }}</td>
-                            <td class="text-end text-danger">Bs. {{ s_data.premio | dinero }}</td>
-                            <td class="text-end fw-bold">Bs. {{ s_data.neto | dinero }}</td>
-                        </tr>
-                        {% endfor %}
-                        <tr class="table-dark fw-bold">
-                            <td>TOTALES</td>
-                            <td class="text-end">Bs. {{ totales_generales.venta | dinero }}</td>
-                            <td class="text-end">Bs. {{ totales_generales.comision | dinero }}</td>
-                            <td class="text-end">Bs. {{ totales_generales.premio | dinero }}</td>
-                            <td class="text-end">Bs. {{ totales_generales.neto | dinero }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- 5. DESGLOSE BANCA (PREDETERMINADO DE LUNES A DOMINGO) -->
-        {% if tab_activa == 'desglose_banca' %}
-        <div class="card card-custom p-3 bg-white mb-3">
-            <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
-                <input type="hidden" name="tab" value="desglose_banca">
-                <div class="col-md-5">
-                    <label class="form-label small fw-bold text-muted">Desde:</label>
-                    <input type="date" name="desde_fecha" value="{{ desde_fecha }}" class="form-control form-control-sm">
-                </div>
-                <div class="col-md-5">
-                    <label class="form-label small fw-bold text-muted">Hasta:</label>
-                    <input type="date" name="hasta_fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm">
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold"><i class="fas fa-search me-1"></i> Filtrar</button>
-                </div>
-            </form>
-
-            <h5 class="fw-bold text-dark mb-3"><i class="fas fa-university text-tema me-2"></i>Liquidación de Banqueros ({{ desde_fecha }} al {{ hasta_fecha }})</h5>
-            
-            {% for b_nom, b_info in desglose_banqueros.items() %}
-            <div class="card p-3 border rounded-3 mb-3 bg-light">
-                <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
-                    <h6 class="fw-bold text-dark m-0">{{ b_nom }}</h6>
-                    <span class="badge bg-dark fs-6">A Pagar: Bs. {{ b_info.total_a_pagar_banquero | dinero }}</span>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-sm table-bordered bg-white align-middle mb-0" style="font-size: 12px;">
-                        <thead class="table-light"><tr><th>Sistema</th><th class="text-end">Venta</th><th class="text-end">Premios</th><th class="text-end">% Banquero</th><th class="text-end">Total Banquero</th></tr></thead>
-                        <tbody>
-                            {% for sys in b_info.sistemas %}
-                            <tr>
-                                <td>{{ sys.sistema }}</td>
-                                <td class="text-end">Bs. {{ sys.venta | dinero }}</td>
-                                <td class="text-end text-danger">Bs. {{ sys.premios | dinero }}</td>
-                                <td class="text-end">{{ sys.pct_banquero }}%</td>
-                                <td class="text-end fw-bold">Bs. {{ sys.total_banquero | dinero }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <!-- 6. TAQUILLAS CREADAS -->
-        {% if tab_activa == 'taquillas' %}
-        <div class="card card-custom p-4 bg-white mb-3">
-            <h5 class="fw-bold text-dark mb-3"><i class="fas fa-store text-tema me-2"></i>Gestión de Taquillas</h5>
-            
-            <form action="/admin/crear-taquilla" method="POST" class="row g-2 mb-4 bg-light p-3 rounded border">
-                <div class="col-md-5">
-                    <input type="text" name="agencia" class="form-control form-control-sm" placeholder="Nombre de la Agencia" required>
-                </div>
-                <div class="col-md-5">
-                    <input type="text" name="clave" class="form-control form-control-sm" placeholder="Contraseña de acceso" required>
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-tema btn-sm w-100 fw-bold">Crear / Actualizar</button>
-                </div>
-            </form>
-
-            <table class="table table-sm table-hover align-middle mb-0">
-                <thead class="table-light"><tr><th>ID</th><th>Agencia</th><th>Clave</th><th>Última Conexión</th><th>Acciones</th></tr></thead>
-                <tbody>
-                    {% for ag in agencias %}
-                    <tr>
-                        <td>{{ ag.id }}</td>
-                        <td class="fw-bold">{{ ag.agencia }}</td>
-                        <td><code>{{ ag.clave }}</code></td>
-                        <td><small class="text-muted">{{ ag.ultima_conexion or 'Nunca' }}</small></td>
-                        <td>
-                            <form action="/admin/eliminar-agencia" method="POST" onsubmit="return confirm('¿Eliminar agencia?');">
-                                <input type="hidden" name="agencia_id" value="{{ ag.id }}">
+            <!-- 2. NOTIFICACIONES / COMUNICADOS -->
+            <div class="tab-pane fade {% if tab_activa == 'comunicados' %}show active{% endif %}" id="tab-comunicados" role="tabpanel">
+                <div class="card card-custom p-4 bg-white mb-3">
+                    <h5 class="fw-bold text-tema mb-3"><i class="fas fa-bullhorn me-2"></i>Enviar Notificación Global</h5>
+                    <form action="/admin/crear-comunicado" method="POST" class="mb-4">
+                        <div class="input-group">
+                            <input type="text" name="mensaje" class="form-control" placeholder="Escribe el comunicado para todas las taquillas..." required>
+                            <button type="submit" class="btn btn-tema fw-bold px-4">Enviar Notificación</button>
+                        </div>
+                    </form>
+                    <h6 class="fw-bold text-muted mb-2">Notificaciones Activas:</h6>
+                    <div class="list-group">
+                        {% for com in comunicados %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <span>{{ com.mensaje }}</span>
+                                <small class="text-muted d-block mt-1">{{ com.fecha }}</small>
+                            </div>
+                            <form action="/admin/eliminar-comunicado" method="POST" class="m-0">
+                                <input type="hidden" name="comunicado_id" value="{{ com.id }}">
                                 <button type="submit" class="btn btn-outline-danger btn-sm py-0"><i class="fas fa-trash-alt"></i></button>
                             </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% endif %}
-
-        <!-- 7. NOTIFICACIONES / COMUNICADOS -->
-        {% if tab_activa == 'comunicados' %}
-        <div class="card card-custom p-4 bg-white mb-3">
-            <h5 class="fw-bold text-dark mb-3"><i class="fas fa-bullhorn text-tema me-2"></i>Enviar Notificación Global</h5>
-            
-            <form action="/admin/crear-comunicado" method="POST" class="mb-4">
-                <div class="input-group">
-                    <input type="text" name="mensaje" class="form-control" placeholder="Escribe el comunicado para todas las taquillas..." required>
-                    <button type="submit" class="btn btn-tema fw-bold px-4">Enviar Notificación</button>
-                </div>
-            </form>
-
-            <h6 class="fw-bold text-muted mb-2">Notificaciones Activas:</h6>
-            <div class="list-group">
-                {% for com in comunicados %}
-                <div class="list-group-item d-flex justify-content-between align-items-center">
-                    <div>
-                        <span>{{ com.mensaje }}</span>
-                        <small class="text-muted d-block mt-1">{{ com.fecha }}</small>
+                        </div>
+                        {% endfor %}
                     </div>
-                    <form action="/admin/eliminar-comunicado" method="POST" class="m-0">
-                        <input type="hidden" name="comunicado_id" value="{{ com.id }}">
-                        <button type="submit" class="btn btn-outline-danger btn-sm py-0"><i class="fas fa-trash-alt"></i></button>
+                </div>
+            </div>
+
+            <!-- 3. TRANSACCIONES -->
+            <div class="tab-pane fade {% if tab_activa == 'transacciones' %}show active{% endif %}" id="tab-transacciones" role="tabpanel">
+                <div class="card card-custom p-3 bg-white mb-3">
+                    <h5 class="fw-bold text-dark mb-3"><i class="fas fa-exchange-alt me-1"></i> Control de Transacciones</h5>
+                    {% if solicitudes_pendientes and solicitudes_pendientes | length > 0 %}
+                    <div class="alert alert-warning border-0 p-3 mb-4 rounded-3 shadow-sm">
+                        <h6 class="fw-bold text-dark mb-2"><i class="fas fa-bell me-2 text-danger"></i> Solicitudes y Pagos por Aprobar</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle bg-white rounded mb-0">
+                                <thead class="table-light"><tr><th>Fecha</th><th>Agencia</th><th>Tipo</th><th>Monto</th><th>Detalle</th><th>Acción</th></tr></thead>
+                                <tbody>
+                                    {% for sp in solicitudes_pendientes %}
+                                    <tr>
+                                        <td>{{ sp.fecha }}</td>
+                                        <td class="fw-bold">{{ sp.agencia }}</td>
+                                        <td><span class="badge bg-warning text-dark">{{ sp.tipo }}</span></td>
+                                        <td class="fw-bold text-success">Bs. {{ sp.monto | dinero }}</td>
+                                        <td>
+                                            {{ sp.factura }}<br>
+                                            {% if sp.comprobante %}
+                                            <a href="/comprobante/{{ sp.id }}" class="small fw-bold text-primary"><i class="fas fa-download"></i> Ver Comprobante</a>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if sp.tipo == 'SOLICITUD_BANCA' %}
+                                            <form action="/admin/procesar-solicitud-dinero" method="POST" enctype="multipart/form-data" class="d-flex gap-1 align-items-center">
+                                                <input type="hidden" name="solicitud_id" value="{{ sp.id }}">
+                                                <input type="hidden" name="agencia" value="{{ sp.agencia }}">
+                                                <input type="hidden" name="fecha" value="{{ sp.fecha }}">
+                                                <input type="hidden" name="accion" value="COMPLETO">
+                                                <input type="file" name="comprobante_file" class="form-control form-control-sm" style="max-width: 150px;" required>
+                                                <button type="submit" class="btn btn-success btn-sm fw-bold">Liquidar</button>
+                                            </form>
+                                            {% else %}
+                                            <div class="d-flex gap-1">
+                                                <form action="/admin/validar-pago" method="POST">
+                                                    <input type="hidden" name="solicitud_id" value="{{ sp.id }}">
+                                                    <input type="hidden" name="accion" value="APROBAR">
+                                                    <button type="submit" class="btn btn-success btn-sm py-0 fw-bold">Aprobar</button>
+                                                </form>
+                                                <form action="/admin/validar-pago" method="POST">
+                                                    <input type="hidden" name="solicitud_id" value="{{ sp.id }}">
+                                                    <input type="hidden" name="accion" value="RECHAZAR">
+                                                    <button type="submit" class="btn btn-danger btn-sm py-0 fw-bold">Rechazar</button>
+                                                </form>
+                                            </div>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm align-middle mb-0">
+                            <thead class="table-light"><tr><th>Fecha</th><th>Agencia</th><th>Tipo</th><th>Monto</th><th>Detalle / Comprobante</th><th>Estado</th><th>Eliminar</th></tr></thead>
+                            <tbody>
+                                {% for p in pagos %}
+                                <tr>
+                                    <td>{{ p.fecha }}</td>
+                                    <td class="fw-bold">{{ p.agencia }}</td>
+                                    <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
+                                    <td class="fw-bold {% if p.tipo in ['ADELANTO', 'LIQUIDACION'] %}text-danger{% else %}text-success{% endif %}">Bs. {{ p.monto | dinero }}</td>
+                                    <td>
+                                        {{ p.factura }}<br>
+                                        {% if p.comprobante %}
+                                        <a href="/comprobante/{{ p.id }}" class="small fw-bold text-primary"><i class="fas fa-download"></i> Descargar</a>
+                                        {% endif %}
+                                    </td>
+                                    <td><span class="badge {% if p.estado == 'APROBADO' %}bg-success{% elif p.estado == 'PROCESADO' %}bg-info text-dark{% else %}bg-warning text-dark{% endif %}">{{ p.estado }}</span></td>
+                                    <td>
+                                        <form action="/admin/eliminar-transaccion" method="POST" onsubmit="return confirm('¿Eliminar transacción y reestablecer cuenta?');">
+                                            <input type="hidden" name="pago_id" value="{{ p.id }}">
+                                            <input type="hidden" name="redirect_to" value="/admin?tab=transacciones">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm py-0"><i class="fas fa-trash-alt"></i></button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="7" class="text-center text-muted py-3">No hay transacciones registradas.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. BALANCES GLOBALES (+ / -) SIN EL LÁPIZ DE EDITAR -->
+            <div class="tab-pane fade {% if tab_activa == 'balances' or not tab_activa %}show active{% endif %}" id="tab-balances" role="tabpanel">
+                <div class="card card-custom p-3 bg-white mb-3">
+                    <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
+                        <input type="hidden" name="tab" value="balances">
+                        <div class="col-md-5">
+                            <label class="form-label small fw-bold text-muted">Desde:</label>
+                            <input type="date" name="desde_fecha" value="{{ desde_fecha }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small fw-bold text-muted">Hasta:</label>
+                            <input type="date" name="hasta_fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold"><i class="fas fa-search me-1"></i> Filtrar</button>
+                        </div>
+                    </form>
+
+                    <div class="row g-3">
+                        <!-- DEUDAS (+) -->
+                        <div class="col-md-6">
+                            <div class="border rounded p-3 bg-light">
+                                <h6 class="fw-bold text-success mb-3"><i class="fas fa-arrow-down me-1"></i> Deben a la Banca (+)</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover align-middle mb-0 bg-white">
+                                        <thead class="table-light">
+                                            <tr><th>AGENCIA</th><th>FECHA</th><th class="text-end">DEUDA</th><th class="text-center">ACCIONES</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for pos in positivos %}
+                                            <tr>
+                                                <td class="fw-bold">{{ pos.agencia }}</td>
+                                                <td>{{ pos.fecha }}</td>
+                                                <td class="text-end fw-bold text-success">Bs. {{ pos.monto | dinero }}</td>
+                                                <td class="text-center">
+                                                    <form action="/admin/restablecer-monto-reporte-colab" method="POST" class="d-inline" onsubmit="return confirm('¿Saldar cuenta de {{ pos.agencia }} a 0.00?');">
+                                                        <input type="hidden" name="agencia" value="{{ pos.agencia }}">
+                                                        <input type="hidden" name="fecha" value="{{ pos.fecha }}">
+                                                        <button type="submit" class="btn btn-outline-secondary btn-sm py-0 rounded-circle" title="Saldar a 0.00"><i class="fas fa-undo"></i></button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                            {% else %}
+                                            <tr><td colspan="4" class="text-center text-muted py-2">Sin deudas pendientes.</td></tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SALDOS A FAVOR (-) -->
+                        <div class="col-md-6">
+                            <div class="border rounded p-3 bg-light">
+                                <h6 class="fw-bold text-danger mb-3"><i class="fas fa-arrow-up me-1"></i> A Pagarles (-)</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover align-middle mb-0 bg-white">
+                                        <thead class="table-light">
+                                            <tr><th>AGENCIA</th><th>FECHA</th><th class="text-end">MONTO</th><th class="text-center">ACCIONES</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for neg in negativos %}
+                                            <tr>
+                                                <td class="fw-bold">{{ neg.agencia }}</td>
+                                                <td>{{ neg.fecha }}</td>
+                                                <td class="text-end fw-bold text-danger">Bs. {{ neg.monto | dinero }}</td>
+                                                <td class="text-center">
+                                                    <form action="/admin/restablecer-monto-reporte-colab" method="POST" class="d-inline" onsubmit="return confirm('¿Saldar cuenta de {{ neg.agencia }} a 0.00?');">
+                                                        <input type="hidden" name="agencia" value="{{ neg.agencia }}">
+                                                        <input type="hidden" name="fecha" value="{{ neg.fecha }}">
+                                                        <button type="submit" class="btn btn-outline-secondary btn-sm py-0 rounded-circle" title="Saldar a 0.00"><i class="fas fa-undo"></i></button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                            {% else %}
+                                            <tr><td colspan="4" class="text-center text-muted py-2">Sin saldos a favor pendientes.</td></tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. MODIFICACIONES (PESTAÑA NUEVA CENTRALIZADA PARA EL ADMIN) -->
+            <div class="tab-pane fade {% if tab_activa == 'modificaciones' %}show active{% endif %}" id="tab-modificaciones" role="tabpanel">
+                <div class="card card-custom p-4 bg-white mb-3" style="max-width: 800px; margin: 0 auto;">
+                    <h5 class="fw-bold text-tema mb-2"><i class="fas fa-edit me-1"></i> Modificar Sistema de Cualquier Taquilla</h5>
+                    <p class="text-muted small mb-3">Ajusta el monto de venta o premio de cualquier agencia sin necesidad de entrar a su usuario. Se actualizará en tiempo real tanto en el Admin como en la Taquilla.</p>
+                    
+                    <form action="/actualizar-reporte-sistema" method="POST" class="row g-3">
+                        <input type="hidden" name="origen" value="admin">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Seleccionar Agencia:</label>
+                            <select name="agencia" class="form-select form-select-sm" required>
+                                <option value="">-- Elige la taquilla --</option>
+                                {% for ag in agencias %}
+                                    {% if ag.rol != 'BANQUERO' %}
+                                    <option value="{{ ag.agencia }}">{{ ag.agencia }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Fecha del Reporte:</label>
+                            <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Sistema:</label>
+                            <select name="sistema" class="form-select form-select-sm" required>
+                                {% for s in sistemas %}
+                                <option value="{{ s }}">{{ s }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Nueva Venta (Bs.):</label>
+                            <input type="number" step="0.01" name="venta" class="form-control form-control-sm" placeholder="0.00" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Nuevo Premio (Bs.):</label>
+                            <input type="number" step="0.01" name="premio" class="form-control form-control-sm" placeholder="0.00" required>
+                        </div>
+                        <div class="col-12 mt-4">
+                            <button type="submit" class="btn btn-tema fw-bold w-100 rounded-pill shadow-sm py-2">Guardar Modificación Simultánea</button>
+                        </div>
                     </form>
                 </div>
-                {% endfor %}
             </div>
-        </div>
-        {% endif %}
 
+            <!-- 6. DATA CASHEA GENERAL -->
+            <div class="tab-pane fade {% if tab_activa == 'cashea' %}show active{% endif %}" id="tab-cashea" role="tabpanel">
+                <div class="card card-custom p-3 bg-white mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold text-dark m-0"><i class="fas fa-shopping-cart text-info me-2"></i>Facturas Cashea Consolidadas</h5>
+                        <span class="badge bg-info text-dark fs-6">Total Absorbido: Bs. {{ total_cashea_filtrado | dinero }}</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light"><tr><th>Fecha</th><th>Agencia</th><th>Factura / Detalle</th><th class="text-end">Monto Absorbido</th></tr></thead>
+                            <tbody>
+                                {% for c in casheas_generales %}
+                                <tr>
+                                    <td>{{ c.fecha }}</td>
+                                    <td class="fw-bold">{{ c.agencia }}</td>
+                                    <td>{{ c.factura or c.comprobante }}</td>
+                                    <td class="text-end fw-bold text-danger">Bs. {{ c.monto | dinero }}</td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="4" class="text-center text-muted py-3">No hay facturas Cashea en el período.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 7. CONSOLIDADO SISTEMAS -->
+            <div class="tab-pane fade {% if tab_activa == 'consolidado' %}show active{% endif %}" id="tab-consolidado" role="tabpanel">
+                <div class="card card-custom p-3 bg-white mb-3">
+                    <h5 class="fw-bold text-dark mb-3"><i class="fas fa-chart-pie text-tema me-2"></i>Consolidado General de Sistemas</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm align-middle mb-0">
+                            <thead class="table-dark">
+                                <tr><th>SISTEMA</th><th class="text-end">VENTA</th><th class="text-end">COMISIÓN</th><th class="text-end">PREMIOS</th><th class="text-end">TOTAL NETO</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for s_nom, s_data in sistemas_consolidados.items() %}
+                                <tr>
+                                    <td class="fw-bold">{{ s_nom }}</td>
+                                    <td class="text-end">Bs. {{ s_data.venta | dinero }}</td>
+                                    <td class="text-end text-primary">Bs. {{ s_data.comision | dinero }}</td>
+                                    <td class="text-end text-danger">Bs. {{ s_data.premio | dinero }}</td>
+                                    <td class="text-end fw-bold">Bs. {{ s_data.neto | dinero }}</td>
+                                </tr>
+                                {% endfor %}
+                                <tr class="table-dark fw-bold">
+                                    <td>TOTALES</td>
+                                    <td class="text-end">Bs. {{ totales_generales.venta | dinero }}</td>
+                                    <td class="text-end">Bs. {{ totales_generales.comision | dinero }}</td>
+                                    <td class="text-end">Bs. {{ totales_generales.premio | dinero }}</td>
+                                    <td class="text-end">Bs. {{ totales_generales.neto | dinero }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 8. AUDITORÍA SISTEMAS -->
+            <div class="tab-pane fade {% if tab_activa == 'auditoria' %}show active{% endif %}" id="tab-auditoria" role="tabpanel">
+                <div class="card card-custom p-3 bg-white mb-3">
+                    <h5 class="fw-bold text-dark mb-3"><i class="fas fa-search text-tema me-2"></i>Auditoría Detallada por Taquillas</h5>
+                    {% for s_name, ag_list in sistemas_agencias_detalle.items() %}
+                    <div class="card p-2 border rounded-3 mb-2 bg-light">
+                        <h6 class="fw-bold text-primary m-0 mb-2">{{ s_name }}</h6>
+                        <table class="table table-sm table-bordered bg-white mb-0" style="font-size: 12px;">
+                            <thead class="table-light"><tr><th>Agencia</th><th class="text-end">Venta</th><th class="text-end">Comisión</th><th class="text-end">Premio</th><th class="text-end">Neto</th></tr></thead>
+                            <tbody>
+                                {% for ag_item in ag_list %}
+                                <tr>
+                                    <td class="fw-bold">{{ ag_item.agencia }}</td>
+                                    <td class="text-end">Bs. {{ ag_item.venta | dinero }}</td>
+                                    <td class="text-end text-primary">Bs. {{ ag_item.comision | dinero }}</td>
+                                    <td class="text-end text-danger">Bs. {{ ag_item.premio | dinero }}</td>
+                                    <td class="text-end fw-bold">Bs. {{ ag_item.total | dinero }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- 9. TOTALIZADOR (PREDETERMINADO DE LUNES A DOMINGO) -->
+            <div class="tab-pane fade {% if tab_activa == 'totalizador' %}show active{% endif %}" id="tab-totalizador" role="tabpanel">
+                <div class="card card-custom p-3 bg-white mb-3">
+                    <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
+                        <input type="hidden" name="tab" value="totalizador">
+                        <div class="col-md-5">
+                            <label class="form-label small fw-bold text-muted">Desde:</label>
+                            <input type="date" name="desde_fecha" value="{{ desde_fecha }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small fw-bold text-muted">Hasta:</label>
+                            <input type="date" name="hasta_fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold"><i class="fas fa-search me-1"></i> Filtrar</button>
+                        </div>
+                    </form>
+
+                    <h5 class="fw-bold text-dark mb-3"><i class="fas fa-chart-line text-tema me-2"></i>Consolidado de Sistemas ({{ desde_fecha }} al {{ hasta_fecha }})</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm align-middle mb-0">
+                            <thead class="table-dark">
+                                <tr><th>SISTEMA</th><th class="text-end">VENTA</th><th class="text-end">COMISIÓN</th><th class="text-end">PREMIOS</th><th class="text-end">TOTAL NETO</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for s_nom, s_data in sistemas_consolidados.items() %}
+                                <tr>
+                                    <td class="fw-bold">{{ s_nom }}</td>
+                                    <td class="text-end">Bs. {{ s_data.venta | dinero }}</td>
+                                    <td class="text-end text-primary">Bs. {{ s_data.comision | dinero }}</td>
+                                    <td class="text-end text-danger">Bs. {{ s_data.premio | dinero }}</td>
+                                    <td class="text-end fw-bold">Bs. {{ s_data.neto | dinero }}</td>
+                                </tr>
+                                {% endfor %}
+                                <tr class="table-dark fw-bold">
+                                    <td>TOTALES</td>
+                                    <td class="text-end">Bs. {{ totales_generales.venta | dinero }}</td>
+                                    <td class="text-end">Bs. {{ totales_generales.comision | dinero }}</td>
+                                    <td class="text-end">Bs. {{ totales_generales.premio | dinero }}</td>
+                                    <td class="text-end">Bs. {{ totales_generales.neto | dinero }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 10. DESGLOSE BANCA (PREDETERMINADO DE LUNES A DOMINGO) -->
+            <div class="tab-pane fade {% if tab_activa == 'desglose_banca' %}show active{% endif %}" id="tab-desglose-banca" role="tabpanel">
+                <div class="card card-custom p-3 bg-white mb-3">
+                    <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
+                        <input type="hidden" name="tab" value="desglose_banca">
+                        <div class="col-md-5">
+                            <label class="form-label small fw-bold text-muted">Desde:</label>
+                            <input type="date" name="desde_fecha" value="{{ desde_fecha }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small fw-bold text-muted">Hasta:</label>
+                            <input type="date" name="hasta_fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold"><i class="fas fa-search me-1"></i> Filtrar</button>
+                        </div>
+                    </form>
+
+                    <h5 class="fw-bold text-dark mb-3"><i class="fas fa-university text-tema me-2"></i>Liquidación de Banqueros ({{ desde_fecha }} al {{ hasta_fecha }})</h5>
+                    
+                    {% for b_nom, b_info in desglose_banqueros.items() %}
+                    <div class="card p-3 border rounded-3 mb-3 bg-light">
+                        <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                            <h6 class="fw-bold text-dark m-0">{{ b_nom }}</h6>
+                            <span class="badge bg-dark fs-6">A Pagar: Bs. {{ b_info.total_a_pagar_banquero | dinero }}</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered bg-white align-middle mb-0" style="font-size: 12px;">
+                                <thead class="table-light"><tr><th>Sistema</th><th class="text-end">Venta</th><th class="text-end">Premios</th><th class="text-end">% Banquero</th><th class="text-end">Total Banquero</th></tr></thead>
+                                <tbody>
+                                    {% for sys in b_info.sistemas %}
+                                    <tr>
+                                        <td>{{ sys.sistema }}</td>
+                                        <td class="text-end">Bs. {{ sys.venta | dinero }}</td>
+                                        <td class="text-end text-danger">Bs. {{ sys.premios | dinero }}</td>
+                                        <td class="text-end">{{ sys.pct_banquero }}%</td>
+                                        <td class="text-end fw-bold">Bs. {{ sys.total_banquero | dinero }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function copiarReporteGlobal() {
+            var texto = "🍀 BALANCES GLOBALES - LOS ÁNGELES DEL DINERO 🍀\n\n";
+            texto += "📥 DEBEN A LA BANCA (+):\n";
+            {% for pos in positivos %}
+            texto += "• {{ pos.agencia }}: Bs. {{ pos.monto | dinero }}\n";
+            {% endfor %}
+            texto += "\n📤 A PAGARLES (-):\n";
+            {% for neg in negativos %}
+            texto += "• {{ neg.agencia }}: Bs. {{ neg.monto | dinero }}\n";
+            {% endfor %}
+            
+            navigator.clipboard.writeText(texto).then(function() {
+                alert("Balances copiados al portapapeles con éxito.");
+            });
+        }
+    </script>
 </body>
 </html>
