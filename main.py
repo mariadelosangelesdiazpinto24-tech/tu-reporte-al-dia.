@@ -371,7 +371,6 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             pct_t = item["pct_taquilla"]
             pct_part = item["pct_participacion"]
 
-            # SUMA PRECISA EN EL RANGO DE FECHAS (ARREGLO DE GUACA Y CALAMAR)
             cursor.execute(
                 """SELECT SUM(venta) as total_v, SUM(comision) as total_c, SUM(premios) as total_p, COUNT(*) as cant 
                    FROM ajustes_banqueros_manuales 
@@ -460,7 +459,6 @@ def actualizar_ultima_conexion(agencia: str):
         except Exception as e:
             print("Error actualizando conexion:", e)
 
-# RECALCULAR Y ACTUALIZAR REPORTE (CON DESCARGA DE COMPROBANTES VÍA ID)
 def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     agencia_norm = normalizar(agencia)
     conn = get_db()
@@ -652,7 +650,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     conn.commit()
     conn.close()
 
-# RUTA PARA DESCARGAR O VER COMPROBANTE SIN ERROR 404
 @app.get("/comprobante/{pago_id}")
 def ver_o_descargar_comprobante(pago_id: int):
     conn = get_db()
@@ -944,6 +941,26 @@ def get_agencia(
         cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
     pagos_agencia = [dict(row) for row in cursor.fetchall()]
 
+    if f_desde and f_hasta:
+        cursor.execute(
+            "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s ORDER BY fecha DESC, id DESC",
+            (agencia_norm, f_desde, f_hasta)
+        )
+    else:
+        cursor.execute(
+            "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'CASHEA' ORDER BY fecha DESC, id DESC",
+            (agencia_norm,)
+        )
+    casheas_agencia = [dict(r) for r in cursor.fetchall()]
+    total_cashea_periodo = sum(float(c['monto'] or 0.0) for c in casheas_agencia)
+    
+    cursor.execute(
+        "SELECT SUM(monto) as total_dia FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'CASHEA' AND fecha = %s",
+        (agencia_norm, f_hasta or hoy_vzla)
+    )
+    row_cdia = cursor.fetchone()
+    total_cashea_dia = float(row_cdia['total_dia'] or 0.0) if row_cdia else 0.0
+
     cursor.execute(
         "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha ASC", 
         (agencia_norm, f_desde or hoy_vzla, f_hasta or hoy_vzla)
@@ -989,11 +1006,11 @@ def get_agencia(
                         totales_auditoria["neto"] += st
 
     cursor.execute(
-        "SELECT SUM(monto) as total_c FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'",
+        "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'",
         (agencia_norm, f_desde or hoy_vzla, f_hasta or hoy_vzla)
     )
-    row_c = cursor.fetchone()
-    auditoria_cashea_monto = float(row_c['total_c'] or 0.0) if row_c else 0.0
+    facturas_cashea_auditoria = [dict(r) for r in cursor.fetchall()]
+    auditoria_cashea_monto = sum(float(c['monto'] or 0.0) for c in facturas_cashea_auditoria)
 
     try:
         cursor.execute(
@@ -1023,6 +1040,9 @@ def get_agencia(
         "nombre_agencia": agencia_norm,
         "reportes": reportes_agencia,
         "pagos": pagos_agencia,
+        "casheas_agencia": casheas_agencia,
+        "total_cashea_periodo": total_cashea_periodo,
+        "total_cashea_dia": total_cashea_dia,
         "comunicados": comunicados,
         "sistemas": SISTEMAS_OFICIALES,
         "saldo_actual": saldo_acumulado,
@@ -1030,6 +1050,7 @@ def get_agencia(
         "auditoria_sistemas": auditoria_sistemas_agencia,
         "totales_auditoria": totales_auditoria,
         "auditoria_cashea_monto": auditoria_cashea_monto,
+        "facturas_cashea_auditoria": facturas_cashea_auditoria,
         "desde_fecha": f_desde,
         "hasta_fecha": f_hasta,
         "tab_activa": tab or "reportes"
@@ -1617,9 +1638,9 @@ def get_admin(
         f_hasta = hasta_fecha if hasta_fecha else fecha_bd_reciente
         agencia_filtro = agencia if agencia else ""
 
-        cursor.execute("SELECT COUNT(*) AS total_pendientes FROM pagos WHERE estado = 'PENDIENTE'")
-        pend_row = cursor.fetchone()
-        solicitudes_pendientes_count = pend_row['total_pendientes'] if pend_row else 0
+        cursor.execute("SELECT * FROM pagos WHERE estado = 'PENDIENTE' ORDER BY id DESC")
+        solicitudes_pendientes = [dict(r) for r in cursor.fetchall()]
+        solicitudes_pendientes_count = len(solicitudes_pendientes)
 
         if agencia_filtro:
             cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (normalizar(agencia_filtro), f_desde, f_hasta))
@@ -1726,6 +1747,7 @@ def get_admin(
             "total_ganancia_participacion": total_ganancia_participacion,
             "total_mi_ganancia_global": total_mi_ganancia_global,
             "suma_cuadros_banqueros": suma_cuadros_banqueros,
+            "solicitudes_pendientes": solicitudes_pendientes,
             "solicitudes_pendientes_count": solicitudes_pendientes_count,
             "desde_fecha": f_desde,
             "hasta_fecha": f_hasta,
