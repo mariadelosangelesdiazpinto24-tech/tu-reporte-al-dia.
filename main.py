@@ -560,7 +560,8 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
-    monto_final = total_neto_sistemas - total_cashea + total_adelantos - total_pagos_taquilla + total_liquidaciones_admin
+    # FÓRMULA EXACTA: Total Neto Sistemas - Cashea - Adelantos + Abonos
+    monto_final = total_neto_sistemas - total_cashea - total_adelantos + total_pagos_taquilla
 
     if abs(monto_final) < 0.05:
         monto_final = 0.0
@@ -981,13 +982,6 @@ def get_agencia(
                         totales_auditoria["premio"] += sp
                         totales_auditoria["neto"] += st
 
-    cursor.execute(
-        "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'",
-        (agencia_norm, f_desde or hoy_vzla, f_hasta or hoy_vzla)
-    )
-    facturas_cashea_auditoria = [dict(r) for r in cursor.fetchall()]
-    auditoria_cashea_monto = sum(float(c['monto'] or 0.0) for c in facturas_cashea_auditoria)
-
     try:
         cursor.execute(
             """SELECT c.* FROM comunicados c
@@ -1002,7 +996,7 @@ def get_agencia(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
 
-    # Cálculo acumulado (respetando filtros de fecha si se colocaron)
+    # Cálculo acumulado
     if f_desde and f_hasta:
         cursor.execute(
             """SELECT SUM(ventas) as t_v, SUM(premios) as t_p, SUM(monto) as saldo_rep 
@@ -1038,7 +1032,13 @@ def get_agencia(
     p_sum = float(row_rep_sum['t_p'] or 0.0) if row_rep_sum else 0.0
     saldo_rep_total = float(row_rep_sum['saldo_rep'] or 0.0) if (row_rep_sum and row_rep_sum['saldo_rep'] is not None) else 0.0
     
-    neto_sistemas_calc = (v_sum - p_sum) if (v_sum > 0 or p_sum > 0) else saldo_rep_total
+    # Prioridad: Si hay desglose de auditoría, usamos su neto exacto (Venta - Comisión - Premio)[cite: 2]
+    if totales_auditoria["neto"] != 0:
+        neto_sistemas_calc = totales_auditoria["neto"]
+    elif saldo_rep_total != 0.0:
+        neto_sistemas_calc = saldo_rep_total
+    else:
+        neto_sistemas_calc = (v_sum - p_sum)
 
     fecha_display_desglose = "Saldo Acumulado Pendiente"
     abonos_calc = 0.0
@@ -1058,7 +1058,7 @@ def get_agencia(
         elif t_d == 'CASHEA':
             cashea_calc += m_d
 
-    # FÓRMULA EXACTA: Sistemas - Cashea - Adelantos + Abonos
+    # FÓRMULA EXACTA: Total Neto Sistemas - Cashea - Adelantos + Abonos[cite: 3]
     saldo_acumulado = neto_sistemas_calc - cashea_calc - adelantos_calc + abonos_calc
 
     if abs(saldo_acumulado) < 0.05:
@@ -1751,6 +1751,13 @@ def get_admin(
                     (ag_norm, f_desde, f_hasta)
                 )
                 filas_pagos = cursor.fetchall()
+
+                # Buscar detalle_html para obtener neto real si las ventas están sin comisionar
+                cursor.execute(
+                    """SELECT detalle_html FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s""",
+                    (ag_norm, f_desde, f_hasta)
+                )
+                reps_admin_periodo = cursor.fetchall()
             else:
                 cursor.execute(
                     """SELECT SUM(ventas) as total_ventas, SUM(premios) as total_premios, SUM(monto) as saldo_neto, MAX(fecha) as ultima_fecha
@@ -1766,6 +1773,12 @@ def get_admin(
                     (ag_norm,)
                 )
                 filas_pagos = cursor.fetchall()
+
+                cursor.execute(
+                    """SELECT detalle_html FROM reportes WHERE UPPER(TRIM(agencia)) = %s""",
+                    (ag_norm,)
+                )
+                reps_admin_periodo = cursor.fetchall()
             
             sum_abonos = 0.0
             sum_cashea = 0.0
@@ -1785,10 +1798,30 @@ def get_admin(
             saldo_rep_base = float(fila_rep['saldo_neto'] or 0.0) if (fila_rep and fila_rep['saldo_neto'] is not None) else 0.0
             f_rep = fila_rep['ultima_fecha'] if (fila_rep and fila_rep['ultima_fecha']) else f_hasta
 
-            # Neto de Sistemas
-            base_sistemas = (v_tot - p_tot) if (v_tot > 0 or p_tot > 0) else saldo_rep_base
+            # Extraer neto real sumando los totales por sistema del detalle_html si existen[cite: 2]
+            neto_desde_html = 0.0
+            for r_adm in reps_admin_periodo:
+                if r_adm and r_adm['detalle_html']:
+                    tablas_adm = re.findall(r'<table[^>]*>(.*?)<\/table>', r_adm['detalle_html'], re.DOTALL | re.IGNORECASE)
+                    if tablas_adm:
+                        filas_adm = re.findall(r'<tr[^>]*>(.*?)<\/tr>', tablas_adm[0], re.DOTALL | re.IGNORECASE)
+                        for fa in filas_adm:
+                            if 'TOTALES' in fa.upper():
+                                cols_adm = re.findall(r'<td[^>]*>(.*?)<\/td>', fa, re.DOTALL | re.IGNORECASE)
+                                if cols_adm:
+                                    try:
+                                        neto_desde_html += float(cols_adm[-1].replace(',', '').replace('Bs.', '').strip())
+                                    except:
+                                        pass
 
-            # FÓRMULA EXACTA: Sistemas - Cashea - Adelantos + Abonos
+            if neto_desde_html != 0.0:
+                base_sistemas = neto_desde_html
+            elif saldo_rep_base != 0.0:
+                base_sistemas = saldo_rep_base
+            else:
+                base_sistemas = (v_tot - p_tot)
+
+            # FÓRMULA EXACTA: Total Neto Sistemas - Cashea - Adelantos + Abonos[cite: 3]
             balance_contable = base_sistemas - sum_cashea - sum_adelantos + sum_abonos
 
             if abs(balance_contable) < 0.05:
