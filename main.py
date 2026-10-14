@@ -477,7 +477,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         conn.close()
         return
 
-    # Buscar pagos correspondientes a esta fecha exacta o referenciados a esta fecha en la factura
     cursor.execute(
         """SELECT * FROM pagos 
            WHERE UPPER(TRIM(agencia)) = %s 
@@ -1003,25 +1002,45 @@ def get_agencia(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
 
-    # Contabilizar el saldo acumulado real: Suma de reportes - Pagos aprobados recibidos
-    cursor.execute(
-        """SELECT SUM(monto) as saldo_total 
-           FROM reportes 
-           WHERE UPPER(TRIM(agencia)) = %s""",
-        (agencia_norm,)
-    )
-    row_pend_glob = cursor.fetchone()
-    saldo_acumulado = float(row_pend_glob['saldo_total'] or 0.0) if row_pend_glob else 0.0
+    # Cálculo acumulado (respetando filtros de fecha si se colocaron)
+    if f_desde and f_hasta:
+        cursor.execute(
+            """SELECT SUM(ventas) as t_v, SUM(premios) as t_p, SUM(monto) as saldo_rep 
+               FROM reportes 
+               WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s""",
+            (agencia_norm, f_desde, f_hasta)
+        )
+        row_rep_sum = cursor.fetchone()
+        cursor.execute(
+            """SELECT tipo, SUM(monto) as total FROM pagos 
+               WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' AND fecha >= %s AND fecha <= %s
+               GROUP BY tipo""",
+            (agencia_norm, f_desde, f_hasta)
+        )
+        filas_desglose = cursor.fetchall()
+    else:
+        cursor.execute(
+            """SELECT SUM(ventas) as t_v, SUM(premios) as t_p, SUM(monto) as saldo_rep 
+               FROM reportes 
+               WHERE UPPER(TRIM(agencia)) = %s""",
+            (agencia_norm,)
+        )
+        row_rep_sum = cursor.fetchone()
+        cursor.execute(
+            """SELECT tipo, SUM(monto) as total FROM pagos 
+               WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' 
+               GROUP BY tipo""",
+            (agencia_norm,)
+        )
+        filas_desglose = cursor.fetchall()
 
-    cursor.execute(
-        """SELECT tipo, SUM(monto) as total FROM pagos 
-           WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' 
-           GROUP BY tipo""",
-        (agencia_norm,)
-    )
-    filas_desglose = cursor.fetchall()
+    v_sum = float(row_rep_sum['t_v'] or 0.0) if row_rep_sum else 0.0
+    p_sum = float(row_rep_sum['t_p'] or 0.0) if row_rep_sum else 0.0
+    saldo_rep_total = float(row_rep_sum['saldo_rep'] or 0.0) if (row_rep_sum and row_rep_sum['saldo_rep'] is not None) else 0.0
+    
+    neto_sistemas_calc = (v_sum - p_sum) if (v_sum > 0 or p_sum > 0) else saldo_rep_total
+
     fecha_display_desglose = "Saldo Acumulado Pendiente"
-
     abonos_calc = 0.0
     liquidaciones_calc = 0.0
     adelantos_calc = 0.0
@@ -1039,12 +1058,15 @@ def get_agencia(
         elif t_d == 'CASHEA':
             cashea_calc += m_d
 
+    # FÓRMULA EXACTA: Sistemas - Cashea - Adelantos + Abonos
+    saldo_acumulado = neto_sistemas_calc - cashea_calc - adelantos_calc + abonos_calc
+
     if abs(saldo_acumulado) < 0.05:
         saldo_acumulado = 0.0
 
     desglose_cuenta = {
         "fecha": fecha_display_desglose,
-        "neto_sistemas": saldo_acumulado,
+        "neto_sistemas": neto_sistemas_calc,
         "cashea": cashea_calc,
         "adelantos": adelantos_calc,
         "abonos": abonos_calc,
@@ -1339,7 +1361,6 @@ async def post_procesar_solicitud_dinero(
             (f"Se te ha transferido Bs. {monto_pagar:,.2f} ({accion}) para saldar tu cuenta.", agencia_norm)
         )
 
-        # Buscar el reporte con saldo negativo más reciente a favor de la agencia
         cursor.execute(
             "SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND monto < -0.05 ORDER BY fecha DESC LIMIT 1",
             (agencia_norm,)
@@ -1381,11 +1402,9 @@ def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
             cursor.execute("UPDATE pagos SET estado = 'APROBADO' WHERE id = %s", (solicitud_id,))
             msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido APROBADO y acreditado a tu cuenta."
             
-            # 1. Determinar si el pago indicaba fecha de reporte específica en su factura
             match_f = re.search(r'\d{4}-\d{2}-\d{2}', factura_str)
             fecha_rep = match_f.group(0) if match_f else None
 
-            # 2. Si no, buscar el reporte pendiente con deuda positiva (> 0.05)
             if not fecha_rep:
                 cursor.execute(
                     "SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND monto > 0.05 ORDER BY fecha DESC LIMIT 1",
@@ -1397,7 +1416,6 @@ def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
                 else:
                     fecha_rep = fecha_pago
 
-            # 3. Aplicar deducción directa en el reporte objetivo para garantizar saldo saldado
             cursor.execute(
                 "SELECT id, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s",
                 (agencia_p, fecha_rep)
@@ -1764,39 +1782,38 @@ def get_admin(
 
             v_tot = float(fila_rep['total_ventas'] or 0.0) if fila_rep else 0.0
             p_tot = float(fila_rep['total_premios'] or 0.0) if fila_rep else 0.0
-            saldo_val = float(fila_rep['saldo_neto'] or 0.0) if (fila_rep and fila_rep['saldo_neto'] is not None) else 0.0
+            saldo_rep_base = float(fila_rep['saldo_neto'] or 0.0) if (fila_rep and fila_rep['saldo_neto'] is not None) else 0.0
             f_rep = fila_rep['ultima_fecha'] if (fila_rep and fila_rep['ultima_fecha']) else f_hasta
 
-            # Contabilización real de la deuda aplicando pagos recibidos y deducciones
-            neto_sistemas = v_tot - p_tot
-            balance_contable = neto_sistemas - sum_cashea + sum_adelantos - sum_abonos
+            # Neto de Sistemas
+            base_sistemas = (v_tot - p_tot) if (v_tot > 0 or p_tot > 0) else saldo_rep_base
 
-            # Si las transacciones ya saldaron la deuda global, amortizamos a 0.0
+            # FÓRMULA EXACTA: Sistemas - Cashea - Adelantos + Abonos
+            balance_contable = base_sistemas - sum_cashea - sum_adelantos + sum_abonos
+
             if abs(balance_contable) < 0.05:
-                saldo_val = 0.0
-            elif abs(saldo_val) < 0.05 and abs(balance_contable) > 0.05:
-                saldo_val = balance_contable
+                balance_contable = 0.0
 
-            ag['saldo_pendiente'] = saldo_val
+            ag['saldo_pendiente'] = balance_contable
             
             datos_desglose = {
                 "agencia": ag_nombre,
                 "fecha": f_rep,
-                "monto": saldo_val,
+                "monto": balance_contable,
                 "ventas": v_tot,
                 "premios": p_tot,
-                "reporte_neto": (v_tot - p_tot),
+                "reporte_neto": base_sistemas,
                 "abonos": sum_abonos,
                 "cashea": sum_cashea,
                 "adelantos": sum_adelantos,
                 "pendientes": 0.0
             }
 
-            if saldo_val > 0.009:
+            if balance_contable > 0.009:
                 positivos.append(datos_desglose)
-            elif saldo_val < -0.009:
+            elif balance_contable < -0.009:
                 datos_desglose_neg = dict(datos_desglose)
-                datos_desglose_neg["monto"] = abs(saldo_val)
+                datos_desglose_neg["monto"] = abs(balance_contable)
                 negativos.append(datos_desglose_neg)
 
         conn.close()
