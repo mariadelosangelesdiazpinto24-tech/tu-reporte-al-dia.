@@ -371,18 +371,22 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             pct_t = item["pct_taquilla"]
             pct_part = item["pct_participacion"]
 
-            cursor.execute(
-                "SELECT venta, comision, premios FROM ajustes_banqueros_manuales WHERE banquero = %s AND sistema = %s AND fecha >= %s AND fecha <= %s",
+cursor.execute(
+                """SELECT SUM(venta) as total_v, SUM(comision) as total_c, SUM(premios) as total_p, COUNT(*) as cant 
+                   FROM ajustes_banqueros_manuales 
+                   WHERE banquero = %s AND sistema = %s AND fecha >= %s AND fecha <= %s""",
                 (b_nombre, s_name, f_desde, f_hasta)
             )
             ajuste_manual = cursor.fetchone()
 
-            if ajuste_manual:
-                v_sys = float(ajuste_manual['venta'])
-                p_sys = float(ajuste_manual['premios'])
-                c_banquero = float(ajuste_manual['comision'])
+            if ajuste_manual and ajuste_manual['cant'] and ajuste_manual['cant'] > 0 and (ajuste_manual['total_v'] is not None or ajuste_manual['total_p'] is not None):
+                v_sys = float(ajuste_manual['total_v'] or 0.0)
+                p_sys = float(ajuste_manual['total_p'] or 0.0)
+                c_banquero = float(ajuste_manual['total_c'] or 0.0)
+                hay_ajuste = True
             else:
                 c_banquero = v_sys * pct_b
+                hay_ajuste = False
 
             t_banquero_sistema = v_sys - c_banquero - p_sys
 
