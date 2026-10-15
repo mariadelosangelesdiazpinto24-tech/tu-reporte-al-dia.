@@ -9,22 +9,20 @@
     
     <style>
         {% if genero == 'masculino' %}
-            /* PALETA MASCULINA: AZUL + AMARILLO + VERDE */
             :root {
-                --color-primario: #0d47a1;       /* Azul principal */
-                --color-secundario: #ffc107;     /* Amarillo vibrante */
-                --color-acento-verde: #00897b;   /* Verde esmeralda de soporte */
-                --color-fondo: #eef5fc;          /* Fondo suave azulado */
+                --color-primario: #0d47a1;
+                --color-secundario: #ffc107;
+                --color-acento-verde: #00897b;
+                --color-fondo: #eef5fc;
                 --color-hover: #083375;
                 --color-texto-btn: #ffffff;
             }
         {% else %}
-            /* PALETA FEMENINA: ROSADO + AMARILLO + VERDE */
             :root {
-                --color-primario: #e91e63;       /* Rosa principal */
-                --color-secundario: #ffd54f;     /* Amarillo dorado */
-                --color-acento-verde: #2e7d32;   /* Verde armónico */
-                --color-fondo: #fdf2f4;          /* Fondo suave rosado */
+                --color-primario: #e91e63;
+                --color-secundario: #ffd54f;
+                --color-acento-verde: #2e7d32;
+                --color-fondo: #fdf2f4;
                 --color-hover: #c2185b;
                 --color-texto-btn: #ffffff;
             }
@@ -107,8 +105,8 @@
             color: var(--color-secundario); 
         }
 
-        .accent-verde {
-            color: var(--color-acento-verde);
+        .accent-verde { 
+            color: var(--color-acento-verde); 
         }
     </style>
 </head>
@@ -243,34 +241,30 @@
                     </div>
 
                     <!-- DESGLOSE DETALLADO -->
-                    <div class="collapse mb-4" id="desglosePendienteDetalle">
+                    <div class="collapse show mb-4" id="desglosePendienteDetalle">
                         <div class="card p-3 border rounded-3 bg-light shadow-sm small">
                             <h6 class="fw-bold text-dark border-bottom pb-2 mb-2"><i class="fas fa-calculator text-tema me-2"></i>Justificación de la Cuenta:</h6>
                             <div class="row g-2">
                                 <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
-                                    <span>📊 Total Neto Loterías ({{ desglose_cuenta.fecha }}):</span>
-                                    <strong>Bs. {{ desglose_cuenta.neto_sistemas | dinero }}</strong>
+                                    <span>📊 Total Neto Loterías:</span>
+                                    <strong>Bs. {{ (desglose_cuenta.neto_sistemas or 0) | dinero }}</strong>
                                 </div>
                                 <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
                                     <span class="text-info">🛒 Menos Facturas Cashea:</span>
-                                    <strong class="text-info">- Bs. {{ desglose_cuenta.cashea | dinero }}</strong>
+                                    <strong class="text-info">- Bs. {{ (desglose_cuenta.cashea or 0) | dinero }}</strong>
                                 </div>
                                 <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
-                                    <span class="text-danger">💸 Más Adelantos Solicitados:</span>
-                                    <strong class="text-danger">+ Bs. {{ desglose_cuenta.adelantos | dinero }}</strong>
+                                    <span class="text-success">🏦 Menos Abonos/Pagos Realizados:</span>
+                                    <strong class="text-success">- Bs. {{ (desglose_cuenta.abonos or 0) | dinero }}</strong>
                                 </div>
                                 <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
-                                    <span class="text-success">🏦 Menos Abonos/Pagos a Banca:</span>
-                                    <strong class="text-success">- Bs. {{ desglose_cuenta.abonos | dinero }}</strong>
+                                    <span class="text-secondary">💸 Adelantos/Liquidaciones Previas:</span>
+                                    <strong class="text-secondary">Bs. {{ ((desglose_cuenta.adelantos or 0) - (desglose_cuenta.liquidaciones or 0)) | dinero }}</strong>
                                 </div>
-                                <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
-                                    <span class="text-primary">📥 Más Liquidaciones Pagadas por Banca:</span>
-                                    <strong class="text-primary">+ Bs. {{ desglose_cuenta.liquidaciones | dinero }}</strong>
-                                </div>
-                                <div class="col-md-6 d-flex justify-content-between border-bottom py-1 bg-white rounded px-2">
+                                <div class="col-12 d-flex justify-content-between border-top py-2 bg-white rounded px-2 mt-2">
                                     <strong>💰 TOTAL PENDIENTE EXACTO:</strong>
-                                    <strong class="{% if desglose_cuenta.saldo_final < 0 %}text-success{% elif desglose_cuenta.saldo_final > 0 %}text-danger{% else %}text-dark{% endif %}">
-                                        Bs. {{ desglose_cuenta.saldo_final | dinero }}
+                                    <strong class="{% if saldo_actual < 0 %}text-success{% elif saldo_actual > 0 %}text-danger{% else %}text-dark{% endif %} fs-6">
+                                        Bs. {{ saldo_actual | dinero }}
                                     </strong>
                                 </div>
                             </div>
@@ -284,46 +278,33 @@
                             </button>
                         </div>
                         <div class="col-md-6">
-                            <button class="btn btn-tema btn-lg w-100 fw-bold shadow-sm rounded-pill py-3" data-bs-toggle="collapse" data-bs-target="#seccionSolicitar">
+                            <button class="btn btn-tema btn-lg w-100 fw-bold shadow-sm rounded-pill py-3" data-bs-toggle="collapse" data-bs-target="#seccionSolicitar" {% if saldo_actual > 0 %}disabled title="Solo disponible si tienes saldo a favor"{% endif %}>
                                 <i class="fas fa-university me-2 accent-amarillo"></i> Solicitar Saldo a Favor a la Banca
                             </button>
                         </div>
                     </div>
 
+                    <!-- FORMULARIO DE PAGO -->
                     <div class="collapse mb-4" id="seccionPagar">
                         <div class="card p-3 border rounded-3 bg-light shadow-sm">
-                            <h5 class="fw-bold text-success mb-2"><i class="fas fa-check-square me-2"></i>Selecciona qué estás pagando:</h5>
-                            <p class="small text-muted mb-3">Marca los conceptos y el monto se sumará solo.</p>
+                            <h5 class="fw-bold text-success mb-2"><i class="fas fa-check-square me-2"></i>Reportar Pago a la Banca:</h5>
+                            <p class="small text-muted mb-3">Introduce los datos del pago móvil o transferencia realizada.</p>
                             
                             <form action="/reportar" method="POST" enctype="multipart/form-data">
                                 <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
                                 
-                                <div class="bg-white p-3 rounded border mb-3">
-                                    {% for item in items_pendientes %}
-                                    <div class="form-check py-1 border-bottom">
-                                        <input class="form-check-input item-pago" type="checkbox" value="{{ item.monto }}" id="chk{{ item.id }}" onchange="calcularTotalSeleccionado()">
-                                        <label class="form-check-label d-flex justify-content-between" for="chk{{ item.id }}">
-                                            <span>Reporte del día <strong>{{ item.fecha }}</strong></span>
-                                            <span class="fw-bold text-dark">Bs. {{ item.monto | dinero }}</span>
-                                        </label>
-                                    </div>
-                                    {% else %}
-                                    <p class="text-muted small m-0">No hay deudas pendientes registradas.</p>
-                                    {% endfor %}
-                                </div>
-
                                 <div class="row g-3">
                                     <div class="col-md-3">
                                         <label class="form-label small fw-bold">Fecha del Pago:</label>
-                                        <input type="date" name="fecha" class="form-control form-control-sm" required>
+                                        <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
                                     </div>
                                     <div class="col-md-3">
-                                        <label class="form-label small fw-bold">Monto a Transferir (Bs.):</label>
-                                        <input type="number" step="0.01" name="monto" id="inputMontoPagar" class="form-control form-control-sm fw-bold text-success" placeholder="0.00" required>
+                                        <label class="form-label small fw-bold">Monto Transferido (Bs.):</label>
+                                        <input type="number" step="0.01" name="monto" id="inputMontoPagar" class="form-control form-control-sm fw-bold text-success" placeholder="0.00" value="{% if saldo_actual > 0 %}{{ saldo_actual }}{% endif %}" required>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label small fw-bold">N° Referencia:</label>
-                                        <input type="text" name="factura" id="inputReferencia" class="form-control form-control-sm" placeholder="Ej: 9476" required>
+                                        <input type="text" name="factura" id="inputReferencia" class="form-control form-control-sm" placeholder="Últimos 4 dígitos" required>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label small fw-bold">Capture de Transferencia:</label>
@@ -335,21 +316,22 @@
                         </div>
                     </div>
 
+                    <!-- FORMULARIO DE SOLICITUD DE SALDO A FAVOR -->
                     <div class="collapse mb-4" id="seccionSolicitar">
                         <div class="card p-3 border rounded-3 bg-light shadow-sm">
-                            <h5 class="fw-bold text-tema mb-2"><i class="fas fa-hand-holding-usd me-2"></i>Solicitar Dinero a la Administración</h5>
+                            <h5 class="fw-bold text-tema mb-2"><i class="fas fa-hand-holding-usd me-2"></i>Solicitar Saldo a Favor</h5>
                             <form action="/solicitar-banca-directo" method="POST" class="row g-3">
                                 <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
                                 <div class="col-md-6">
                                     <label class="form-label small fw-bold">Fecha:</label>
-                                    <input type="date" name="fecha" class="form-control form-control-sm" required>
+                                    <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label small fw-bold">Monto a Solicitar (Bs.):</label>
-                                    <input type="number" step="0.01" name="monto" class="form-control form-control-sm" placeholder="Monto total a favor" required>
+                                    <input type="number" step="0.01" name="monto" class="form-control form-control-sm" placeholder="0.00" value="{% if saldo_actual < 0 %}{{ -saldo_actual }}{% endif %}" required>
                                 </div>
                                 <div class="col-12">
-                                    <button type="submit" class="btn btn-tema fw-bold w-100 shadow-sm rounded-pill">Enviar Solicitud</button>
+                                    <button type="submit" class="btn btn-tema fw-bold w-100 shadow-sm rounded-pill">Enviar Solicitud a la Administración</button>
                                 </div>
                             </form>
                         </div>
@@ -365,13 +347,13 @@
                         <div class="col-md-6">
                             <div class="p-3 rounded-4 shadow-sm bg-light border-start border-4 border-info">
                                 <small class="text-muted fw-bold">CASHEA DEL DÍA ({{ hasta_fecha or 'Hoy' }})</small>
-                                <h3 class="fw-bold text-info m-0 mt-1">Bs. {{ total_cashea_dia | dinero }}</h3>
+                                <h3 class="fw-bold text-info m-0 mt-1">Bs. {{ (total_cashea_dia or 0) | dinero }}</h3>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="p-3 rounded-4 shadow-sm bg-light border-start border-4 border-warning">
                                 <small class="text-muted fw-bold">TOTAL CASHEA EN EL PERÍODO FILTRADO</small>
-                                <h3 class="fw-bold text-dark m-0 mt-1">Bs. {{ total_cashea_periodo | dinero }}</h3>
+                                <h3 class="fw-bold text-dark m-0 mt-1">Bs. {{ (total_cashea_periodo or 0) | dinero }}</h3>
                             </div>
                         </div>
                     </div>
@@ -441,7 +423,7 @@
                         </table>
                     </div>
 
-                    <!-- DESGLOSE DE FACTURAS CASHEA Y TOTAL DEFINITIVO -->
+                    <!-- DESGLOSE CASHEA EN AUDITORÍA -->
                     <div class="mt-4 p-3 bg-light border rounded">
                         <h6 class="fw-bold text-info mb-2"><i class="fas fa-shopping-cart me-1"></i> Facturas Cashea Descontadas</h6>
                         <table class="table table-sm align-middle mb-2 bg-white border" style="font-size: 12px;">
@@ -575,21 +557,9 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function setTab(tabName) {
-            document.getElementById('campo_tab_activa').value = tabName;
-        }
-
-        function calcularTotalSeleccionado() {
-            var checkboxes = document.querySelectorAll(".item-pago:checked");
-            var total = 0.0;
-            var detalles = [];
-            checkboxes.forEach(function(chk) {
-                total += parseFloat(chk.value) || 0.0;
-                var label = chk.parentElement.querySelector("label span").innerText.trim();
-                detalles.push(label);
-            });
-            document.getElementById("inputMontoPagar").value = total > 0 ? total.toFixed(2) : "";
-            if (detalles.length > 0) {
-                document.getElementById("inputReferencia").value = "Pago de: " + detalles.join(", ");
+            var campo = document.getElementById('campo_tab_activa');
+            if (campo) {
+                campo.value = tabName;
             }
         }
     </script>
