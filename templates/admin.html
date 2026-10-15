@@ -500,7 +500,7 @@
                 </div>
             </div>
 
-            <!-- MODAL MODIFICAR PENDIENTES CON DESPLEGABLE DE TODAS LAS TAQUILLAS -->
+            <!-- MODAL MODIFICAR PENDIENTES CON DESPLEGABLE (CONECTADO A REGISTRAR-PAGO-RAPIDO) -->
             <div class="modal fade" id="modalModificarPendiente" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content border-0 shadow">
@@ -510,8 +510,9 @@
                             </h6>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
-                        <form action="/admin/ajuste-banca" method="POST">
-                            <input type="hidden" name="tipo" value="AJUSTE_BANCA">
+                        <form action="/admin/registrar-pago-rapido" method="POST">
+                            <input type="hidden" name="accion" value="AJUSTE_BANCA">
+                            <input type="hidden" name="redirect_to" value="/admin?tab=balances">
                             <div class="modal-body">
                                 <div class="mb-3">
                                     <label class="form-label small fw-bold text-dark">Selecciona la Taquilla:</label>
@@ -543,10 +544,10 @@
 
                                 <div class="mb-2">
                                     <label class="form-label small fw-bold text-muted">Concepto / Motivo del Movimiento:</label>
-                                    <input type="text" name="motivo" class="form-control form-control-sm" placeholder="Ej: Retiro personal, préstamo, corrección..." required>
+                                    <input type="text" name="factura" class="form-control form-control-sm" placeholder="Ej: Retiro personal, préstamo, corrección..." required>
                                 </div>
-                                <div class="alert alert-warning py-1 px-2 m-0 small" style="font-size: 11px;">
-                                    <i class="fas fa-shield-halved me-1"></i> Se enviará a <strong>Transacciones</strong> clasificado como <strong>AJUSTE DE BANCA</strong> sin alterar los sistemas.
+                                <div class="alert alert-info py-1 px-2 m-0 small" style="font-size: 11px;">
+                                    <i class="fas fa-info-circle me-1"></i> Se reflejará automáticamente en el <strong>Pendiente de Taquillas</strong> y en la pestaña <strong>Transacciones</strong>.
                                 </div>
                             </div>
                             <div class="modal-footer bg-light py-2">
