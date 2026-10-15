@@ -361,11 +361,12 @@
                     </form>
 
                     <div class="row g-3">
+                        <!-- DEBEN A LA BANCA -->
                         <div class="col-md-6">
                             <div class="border rounded-3 p-3 bg-light h-100">
                                 <h6 class="fw-bold text-success mb-3"><i class="fas fa-arrow-down me-1"></i> Deben a la Banca (+)</h6>
                                 <div class="table-responsive">
-                                    <table class="table table-sm table-hover align-middle mb-0 bg-white">
+                                    <table class="table table-sm table-hover align-middle mb-0 bg-white" id="tablaPositivos">
                                         <thead class="table-light">
                                             <tr><th>AGENCIA</th><th class="text-end">DEUDA</th><th class="text-center">ACCIONES</th></tr>
                                         </thead>
@@ -378,18 +379,12 @@
                                                         <i class="fas fa-circle-info text-primary me-1"></i>{{ pos.agencia }}
                                                     </a>
                                                 </td>
-                                                <td class="text-end fw-bold text-success">Bs. {{ pos.monto | dinero }}</td>
+                                                <td class="text-end fw-bold text-success col-monto-cobrar">Bs. {{ pos.monto | dinero }}</td>
                                                 <td class="text-center">
-                                                    <div class="d-flex gap-1 justify-content-center">
-                                                        <button type="button" class="btn btn-success btn-sm py-1 px-2 fw-bold shadow-sm" 
-                                                                onclick="abrirModalPagoRapido('{{ pos.agencia }}', '{{ pos.monto }}', 'PAGO')">
-                                                            <i class="fas fa-check-circle me-1"></i> PAGÓ
-                                                        </button>
-                                                        <button type="button" class="btn btn-outline-primary btn-sm py-1 px-2 fw-bold shadow-sm" 
-                                                                onclick="abrirModalPagoRapido('{{ pos.agencia }}', '0.00', 'PAGAR')">
-                                                            <i class="fas fa-hand-holding-dollar me-1"></i> PAGAR
-                                                        </button>
-                                                    </div>
+                                                    <button type="button" class="btn btn-outline-dark btn-sm py-1 px-3 fw-bold shadow-sm" 
+                                                            onclick="abrirModalModificarPendiente('{{ pos.agencia }}', '{{ pos.monto }}')">
+                                                        <i class="fas fa-pen-to-square me-1"></i> Modificar Pendiente
+                                                    </button>
                                                 </td>
                                             </tr>
                                             {% else %}
@@ -401,11 +396,12 @@
                             </div>
                         </div>
 
+                        <!-- A PAGARLES -->
                         <div class="col-md-6">
                             <div class="border rounded-3 p-3 bg-light h-100">
                                 <h6 class="fw-bold text-danger mb-3"><i class="fas fa-arrow-up me-1"></i> A Pagarles (-)</h6>
                                 <div class="table-responsive">
-                                    <table class="table table-sm table-hover align-middle mb-0 bg-white">
+                                    <table class="table table-sm table-hover align-middle mb-0 bg-white" id="tablaNegativos">
                                         <thead class="table-light">
                                             <tr><th>AGENCIA</th><th class="text-end">MONTO</th><th class="text-center">ACCIONES</th></tr>
                                         </thead>
@@ -418,18 +414,12 @@
                                                         <i class="fas fa-circle-info text-danger me-1"></i>{{ neg.agencia }}
                                                     </a>
                                                 </td>
-                                                <td class="text-end fw-bold text-danger">Bs. {{ neg.monto | dinero }}</td>
+                                                <td class="text-end fw-bold text-danger col-monto-pagar">Bs. {{ neg.monto | dinero }}</td>
                                                 <td class="text-center">
-                                                    <div class="d-flex gap-1 justify-content-center">
-                                                        <button type="button" class="btn btn-danger btn-sm py-1 px-2 fw-bold shadow-sm" 
-                                                                onclick="abrirModalPagoRapido('{{ neg.agencia }}', '{{ neg.monto }}', 'PAGAR')">
-                                                            <i class="fas fa-money-bill-transfer me-1"></i> PAGAR
-                                                        </button>
-                                                        <button type="button" class="btn btn-outline-success btn-sm py-1 px-2 fw-bold shadow-sm" 
-                                                                onclick="abrirModalPagoRapido('{{ neg.agencia }}', '0.00', 'PAGO')">
-                                                            <i class="fas fa-check-circle me-1"></i> PAGÓ
-                                                        </button>
-                                                    </div>
+                                                    <button type="button" class="btn btn-outline-dark btn-sm py-1 px-3 fw-bold shadow-sm" 
+                                                            onclick="abrirModalModificarPendiente('{{ neg.agencia }}', '{{ neg.monto }}')">
+                                                        <i class="fas fa-pen-to-square me-1"></i> Modificar Pendiente
+                                                    </button>
                                                 </td>
                                             </tr>
                                             {% else %}
@@ -437,6 +427,37 @@
                                             {% endfor %}
                                         </tbody>
                                     </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CUADRO RESUMEN GLOBAL INFERIOR -->
+                    <div class="row g-3 mt-2">
+                        <div class="col-12">
+                            <div class="card border-0 shadow-sm p-3 bg-light rounded-4">
+                                <div class="row text-center align-items-center g-2">
+                                    <div class="col-md-4 border-end border-2">
+                                        <span class="small fw-bold text-success text-uppercase d-block mb-1">
+                                            <i class="fas fa-hand-holding-dollar me-1"></i> Total Falta por Cobrar (+)
+                                        </span>
+                                        <h4 class="fw-bold text-success m-0" id="resumenFaltaCobrar">Bs. 0,00</h4>
+                                        <small class="text-muted">Taquillas con deuda a favor de banca</small>
+                                    </div>
+                                    <div class="col-md-4 border-end border-2">
+                                        <span class="small fw-bold text-danger text-uppercase d-block mb-1">
+                                            <i class="fas fa-money-bill-transfer me-1"></i> Total Falta por Pagar (-)
+                                        </span>
+                                        <h4 class="fw-bold text-danger m-0" id="resumenFaltaPagar">Bs. 0,00</h4>
+                                        <small class="text-muted">Premios y saldos por transferirles</small>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <span class="small fw-bold text-dark text-uppercase d-block mb-1">
+                                            <i class="fas fa-scale-balanced me-1"></i> Balance Neto General Taquillas
+                                        </span>
+                                        <h4 class="fw-bold m-0" id="resumenBalanceNeto">Bs. 0,00</h4>
+                                        <small class="text-muted">(Por Cobrar) menos (Por Pagar)</small>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -482,33 +503,47 @@
                 </div>
             </div>
 
-            <!-- MODAL RÁPIDO PARA PAGÓ O PAGAR -->
-            <div class="modal fade" id="modalPagoRapido" tabindex="-1" aria-hidden="true">
-                <div class="modal-dialog modal-dialog-centered modal-sm">
+            <!-- MODAL MODIFICAR PENDIENTES (AJUSTE DE BANCA) -->
+            <div class="modal fade" id="modalModificarPendiente" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content border-0 shadow">
                         <div class="modal-header bg-light py-2">
-                            <h6 class="modal-title fw-bold" id="tituloModalRapido">Registrar Transacción</h6>
+                            <h6 class="modal-title fw-bold text-dark" id="tituloModalPendiente">
+                                <i class="fas fa-pen-to-square text-tema me-1"></i> Modificar Saldo Pendiente
+                            </h6>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
-                        <form action="/admin/registrar-pago-rapido" method="POST">
-                            <input type="hidden" name="agencia" id="rapidoAgencia">
-                            <input type="hidden" name="accion" id="rapidoAccion">
+                        <form action="/admin/ajuste-banca" method="POST">
+                            <input type="hidden" name="agencia" id="pendienteAgencia">
+                            <input type="hidden" name="tipo" value="AJUSTE_BANCA">
                             <div class="modal-body">
                                 <div class="mb-2">
-                                    <label class="form-label small fw-bold text-muted">Agencia:</label>
-                                    <input type="text" id="displayAgenciaRapida" class="form-control form-control-sm bg-light fw-bold" readonly>
+                                    <label class="form-label small fw-bold text-muted">Taquilla / Agencia:</label>
+                                    <input type="text" id="displayAgenciaPendiente" class="form-control form-control-sm bg-light fw-bold" readonly>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label small fw-bold text-muted">Saldo Pendiente Actual en Sistema:</label>
+                                    <input type="text" id="displaySaldoActual" class="form-control form-control-sm bg-light fw-bold" readonly>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label small fw-bold" id="labelMontoRapido">Monto a Registrar (Bs.):</label>
-                                    <input type="number" step="0.01" name="monto" id="rapidoMonto" class="form-control form-control-sm fw-bold fs-6 text-center" required>
+                                    <label class="form-label small fw-bold text-dark">Monto a Ajustar (Bs.):</label>
+                                    <input type="number" step="0.01" name="monto" id="pendienteMontoAjuste" class="form-control form-control-sm fw-bold fs-6 text-center" placeholder="Ej: 5000 o -5000" required>
+                                    <small class="text-muted d-block mt-1">
+                                        • <strong>Positivo (+)</strong>: Se le carga como <strong>Adelanto</strong> (Aumenta lo que debe).<br>
+                                        • <strong>Negativo (-)</strong>: Se le computa como <strong>Abono</strong> (Disminuye deuda / le abona).
+                                    </small>
                                 </div>
-                                <div class="alert alert-info py-1 px-2 m-0 small" style="font-size: 11px;">
-                                    <i class="fas fa-info-circle me-1"></i> Se aplicará al balance actual y enviará un comunicado de confirmación a la taquilla.
+                                <div class="mb-2">
+                                    <label class="form-label small fw-bold text-muted">Concepto / Motivo:</label>
+                                    <input type="text" name="motivo" class="form-control form-control-sm" placeholder="Ej: Retiro Gege de caja, Préstamo, Corrección" required>
+                                </div>
+                                <div class="alert alert-warning py-1 px-2 m-0 small" style="font-size: 11px;">
+                                    <i class="fas fa-shield-halved me-1"></i> Este movimiento quedará registrado en <strong>Transacciones</strong> como <strong>AJUSTE DE BANCA</strong>.
                                 </div>
                             </div>
                             <div class="modal-footer bg-light py-2">
                                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-                                <button type="submit" class="btn btn-tema btn-sm fw-bold" id="btnConfirmarRapido">Confirmar Transacción</button>
+                                <button type="submit" class="btn btn-tema btn-sm fw-bold">Guardar Modificación</button>
                             </div>
                         </form>
                     </div>
@@ -755,7 +790,7 @@
                                 <h6 class="fw-bold m-0"><i class="fas fa-building-columns me-2"></i>A TENER EN CUENTA</h6>
                                 <span class="badge bg-light text-dark fw-bold">SUMA BANQUEROS</span>
                             </div>
-                            <h2 class="fw-bold m-0 mb-3 text-white" id="totalizadorSumaBanqueros">Bs. 0,00</h2>
+                            <h2 class="fw-bold m-0 mb-3 text-white" id="totalizadorSumaBanqueros">Bs. {{ suma_cuadros_banqueros | dinero }}</h2>
                             <p class="small opacity-75 m-0 border-top border-light border-opacity-25 pt-2">
                                 Engloba todos los totales de los banqueros para saber el saldo general comprometido con todos ellos en el período seleccionado.
                             </p>
@@ -975,6 +1010,39 @@
             return granTotal;
         }
 
+        // CALCULO AUTOMÁTICO DE LOS BALANCES GLOBALES DE TAQUILLAS (POR COBRAR Y POR PAGAR)
+        function actualizarResumenBalancesTaquillas() {
+            var celdasCobrar = document.querySelectorAll("#tablaPositivos .col-monto-cobrar");
+            var celdasPagar = document.querySelectorAll("#tablaNegativos .col-monto-pagar");
+
+            var totCobrar = 0;
+            celdasCobrar.forEach(function(c) {
+                totCobrar += Math.abs(parseMonto(c.innerText));
+            });
+
+            var totPagar = 0;
+            celdasPagar.forEach(function(c) {
+                totPagar += Math.abs(parseMonto(c.innerText));
+            });
+
+            var neto = totCobrar - totPagar;
+
+            var elCobrar = document.getElementById("resumenFaltaCobrar");
+            var elPagar = document.getElementById("resumenFaltaPagar");
+            var elNeto = document.getElementById("resumenBalanceNeto");
+
+            if (elCobrar) elCobrar.innerText = formatoBs(totCobrar);
+            if (elPagar) elPagar.innerText = formatoBs(totPagar);
+            if (elNeto) {
+                elNeto.innerText = formatoBs(Math.abs(neto));
+                if (neto >= 0) {
+                    elNeto.className = "fw-bold m-0 text-success";
+                } else {
+                    elNeto.className = "fw-bold m-0 text-danger";
+                }
+            }
+        }
+
         function recalcularTodoElPanel() {
             var totalCasheaGeneral = consolidarCasheaPorAgencia();
             var granTotalBanqueros = 0;
@@ -1056,16 +1124,13 @@
                 tabla.querySelector(".foot-part").innerText = formatoBs(totPart);
                 tabla.querySelector(".foot-final").innerText = formatoBs(totFinalBanquero);
 
-                // ACTUALIZA LA BARRITA EN NEGRO DEL BANQUERO
                 if (badge) {
                     badge.innerText = "Total Banquero: " + formatoBs(totFinalBanquero);
                 }
 
-                // SUMA DIRECTA DE TODAS LAS BARRAS EN NEGRO
                 granTotalBanqueros += totFinalBanquero;
                 granTotalPartGlobal += totPart;
 
-                // TARJETA PRIVADA ADMIN POR BANQUERO
                 var box = b.querySelector(".tarjeta-mi-ganancia-banca");
                 var difFilas = box.querySelectorAll(".fila-dif-sistema");
                 var gananciaExcedente = 0;
@@ -1082,13 +1147,12 @@
                 box.querySelector(".val-ganancia-participacion").innerText = formatoBs(gananciaParticipacion);
             });
 
-            // ENGLOBAR TODOS LOS TOTALES DE LOS BANQUEROS EN LA TARJETA AZUL
+            // ENGLOBAR TODOS LOS TOTALES DE LOS BANQUEROS
             var cardSumaBanqueros = document.getElementById("totalizadorSumaBanqueros");
             if (cardSumaBanqueros) {
                 cardSumaBanqueros.innerText = formatoBs(granTotalBanqueros);
             }
 
-            // TARJETA VERDE: TOTALIZADOR CUÁNTO GANÉ
             var cardPartTotalizador = document.getElementById("totalizadorParticipacion");
             if (cardPartTotalizador) {
                 cardPartTotalizador.innerText = formatoBs(granTotalPartGlobal);
@@ -1104,19 +1168,31 @@
                 var gananciaTotalGlobal = (granTotalExcedenteGlobal > 0 ? granTotalExcedenteGlobal : parseMonto(document.getElementById("totalizadorExcedente").innerText)) + granTotalPartGlobal;
                 cardGranTotalGanancia.innerText = formatoBs(gananciaTotalGlobal);
             }
+
+            actualizarResumenBalancesTaquillas();
         }
 
         document.addEventListener("DOMContentLoaded", function() {
             recalcularTodoElPanel();
         });
 
-        // Asegura recálculo al alternar entre pestañas
         var tabButtons = document.querySelectorAll('button[data-bs-toggle="tab"]');
         tabButtons.forEach(function(btn) {
             btn.addEventListener('shown.bs.tab', function() {
                 recalcularTodoElPanel();
             });
         });
+
+        // MODAL PARA MODIFICAR PENDIENTES
+        function abrirModalModificarPendiente(agencia, saldoActual) {
+            document.getElementById("pendienteAgencia").value = agencia;
+            document.getElementById("displayAgenciaPendiente").value = agencia;
+            document.getElementById("displaySaldoActual").value = formatoBs(saldoActual);
+            document.getElementById("pendienteMontoAjuste").value = "";
+            
+            var modal = new bootstrap.Modal(document.getElementById('modalModificarPendiente'));
+            modal.show();
+        }
 
         function copiarCasheaGlobal() {
             var texto = "🛒 FACTURAS CASHEA ABSORBIDAS POR AGENCIA 🛒\n";
@@ -1229,30 +1305,6 @@
             }
             
             var modal = new bootstrap.Modal(document.getElementById('modalDesgloseAgencia'));
-            modal.show();
-        }
-
-        function abrirModalPagoRapido(agencia, montoSugerido, accion) {
-            document.getElementById("rapidoAgencia").value = agencia;
-            document.getElementById("displayAgenciaRapida").value = agencia;
-            document.getElementById("rapidoAccion").value = accion;
-            
-            var montoNum = Math.abs(parseMonto(montoSugerido));
-            document.getElementById("rapidoMonto").value = montoNum > 0 ? montoNum.toFixed(2) : "";
-
-            if (accion === 'PAGO') {
-                document.getElementById("tituloModalRapido").innerText = "Registrar Pago de Taquilla: " + agencia;
-                document.getElementById("labelMontoRapido").innerText = "Monto que PAGÓ la Taquilla (Bs.):";
-                document.getElementById("btnConfirmarRapido").className = "btn btn-success btn-sm fw-bold";
-                document.getElementById("btnConfirmarRapido").innerText = "Confirmar Pago Recibido";
-            } else {
-                document.getElementById("tituloModalRapido").innerText = "Registrar Pago a Taquilla: " + agencia;
-                document.getElementById("labelMontoRapido").innerText = "Monto a PAGAR a la Taquilla (Bs.):";
-                document.getElementById("btnConfirmarRapido").className = "btn btn-primary btn-sm fw-bold";
-                document.getElementById("btnConfirmarRapido").innerText = "Confirmar Pago Enviado";
-            }
-
-            var modal = new bootstrap.Modal(document.getElementById('modalPagoRapido'));
             modal.show();
         }
 
