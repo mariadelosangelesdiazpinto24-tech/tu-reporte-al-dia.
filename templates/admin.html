@@ -345,20 +345,29 @@
             <!-- 4. BALANCES GLOBALES (+ / -) -->
             <div class="tab-pane fade {% if tab_activa == 'balances' or not tab_activa %}show active{% endif %}" id="tab-balances" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
-                    <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
-                        <input type="hidden" name="tab" value="balances">
-                        <div class="col-md-5">
-                            <label class="form-label small fw-bold text-muted">Desde:</label>
-                            <input type="date" name="desde_fecha" value="{{ desde_fecha }}" class="form-control form-control-sm">
+                    <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-3">
+                        <form method="GET" action="/admin" class="row g-2 align-items-end flex-grow-1 m-0">
+                            <input type="hidden" name="tab" value="balances">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold text-muted">Desde:</label>
+                                <input type="date" name="desde_fecha" value="{{ desde_fecha }}" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold text-muted">Hasta:</label>
+                                <input type="date" name="hasta_fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-md-4">
+                                <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold"><i class="fas fa-magnifying-glass me-1"></i> Filtrar Período</button>
+                            </div>
+                        </form>
+                        
+                        <!-- BOTÓN MODIFICAR SALDO PENDIENTE -->
+                        <div>
+                            <button type="button" class="btn btn-tema btn-sm fw-bold px-3 shadow-sm" onclick="abrirModalModificarGeneral()">
+                                <i class="fas fa-pen-to-square me-1"></i> Ajustar Saldo Taquilla (Adelanto / Abono)
+                            </button>
                         </div>
-                        <div class="col-md-5">
-                            <label class="form-label small fw-bold text-muted">Hasta:</label>
-                            <input type="date" name="hasta_fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm">
-                        </div>
-                        <div class="col-md-2">
-                            <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold"><i class="fas fa-magnifying-glass me-1"></i> Filtrar</button>
-                        </div>
-                    </form>
+                    </div>
 
                     <div class="row g-3">
                         <!-- DEBEN A LA BANCA -->
@@ -368,7 +377,7 @@
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover align-middle mb-0 bg-white" id="tablaPositivos">
                                         <thead class="table-light">
-                                            <tr><th>AGENCIA</th><th class="text-end">DEUDA</th><th class="text-center">ACCIONES</th></tr>
+                                            <tr><th>AGENCIA</th><th class="text-end">DEUDA</th></tr>
                                         </thead>
                                         <tbody>
                                             {% for pos in positivos %}
@@ -380,15 +389,9 @@
                                                     </a>
                                                 </td>
                                                 <td class="text-end fw-bold text-success col-monto-cobrar">Bs. {{ pos.monto | dinero }}</td>
-                                                <td class="text-center">
-                                                    <button type="button" class="btn btn-outline-dark btn-sm py-1 px-3 fw-bold shadow-sm" 
-                                                            onclick="abrirModalModificarPendiente('{{ pos.agencia }}', '{{ pos.monto }}')">
-                                                        <i class="fas fa-pen-to-square me-1"></i> Modificar Pendiente
-                                                    </button>
-                                                </td>
                                             </tr>
                                             {% else %}
-                                            <tr><td colspan="3" class="text-center text-muted py-2">Sin deudas pendientes.</td></tr>
+                                            <tr><td colspan="2" class="text-center text-muted py-2">Sin deudas pendientes.</td></tr>
                                             {% endfor %}
                                         </tbody>
                                     </table>
@@ -403,7 +406,7 @@
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover align-middle mb-0 bg-white" id="tablaNegativos">
                                         <thead class="table-light">
-                                            <tr><th>AGENCIA</th><th class="text-end">MONTO</th><th class="text-center">ACCIONES</th></tr>
+                                            <tr><th>AGENCIA</th><th class="text-end">MONTO</th></tr>
                                         </thead>
                                         <tbody>
                                             {% for neg in negativos %}
@@ -415,15 +418,9 @@
                                                     </a>
                                                 </td>
                                                 <td class="text-end fw-bold text-danger col-monto-pagar">Bs. {{ neg.monto | dinero }}</td>
-                                                <td class="text-center">
-                                                    <button type="button" class="btn btn-outline-dark btn-sm py-1 px-3 fw-bold shadow-sm" 
-                                                            onclick="abrirModalModificarPendiente('{{ neg.agencia }}', '{{ neg.monto }}')">
-                                                        <i class="fas fa-pen-to-square me-1"></i> Modificar Pendiente
-                                                    </button>
-                                                </td>
                                             </tr>
                                             {% else %}
-                                            <tr><td colspan="3" class="text-center text-muted py-2">Sin saldos a favor.</td></tr>
+                                            <tr><td colspan="2" class="text-center text-muted py-2">Sin saldos a favor.</td></tr>
                                             {% endfor %}
                                         </tbody>
                                     </table>
@@ -442,14 +439,14 @@
                                             <i class="fas fa-hand-holding-dollar me-1"></i> Total Falta por Cobrar (+)
                                         </span>
                                         <h4 class="fw-bold text-success m-0" id="resumenFaltaCobrar">Bs. 0,00</h4>
-                                        <small class="text-muted">Taquillas con deuda a favor de banca</small>
+                                        <small class="text-muted">Taquillas que deben a la banca</small>
                                     </div>
                                     <div class="col-md-4 border-end border-2">
                                         <span class="small fw-bold text-danger text-uppercase d-block mb-1">
                                             <i class="fas fa-money-bill-transfer me-1"></i> Total Falta por Pagar (-)
                                         </span>
                                         <h4 class="fw-bold text-danger m-0" id="resumenFaltaPagar">Bs. 0,00</h4>
-                                        <small class="text-muted">Premios y saldos por transferirles</small>
+                                        <small class="text-muted">Saldos y premios a transferirles</small>
                                     </div>
                                     <div class="col-md-4">
                                         <span class="small fw-bold text-dark text-uppercase d-block mb-1">
@@ -503,47 +500,58 @@
                 </div>
             </div>
 
-            <!-- MODAL MODIFICAR PENDIENTES (AJUSTE DE BANCA) -->
+            <!-- MODAL MODIFICAR PENDIENTES CON DESPLEGABLE DE TODAS LAS TAQUILLAS -->
             <div class="modal fade" id="modalModificarPendiente" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content border-0 shadow">
                         <div class="modal-header bg-light py-2">
-                            <h6 class="modal-title fw-bold text-dark" id="tituloModalPendiente">
-                                <i class="fas fa-pen-to-square text-tema me-1"></i> Modificar Saldo Pendiente
+                            <h6 class="modal-title fw-bold text-dark">
+                                <i class="fas fa-pen-to-square text-tema me-1"></i> Modificar Saldo Pendiente (Ajuste Banca)
                             </h6>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <form action="/admin/ajuste-banca" method="POST">
-                            <input type="hidden" name="agencia" id="pendienteAgencia">
                             <input type="hidden" name="tipo" value="AJUSTE_BANCA">
                             <div class="modal-body">
-                                <div class="mb-2">
-                                    <label class="form-label small fw-bold text-muted">Taquilla / Agencia:</label>
-                                    <input type="text" id="displayAgenciaPendiente" class="form-control form-control-sm bg-light fw-bold" readonly>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold text-dark">Selecciona la Taquilla:</label>
+                                    <select name="agencia" id="selectAgenciaAjuste" class="form-select form-select-sm fw-bold" onchange="actualizarInfoSaldoAgencia(this)" required>
+                                        <option value="">-- Elige una Taquilla --</option>
+                                        {% for ag in agencias %}
+                                            {% if ag.rol != 'BANQUERO' %}
+                                            <option value="{{ ag.agencia }}" data-saldo="{{ ag.pendiente or 0 }}">
+                                                {{ ag.agencia }} (Actual: Bs. {{ (ag.pendiente or 0) | dinero }})
+                                            </option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
                                 </div>
-                                <div class="mb-2">
-                                    <label class="form-label small fw-bold text-muted">Saldo Pendiente Actual en Sistema:</label>
-                                    <input type="text" id="displaySaldoActual" class="form-control form-control-sm bg-light fw-bold" readonly>
+                                
+                                <div class="mb-3 p-2 bg-light rounded border text-center">
+                                    <small class="text-muted d-block">Saldo Actual Registrado en Taquilla:</small>
+                                    <h5 class="fw-bold m-0" id="displaySaldoActualModal">Bs. 0,00</h5>
                                 </div>
+
                                 <div class="mb-3">
                                     <label class="form-label small fw-bold text-dark">Monto a Ajustar (Bs.):</label>
                                     <input type="number" step="0.01" name="monto" id="pendienteMontoAjuste" class="form-control form-control-sm fw-bold fs-6 text-center" placeholder="Ej: 5000 o -5000" required>
-                                    <small class="text-muted d-block mt-1">
-                                        • <strong>Positivo (+)</strong>: Se le carga como <strong>Adelanto</strong> (Aumenta lo que debe).<br>
-                                        • <strong>Negativo (-)</strong>: Se le computa como <strong>Abono</strong> (Disminuye deuda / le abona).
-                                    </small>
+                                    <div class="d-flex justify-content-between small text-muted mt-1 px-1">
+                                        <span><i class="fas fa-plus text-danger"></i> <strong>Positivo (+)</strong>: Adelanto (Le suma a su deuda)</span>
+                                        <span><i class="fas fa-minus text-success"></i> <strong>Negativo (-)</strong>: Abono (Le resta deuda)</span>
+                                    </div>
                                 </div>
+
                                 <div class="mb-2">
-                                    <label class="form-label small fw-bold text-muted">Concepto / Motivo:</label>
-                                    <input type="text" name="motivo" class="form-control form-control-sm" placeholder="Ej: Retiro Gege de caja, Préstamo, Corrección" required>
+                                    <label class="form-label small fw-bold text-muted">Concepto / Motivo del Movimiento:</label>
+                                    <input type="text" name="motivo" class="form-control form-control-sm" placeholder="Ej: Retiro personal, préstamo, corrección..." required>
                                 </div>
                                 <div class="alert alert-warning py-1 px-2 m-0 small" style="font-size: 11px;">
-                                    <i class="fas fa-shield-halved me-1"></i> Este movimiento quedará registrado en <strong>Transacciones</strong> como <strong>AJUSTE DE BANCA</strong>.
+                                    <i class="fas fa-shield-halved me-1"></i> Se enviará a <strong>Transacciones</strong> clasificado como <strong>AJUSTE DE BANCA</strong> sin alterar los sistemas.
                                 </div>
                             </div>
                             <div class="modal-footer bg-light py-2">
                                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-                                <button type="submit" class="btn btn-tema btn-sm fw-bold">Guardar Modificación</button>
+                                <button type="submit" class="btn btn-tema btn-sm fw-bold px-3">Guardar Ajuste</button>
                             </div>
                         </form>
                     </div>
@@ -1010,7 +1018,6 @@
             return granTotal;
         }
 
-        // CALCULO AUTOMÁTICO DE LOS BALANCES GLOBALES DE TAQUILLAS (POR COBRAR Y POR PAGAR)
         function actualizarResumenBalancesTaquillas() {
             var celdasCobrar = document.querySelectorAll("#tablaPositivos .col-monto-cobrar");
             var celdasPagar = document.querySelectorAll("#tablaNegativos .col-monto-pagar");
@@ -1067,7 +1074,7 @@
                     var t = v - p - c;
                     tr.querySelector(".col-total").innerText = formatoBs(t);
 
-                    // 2. PARTICIPACIÓN = % sobre el TOTAL (o monto pre-asignado)
+                    // 2. PARTICIPACIÓN = % sobre el TOTAL
                     var partAttr = tr.getAttribute("data-monto-part");
                     var pctPartAttr = tr.getAttribute("data-pct-part");
                     var part = 0;
@@ -1147,7 +1154,6 @@
                 box.querySelector(".val-ganancia-participacion").innerText = formatoBs(gananciaParticipacion);
             });
 
-            // ENGLOBAR TODOS LOS TOTALES DE LOS BANQUEROS
             var cardSumaBanqueros = document.getElementById("totalizadorSumaBanqueros");
             if (cardSumaBanqueros) {
                 cardSumaBanqueros.innerText = formatoBs(granTotalBanqueros);
@@ -1183,15 +1189,33 @@
             });
         });
 
-        // MODAL PARA MODIFICAR PENDIENTES
-        function abrirModalModificarPendiente(agencia, saldoActual) {
-            document.getElementById("pendienteAgencia").value = agencia;
-            document.getElementById("displayAgenciaPendiente").value = agencia;
-            document.getElementById("displaySaldoActual").value = formatoBs(saldoActual);
+        // FUNCIONES MODAL MODIFICAR PENDIENTE CON DESPLEGABLE
+        function abrirModalModificarGeneral() {
+            var select = document.getElementById("selectAgenciaAjuste");
+            if (select) select.selectedIndex = 0;
+            document.getElementById("displaySaldoActualModal").innerText = "Bs. 0,00";
+            document.getElementById("displaySaldoActualModal").className = "fw-bold m-0 text-muted";
             document.getElementById("pendienteMontoAjuste").value = "";
             
             var modal = new bootstrap.Modal(document.getElementById('modalModificarPendiente'));
             modal.show();
+        }
+
+        function actualizarInfoSaldoAgencia(selectElem) {
+            var selectedOpt = selectElem.options[selectElem.selectedIndex];
+            var saldo = parseFloat(selectedOpt.getAttribute("data-saldo") || 0);
+            var elDisplay = document.getElementById("displaySaldoActualModal");
+            
+            if (elDisplay) {
+                elDisplay.innerText = formatoBs(saldo);
+                if (saldo > 0) {
+                    elDisplay.className = "fw-bold m-0 text-success";
+                } else if (saldo < 0) {
+                    elDisplay.className = "fw-bold m-0 text-danger";
+                } else {
+                    elDisplay.className = "fw-bold m-0 text-muted";
+                }
+            }
         }
 
         function copiarCasheaGlobal() {
