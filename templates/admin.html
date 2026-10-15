@@ -755,9 +755,9 @@
                                 <h6 class="fw-bold m-0"><i class="fas fa-building-columns me-2"></i>A TENER EN CUENTA</h6>
                                 <span class="badge bg-light text-dark fw-bold">SUMA BANQUEROS</span>
                             </div>
-                            <h2 class="fw-bold m-0 mb-3 text-white" id="totalizadorSumaBanqueros">Bs. {{ suma_cuadros_banqueros | dinero }}</h2>
+                            <h2 class="fw-bold m-0 mb-3 text-white" id="totalizadorSumaBanqueros">Bs. 0,00</h2>
                             <p class="small opacity-75 m-0 border-top border-light border-opacity-25 pt-2">
-                                Representa el total neto de fondos comprometidos sumando todas las barras de liquidación a banqueros en las fechas seleccionadas.
+                                Engloba todos los totales de los banqueros para saber el saldo general comprometido con todos ellos en el período seleccionado.
                             </p>
                         </div>
                     </div>
@@ -824,15 +824,12 @@
                                             <td class="text-end text-primary col-comision">
                                                 Bs. {{ (sys.comision_banquero if sys.comision_banquero is defined else ((sys.venta or 0) * (sys.pct_banquero or 0) / 100)) | dinero }}
                                             </td>
-                                            <!-- PRIMER TOTAL: VENTA - PREMIO - COMISION -->
                                             <td class="text-end fw-bold col-total">
                                                 Bs. {{ (sys.total_banquero if sys.total_banquero is defined else ((sys.venta or 0) - (sys.premios or 0) - (sys.comision_banquero or 0))) | dinero }}
                                             </td>
-                                            <!-- PARTICIPACIÓN: % DE GANANCIA SOBRE EL TOTAL -->
                                             <td class="text-end col-part">
                                                 Bs. {{ (sys.monto_participacion if sys.monto_participacion is defined else 0) | dinero }}
                                             </td>
-                                            <!-- TOTAL FINAL: TOTAL - PARTICIPACION -->
                                             <td class="text-end fw-bold col-total-final">
                                                 Bs. 0.00
                                             </td>
@@ -980,7 +977,7 @@
 
         function recalcularTodoElPanel() {
             var totalCasheaGeneral = consolidarCasheaPorAgencia();
-            var granSumaBanqueros = 0;
+            var granTotalBanqueros = 0;
             var granTotalPartGlobal = 0;
             var granTotalExcedenteGlobal = 0;
 
@@ -1065,7 +1062,7 @@
                 }
 
                 // SUMA DIRECTA DE TODAS LAS BARRAS EN NEGRO
-                granSumaBanqueros += totFinalBanquero;
+                granTotalBanqueros += totFinalBanquero;
                 granTotalPartGlobal += totPart;
 
                 // TARJETA PRIVADA ADMIN POR BANQUERO
@@ -1085,13 +1082,13 @@
                 box.querySelector(".val-ganancia-participacion").innerText = formatoBs(gananciaParticipacion);
             });
 
-            // TARJETA AZUL TOTALIZADOR: "SUMA BANQUEROS" (SUMA DE TODAS LAS BARRAS NEGRAS)
+            // ENGLOBAR TODOS LOS TOTALES DE LOS BANQUEROS EN LA TARJETA AZUL
             var cardSumaBanqueros = document.getElementById("totalizadorSumaBanqueros");
             if (cardSumaBanqueros) {
-                cardSumaBanqueros.innerText = formatoBs(granSumaBanqueros);
+                cardSumaBanqueros.innerText = formatoBs(granTotalBanqueros);
             }
 
-            // TARJETA VERDE TOTALIZADOR: CUÁNTO GANÉ
+            // TARJETA VERDE: TOTALIZADOR CUÁNTO GANÉ
             var cardPartTotalizador = document.getElementById("totalizadorParticipacion");
             if (cardPartTotalizador) {
                 cardPartTotalizador.innerText = formatoBs(granTotalPartGlobal);
