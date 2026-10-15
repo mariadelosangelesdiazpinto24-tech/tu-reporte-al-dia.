@@ -64,13 +64,13 @@
         .nav-tabs .nav-link { 
             color: var(--color-primario); 
             font-weight: 600; 
-            border: none;
-            border-radius: 10px 10px 0 0;
+            border: none; 
+            border-radius: 10px 10px 0 0; 
             margin-right: 4px;
         }
 
-        .nav-tabs .nav-link:hover {
-            color: var(--color-hover);
+        .nav-tabs .nav-link:hover { 
+            color: var(--color-hover); 
             background-color: rgba(255, 255, 255, 0.6);
         }
 
@@ -158,7 +158,7 @@
         <div class="card card-custom p-3 bg-white mb-4">
             <form method="GET" action="/agencia" class="row g-2 align-items-end">
                 <input type="hidden" name="nombre" value="{{ nombre_agencia }}">
-                <input type="hidden" name="tab" id="campo_tab_activa" value="{{ tab_activa }}">
+                <input type="hidden" name="tab" id="campo_tab_activa" value="{{ tab_activa or 'pendiente' }}">
                 <div class="col-md-5">
                     <label class="form-label small fw-bold text-muted">Desde:</label>
                     <input type="date" name="desde_fecha" value="{{ desde_fecha }}" class="form-control form-control-sm">
@@ -173,61 +173,45 @@
             </form>
         </div>
 
-        <!-- PESTAÑAS -->
+        <!-- PESTAÑAS (NAIKKATEN TI MIS REPORTES) -->
         <ul class="nav nav-tabs mb-4" id="agenciaTabs" role="tablist">
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'reportes' or not tab_activa %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-reportes" type="button" onclick="setTab('reportes')"><i class="fas fa-file-invoice-dollar me-1"></i> Mis Reportes</button>
+                <button class="nav-link {% if tab_activa == 'pendiente' or not tab_activa or tab_activa == 'reportes' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-pendiente" type="button" onclick="setTab('pendiente')">
+                    <i class="fas fa-clock me-1"></i> Pendientes / Pagos
+                </button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'pendiente' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-pendiente" type="button" onclick="setTab('pendiente')"><i class="fas fa-clock me-1"></i> Pendientes / Pagos</button>
+                <button class="nav-link {% if tab_activa == 'cashea' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-cashea" type="button" onclick="setTab('cashea')">
+                    <i class="fas fa-shopping-cart me-1"></i> Cashea
+                </button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'cashea' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-cashea" type="button" onclick="setTab('cashea')"><i class="fas fa-shopping-cart me-1"></i> Cashea</button>
+                <button class="nav-link {% if tab_activa == 'auditoria' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-auditoria" type="button" onclick="setTab('auditoria')">
+                    <i class="fas fa-chart-bar me-1"></i> Auditoría Consolidada
+                </button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'auditoria' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-auditoria" type="button" onclick="setTab('auditoria')"><i class="fas fa-chart-bar me-1"></i> Auditoría Consolidada</button>
+                <button class="nav-link {% if tab_activa == 'transacciones' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-transacciones" type="button" onclick="setTab('transacciones')">
+                    <i class="fas fa-exchange-alt me-1"></i> Transacciones
+                </button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'transacciones' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-transacciones" type="button" onclick="setTab('transacciones')"><i class="fas fa-exchange-alt me-1"></i> Transacciones</button>
+                <button class="nav-link {% if tab_activa == 'modificaciones' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-modificaciones" type="button" onclick="setTab('modificaciones')">
+                    <i class="fas fa-edit me-1"></i> Modificaciones
+                </button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'modificaciones' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-modificaciones" type="button" onclick="setTab('modificaciones')"><i class="fas fa-edit me-1"></i> Modificaciones</button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'cuenta' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-cuenta" type="button" onclick="setTab('cuenta')"><i class="fas fa-user-lock me-1"></i> Mi Cuenta</button>
+                <button class="nav-link {% if tab_activa == 'cuenta' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-cuenta" type="button" onclick="setTab('cuenta')">
+                    <i class="fas fa-user-lock me-1"></i> Mi Cuenta
+                </button>
             </li>
         </ul>
 
         <div class="tab-content" id="agenciaTabsContent">
 
-            <!-- 1. MIS REPORTES -->
-            <div class="tab-pane fade {% if tab_activa == 'reportes' or not tab_activa %}show active{% endif %}" id="tab-reportes" role="tabpanel">
-                <div class="card card-custom p-4 bg-white">
-                    <h5 class="fw-bold text-tema mb-3"><i class="fas fa-history me-1"></i> Reportes Financieros 🍀</h5>
-                    
-                    {% if reportes %}
-                        {% for r in reportes %}
-                        <div class="p-3 mb-4 rounded-3 border bg-light">
-                            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
-                                <h6 class="fw-bold text-dark m-0"><i class="far fa-calendar-alt me-1 text-tema"></i> Fecha: {{ r.fecha }}</h6>
-                                <span class="badge {% if r.monto < 0 %}bg-success{% elif r.monto > 0 %}bg-danger{% else %}bg-secondary{% endif %} fs-6">
-                                    {% if r.monto < 0 %}Saldo a Favor: Bs. {{ (-r.monto) | dinero }}{% elif r.monto > 0 %}Deuda: Bs. {{ r.monto | dinero }}{% else %}Saldado (0.00 Bs.){% endif %}
-                                </span>
-                            </div>
-                            <div class="detalle-reporte-contenedor">
-                                {{ r.detalle_html | safe }}
-                            </div>
-                        </div>
-                        {% endfor %}
-                    {% else %}
-                        <p class="text-center text-muted py-4">No hay reportes cargados en este período.</p>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- 2. PENDIENTES / PAGOS -->
-            <div class="tab-pane fade {% if tab_activa == 'pendiente' %}show active{% endif %}" id="tab-pendiente" role="tabpanel">
-                <div class="card card-custom p-4 bg-white">
+            <!-- 1. PENDIENTES / PAGOS (PRINCIPAL) -->
+            <div class="tab-pane fade {% if tab_activa == 'pendiente' or not tab_activa or tab_activa == 'reportes' %}show active{% endif %}" id="tab-pendiente" role="tabpanel">
+                <div class="card card-custom p-4 bg-white mb-4">
                     
                     <div class="p-3 mb-3 rounded-4 shadow-sm d-flex justify-content-between align-items-center flex-wrap gap-2 caja-balance-interactiva" 
                          data-bs-toggle="collapse" data-bs-target="#desglosePendienteDetalle" title="Toca aquí para ver el cálculo detallado">
@@ -258,8 +242,8 @@
                                     <strong class="text-success">- Bs. {{ (desglose_cuenta.abonos or 0) | dinero }}</strong>
                                 </div>
                                 <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
-                                    <span class="text-secondary">💸 Adelantos/Liquidaciones Previas:</span>
-                                    <strong class="text-secondary">Bs. {{ ((desglose_cuenta.adelantos or 0) - (desglose_cuenta.liquidaciones or 0)) | dinero }}</strong>
+                                    <span class="text-secondary">💸 Adelantos/Liquidaciones de Banca:</span>
+                                    <strong class="text-secondary">+ Bs. {{ ((desglose_cuenta.adelantos or 0) + (desglose_cuenta.liquidaciones or 0)) | dinero }}</strong>
                                 </div>
                                 <div class="col-12 d-flex justify-content-between border-top py-2 bg-white rounded px-2 mt-2">
                                     <strong>💰 TOTAL PENDIENTE EXACTO:</strong>
@@ -278,7 +262,7 @@
                             </button>
                         </div>
                         <div class="col-md-6">
-                            <button class="btn btn-tema btn-lg w-100 fw-bold shadow-sm rounded-pill py-3" data-bs-toggle="collapse" data-bs-target="#seccionSolicitar" {% if saldo_actual > 0 %}disabled title="Solo disponible si tienes saldo a favor"{% endif %}>
+                            <button class="btn btn-tema btn-lg w-100 fw-bold shadow-sm rounded-pill py-3" data-bs-toggle="collapse" data-bs-target="#seccionSolicitar" {% if saldo_actual >= 0 %}disabled title="Solo disponible si tienes saldo a favor"{% endif %}>
                                 <i class="fas fa-university me-2 accent-amarillo"></i> Solicitar Saldo a Favor a la Banca
                             </button>
                         </div>
@@ -337,10 +321,30 @@
                         </div>
                     </div>
 
+                    <!-- TABLA DETALLADA DE REPORTES DEL PERIODO -->
+                    <h5 class="fw-bold text-dark mt-4 mb-3"><i class="fas fa-file-invoice-dollar text-tema me-2"></i>Detalle Diario de Reportes Cargados</h5>
+                    {% if reportes %}
+                        {% for r in reportes %}
+                        <div class="p-3 mb-3 rounded-3 border bg-light">
+                            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                                <h6 class="fw-bold text-dark m-0"><i class="far fa-calendar-alt me-1 text-tema"></i> Fecha: {{ r.fecha }}</h6>
+                                <span class="badge {% if r.monto < 0 %}bg-success{% elif r.monto > 0 %}bg-danger{% else %}bg-secondary{% endif %} fs-6">
+                                    {% if r.monto < 0 %}Saldo a Favor: Bs. {{ (-r.monto) | dinero }}{% elif r.monto > 0 %}Deuda: Bs. {{ r.monto | dinero }}{% else %}Saldado (0.00 Bs.){% endif %}
+                                </span>
+                            </div>
+                            <div class="detalle-reporte-contenedor">
+                                {{ r.detalle_html | safe }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-center text-muted py-3">No hay reportes cargados en este período.</p>
+                    {% endif %}
+
                 </div>
             </div>
 
-            <!-- 3. CASHEA -->
+            <!-- 2. CASHEA -->
             <div class="tab-pane fade {% if tab_activa == 'cashea' %}show active{% endif %}" id="tab-cashea" role="tabpanel">
                 <div class="card card-custom p-4 bg-white">
                     <div class="row g-3 mb-4">
@@ -380,7 +384,7 @@
                 </div>
             </div>
 
-            <!-- 4. AUDITORÍA CONSOLIDADA -->
+            <!-- 3. AUDITORÍA CONSOLIDADA -->
             <div class="tab-pane fade {% if tab_activa == 'auditoria' %}show active{% endif %}" id="tab-auditoria" role="tabpanel">
                 <div class="card card-custom p-4 bg-white">
                     <h5 class="fw-bold text-tema mb-3"><i class="fas fa-chart-pie me-1"></i> Auditoría Consolidada por Sistemas 🌺</h5>
@@ -452,7 +456,7 @@
                 </div>
             </div>
 
-            <!-- 5. TRANSACCIONES -->
+            <!-- 4. TRANSACCIONES -->
             <div class="tab-pane fade {% if tab_activa == 'transacciones' %}show active{% endif %}" id="tab-transacciones" role="tabpanel">
                 <div class="card card-custom p-4 bg-white">
                     <h5 class="fw-bold text-tema mb-3"><i class="fas fa-list me-1"></i> Historial de Transacciones 🍀</h5>
@@ -498,7 +502,7 @@
                 </div>
             </div>
 
-            <!-- 6. MODIFICACIONES -->
+            <!-- 5. MODIFICACIONES -->
             <div class="tab-pane fade {% if tab_activa == 'modificaciones' %}show active{% endif %}" id="tab-modificaciones" role="tabpanel">
                 <div class="card card-custom p-4 bg-white">
                     <h5 class="fw-bold text-tema mb-3"><i class="fas fa-edit me-1"></i> Modificar Sistema de Día Anterior 🌴</h5>
@@ -531,7 +535,7 @@
                 </div>
             </div>
 
-            <!-- 7. MI CUENTA -->
+            <!-- 6. MI CUENTA -->
             <div class="tab-pane fade {% if tab_activa == 'cuenta' %}show active{% endif %}" id="tab-cuenta" role="tabpanel">
                 <div class="card card-custom p-4 bg-white" style="max-width: 500px; margin: 0 auto;">
                     <h5 class="fw-bold text-tema mb-3"><i class="fas fa-key me-1"></i> Cambiar Contraseña 🌺</h5>
