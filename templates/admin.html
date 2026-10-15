@@ -44,7 +44,7 @@
         .nav-tabs .nav-link { 
             color: #6c757d; 
             font-weight: 600; 
-            border: none;
+            border: none; 
             padding: 10px 16px;
             border-radius: 10px 10px 0 0;
             transition: all 0.2s ease;
@@ -113,13 +113,13 @@
             </div>
         </div>
 
-        <!-- PESTAÑAS -->
+        <!-- PESTAÑAS (SIN MODIFICACIONES) -->
         <ul class="nav nav-tabs mb-3 flex-wrap" id="adminTabs" role="tablist">
             <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'taquillas' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-taquillas" type="button"><i class="fas fa-store me-1"></i> Taquillas Creadas 📱</button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'comunicados' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-comunicados" type="button"><i class="fas fa-bullhorn me-1"></i> Notificaciones 📢</button>
+                <button class="nav-link {% if tab_activa == 'comunicados' or tab_activa == 'notificaciones' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-comunicados" type="button"><i class="fas fa-bullhorn me-1"></i> Notificaciones 📢</button>
             </li>
             <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'transacciones' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-transacciones" type="button">
@@ -131,9 +131,6 @@
             </li>
             <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'balances' or not tab_activa %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-balances" type="button"><i class="fas fa-scale-balanced me-1"></i> Balances Globales (+ / -)</button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'modificaciones' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-modificaciones" type="button"><i class="fas fa-pen-to-square me-1"></i> Modificaciones</button>
             </li>
             <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'cashea' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-cashea" type="button"><i class="fas fa-cart-shopping me-1"></i> Data Cashea General</button>
@@ -214,7 +211,7 @@
             </div>
 
             <!-- 2. NOTIFICACIONES -->
-            <div class="tab-pane fade {% if tab_activa == 'comunicados' %}show active{% endif %}" id="tab-comunicados" role="tabpanel">
+            <div class="tab-pane fade {% if tab_activa == 'comunicados' or tab_activa == 'notificaciones' %}show active{% endif %}" id="tab-comunicados" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-3">
                     <h5 class="fw-bold text-tema mb-3"><i class="fas fa-bullhorn me-2"></i>Enviar Notificación Global</h5>
                     <form action="/admin/crear-comunicado" method="POST" class="mb-4">
@@ -250,12 +247,11 @@
                             <label class="small fw-bold text-muted m-0">Tipo:</label>
                             <select id="filtroTipoTransaccion" class="form-select form-select-sm" style="min-width: 170px;" onchange="filtrarTransacciones()">
                                 <option value="TODOS">Todos los tipos</option>
-                                <option value="MODIFICACION">MODIFICACION</option>
-                                <option value="PAGO_TAQUILLA">PAGO TAQUILLA (ABONO)</option>
-                                <option value="AJUSTE_BANCA">AJUSTE DE BANCA</option>
-                                <option value="LIQUIDACION">LIQUIDACION</option>
-                                <option value="ADELANTO">ADELANTO</option>
-                                <option value="SOLICITUD_BANCA">SOLICITUD BANCA</option>
+                                <option value="PAGO_TAQUILLA">PAGOS RECIBIDOS (TAQUILLAS)</option>
+                                <option value="AJUSTE_BANCA">AJUSTES DE BANCA</option>
+                                <option value="LIQUIDACION">LIQUIDACIONES ENVIADAS</option>
+                                <option value="ADELANTO">ADELANTOS</option>
+                                <option value="SOLICITUD_BANCA">SOLICITUDES</option>
                             </select>
                         </div>
                     </div>
@@ -286,7 +282,7 @@
                                                 <input type="hidden" name="agencia" value="{{ sp.agencia }}">
                                                 <input type="hidden" name="fecha" value="{{ sp.fecha }}">
                                                 <input type="hidden" name="accion" value="COMPLETO">
-                                                <input type="file" name="comprobante_file" class="form-control form-control-sm" style="max-width: 150px;" required>
+                                                <input type="file" name="comprobante_file" class="form-control form-control-sm" style="max-width: 150px;">
                                                 <button type="submit" class="btn btn-success btn-sm fw-bold">Liquidar</button>
                                             </form>
                                             {% else %}
@@ -346,7 +342,7 @@
                 </div>
             </div>
 
-            <!-- 4. BALANCES GLOBALES (+ / -) -->
+            <!-- 4. BALANCES GLOBALES (+ / -) CON BOTONES PAGÓ Y PAGAR -->
             <div class="tab-pane fade {% if tab_activa == 'balances' or not tab_activa %}show active{% endif %}" id="tab-balances" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
@@ -372,7 +368,7 @@
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover align-middle mb-0 bg-white">
                                         <thead class="table-light">
-                                            <tr><th>AGENCIA</th><th>FECHA</th><th class="text-end">DEUDA</th><th class="text-center">ACCIONES</th></tr>
+                                            <tr><th>AGENCIA</th><th class="text-end">DEUDA</th><th class="text-center">ACCIONES</th></tr>
                                         </thead>
                                         <tbody>
                                             {% for pos in positivos %}
@@ -383,18 +379,24 @@
                                                         <i class="fas fa-circle-info text-primary me-1"></i>{{ pos.agencia }}
                                                     </a>
                                                 </td>
-                                                <td>{{ pos.fecha }}</td>
                                                 <td class="text-end fw-bold text-success">Bs. {{ pos.monto | dinero }}</td>
                                                 <td class="text-center">
-                                                    <!-- BOTON: PAGAR PENDIENTE -->
-                                                    <button type="button" class="btn btn-success btn-sm py-1 px-3 fw-bold shadow-sm rounded-pill" 
-                                                            onclick="abrirAccionRapida('{{ pos.agencia }}', '{{ pos.monto }}', 'PAGO_TAQUILLA', '{{ pos.fecha }}')">
-                                                        <i class="fas fa-hand-holding-dollar me-1"></i> Pagar Pendiente
-                                                    </button>
+                                                    <div class="d-flex gap-1 justify-content-center">
+                                                        <!-- BOTÓN PAGÓ (Taquilla me pagó) -->
+                                                        <button type="button" class="btn btn-success btn-sm py-1 px-2 fw-bold shadow-sm" 
+                                                                onclick="abrirModalPagoRapido('{{ pos.agencia }}', '{{ pos.monto }}', 'PAGO')">
+                                                            <i class="fas fa-check-circle me-1"></i> PAGÓ
+                                                        </button>
+                                                        <!-- BOTÓN PAGAR (Banca le entrega) -->
+                                                        <button type="button" class="btn btn-outline-primary btn-sm py-1 px-2 fw-bold shadow-sm" 
+                                                                onclick="abrirModalPagoRapido('{{ pos.agencia }}', '0.00', 'PAGAR')">
+                                                            <i class="fas fa-hand-holding-dollar me-1"></i> PAGAR
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                             {% else %}
-                                            <tr><td colspan="4" class="text-center text-muted py-2">Sin deudas pendientes.</td></tr>
+                                            <tr><td colspan="3" class="text-center text-muted py-2">Sin deudas pendientes.</td></tr>
                                             {% endfor %}
                                         </tbody>
                                     </table>
@@ -409,7 +411,7 @@
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover align-middle mb-0 bg-white">
                                         <thead class="table-light">
-                                            <tr><th>AGENCIA</th><th>FECHA</th><th class="text-end">MONTO</th><th class="text-center">ACCIONES</th></tr>
+                                            <tr><th>AGENCIA</th><th class="text-end">MONTO</th><th class="text-center">ACCIONES</th></tr>
                                         </thead>
                                         <tbody>
                                             {% for neg in negativos %}
@@ -420,18 +422,24 @@
                                                         <i class="fas fa-circle-info text-danger me-1"></i>{{ neg.agencia }}
                                                     </a>
                                                 </td>
-                                                <td>{{ neg.fecha }}</td>
                                                 <td class="text-end fw-bold text-danger">Bs. {{ neg.monto | dinero }}</td>
                                                 <td class="text-center">
-                                                    <!-- BOTON: SOLICITAR / LIQUIDAR SALDO A FAVOR -->
-                                                    <button type="button" class="btn btn-danger btn-sm py-1 px-3 fw-bold shadow-sm rounded-pill" 
-                                                            onclick="abrirAccionRapida('{{ neg.agencia }}', '{{ neg.monto }}', 'LIQUIDACION', '{{ neg.fecha }}')">
-                                                        <i class="fas fa-money-bill-transfer me-1"></i> Liquidar Saldo
-                                                    </button>
+                                                    <div class="d-flex gap-1 justify-content-center">
+                                                        <!-- BOTÓN PAGAR (Liquidar saldo a favor) -->
+                                                        <button type="button" class="btn btn-danger btn-sm py-1 px-2 fw-bold shadow-sm" 
+                                                                onclick="abrirModalPagoRapido('{{ neg.agencia }}', '{{ neg.monto }}', 'PAGAR')">
+                                                            <i class="fas fa-money-bill-transfer me-1"></i> PAGAR
+                                                        </button>
+                                                        <!-- BOTÓN PAGÓ (Si la taquilla entregó dinero) -->
+                                                        <button type="button" class="btn btn-outline-success btn-sm py-1 px-2 fw-bold shadow-sm" 
+                                                                onclick="abrirModalPagoRapido('{{ neg.agencia }}', '0.00', 'PAGO')">
+                                                            <i class="fas fa-check-circle me-1"></i> PAGÓ
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                             {% else %}
-                                            <tr><td colspan="4" class="text-center text-muted py-2">Sin saldos a favor.</td></tr>
+                                            <tr><td colspan="3" class="text-center text-muted py-2">Sin saldos a favor.</td></tr>
                                             {% endfor %}
                                         </tbody>
                                     </table>
@@ -460,13 +468,13 @@
                                     <span>(-) Cashea Absorbido:</span>
                                     <strong id="mdlCashea">Bs. 0,00</strong>
                                 </div>
-                                <div class="d-flex justify-content-between mb-1 text-danger">
-                                    <span>(-) Adelantos entregados por Banca:</span>
-                                    <strong id="mdlAdelantos">Bs. 0,00</strong>
-                                </div>
                                 <div class="d-flex justify-content-between mb-1 text-success">
                                     <span>(-) Abonos Pagados por Taquilla:</span>
                                     <strong id="mdlAbonos">Bs. 0,00</strong>
+                                </div>
+                                <div class="d-flex justify-content-between mb-1 text-primary">
+                                    <span>(+) Adelantos / Liquidaciones Entregadas:</span>
+                                    <strong id="mdlAdelantos">Bs. 0,00</strong>
                                 </div>
                                 <hr>
                                 <div class="d-flex justify-content-between fs-6 fw-bold">
@@ -474,94 +482,46 @@
                                     <span id="mdlTotal">Bs. 0,00</span>
                                 </div>
                             </div>
-                            <small class="text-muted d-block text-center">Fórmula: <code>Reportes - Cashea - Abonos - Adelantos</code></small>
+                            <small class="text-muted d-block text-center">Fórmula: <code>(Reportes - Cashea) - Abonos + Adelantos/Liquidaciones</code></small>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- MODAL REGISTRO DIRECTO DE PAGO / LIQUIDACION -->
-            <div class="modal fade" id="modalAccionRapida" tabindex="-1" aria-hidden="true">
+            <!-- NUEVO MODAL RÁPIDO PARA PAGÓ O PAGAR (SIN FECHAS) -->
+            <div class="modal fade" id="modalPagoRapido" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered modal-sm">
                     <div class="modal-content border-0 shadow">
                         <div class="modal-header bg-light py-2">
-                            <h6 class="modal-title fw-bold" id="tituloAccionRapida">Registrar Transacción</h6>
+                            <h6 class="modal-title fw-bold" id="tituloModalRapido">Registrar Transacción</h6>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
-                        <form action="/admin/procesar-transaccion-directa" method="POST">
-                            <input type="hidden" name="agencia" id="rapidaAgencia">
-                            <input type="hidden" name="tipo" id="rapidaTipo">
-                            <input type="hidden" name="fecha" id="rapidaFecha">
+                        <form action="/admin/registrar-pago-rapido" method="POST">
+                            <input type="hidden" name="agencia" id="rapidoAgencia">
+                            <input type="hidden" name="accion" id="rapidoAccion">
                             <div class="modal-body">
                                 <div class="mb-2">
-                                    <label class="form-label small fw-bold">Monto (Bs.):</label>
-                                    <input type="number" step="0.01" name="monto" id="rapidaMonto" class="form-control form-control-sm fw-bold fs-6" required>
+                                    <label class="form-label small fw-bold text-muted">Agencia:</label>
+                                    <input type="text" id="displayAgenciaRapida" class="form-control form-control-sm bg-light fw-bold" readonly>
                                 </div>
-                                <div class="mb-2">
-                                    <label class="form-label small fw-bold">Detalle / Referencia:</label>
-                                    <input type="text" name="factura" id="rapidaDetalle" class="form-control form-control-sm" placeholder="Pago recibido o liquidado" required>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold" id="labelMontoRapido">Monto a Registrar (Bs.):</label>
+                                    <input type="number" step="0.01" name="monto" id="rapidoMonto" class="form-control form-control-sm fw-bold fs-6 text-center" required>
+                                </div>
+                                <div class="alert alert-info py-1 px-2 m-0 small" style="font-size: 11px;">
+                                    <i class="fas fa-info-circle me-1"></i> Se aplicará al balance actual y enviará un comunicado de confirmación a la taquilla.
                                 </div>
                             </div>
                             <div class="modal-footer bg-light py-2">
                                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-                                <button type="submit" class="btn btn-tema btn-sm fw-bold">Confirmar</button>
+                                <button type="submit" class="btn btn-tema btn-sm fw-bold" id="btnConfirmarRapido">Confirmar Transacción</button>
                             </div>
                         </form>
                     </div>
                 </div>
             </div>
 
-            <!-- 5. MODIFICACIONES -->
-            <div class="tab-pane fade {% if tab_activa == 'modificaciones' %}show active{% endif %}" id="tab-modificaciones" role="tabpanel">
-                <div class="card card-custom p-4 bg-white mb-3" style="max-width: 800px; margin: 0 auto;">
-                    <h5 class="fw-bold text-tema mb-2"><i class="fas fa-pen-to-square me-1"></i> Modificar Sistema de Cualquier Taquilla</h5>
-                    <p class="text-muted small mb-3">Ajusta ventas y premios en tiempo real por fecha o rango de fechas.</p>
-                    
-                    <form action="/actualizar-reporte-sistema" method="POST" class="row g-3">
-                        <input type="hidden" name="origen" value="admin">
-                        <div class="col-md-12">
-                            <label class="form-label small fw-bold">Seleccionar Agencia:</label>
-                            <select name="agencia" class="form-select form-select-sm" required>
-                                <option value="">-- Elige la taquilla --</option>
-                                {% for ag in agencias %}
-                                    {% if ag.rol != 'BANQUERO' %}
-                                    <option value="{{ ag.agencia }}">{{ ag.agencia }}</option>
-                                    {% endif %}
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold">Desde Fecha:</label>
-                            <input type="date" name="fecha_desde" value="{{ desde_fecha }}" class="form-control form-control-sm" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold">Hasta Fecha:</label>
-                            <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-bold">Sistema:</label>
-                            <select name="sistema" class="form-select form-select-sm" required>
-                                {% for s in sistemas %}
-                                <option value="{{ s }}">{{ s }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-bold">Nueva Venta (Bs.):</label>
-                            <input type="number" step="0.01" name="venta" class="form-control form-control-sm" placeholder="0.00" required>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-bold">Nuevo Premio (Bs.):</label>
-                            <input type="number" step="0.01" name="premio" class="form-control form-control-sm" placeholder="0.00" required>
-                        </div>
-                        <div class="col-12 mt-4">
-                            <button type="submit" class="btn btn-tema fw-bold w-100 rounded-pill shadow-sm py-2">Guardar Modificación Simultánea</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <!-- 6. DATA CASHEA -->
+            <!-- 5. DATA CASHEA -->
             <div class="tab-pane fade {% if tab_activa == 'cashea' %}show active{% endif %}" id="tab-cashea" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
@@ -619,25 +579,39 @@
                 </div>
             </div>
 
-            <!-- 7. CONSOLIDADO SISTEMAS -->
+            <!-- 6. CONSOLIDADO SISTEMAS (CON MENÚ DESPLEGABLE DE AGENCIA) -->
             <div class="tab-pane fade {% if tab_activa == 'consolidado' %}show active{% endif %}" id="tab-consolidado" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
                         <input type="hidden" name="tab" value="consolidado">
-                        <div class="col-md-5">
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted">Filtrar por Taquilla:</label>
+                            <select name="agencia" class="form-select form-select-sm">
+                                <option value="">-- Todas las Taquillas --</option>
+                                {% for ag in agencias %}
+                                    {% if ag.rol != 'BANQUERO' %}
+                                    <option value="{{ ag.agencia }}" {% if agencia_filtro == ag.agencia %}selected{% endif %}>{{ ag.agencia }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
                             <label class="form-label small fw-bold text-muted">Desde:</label>
                             <input type="date" name="desde_fecha" value="{{ desde_fecha }}" class="form-control form-control-sm">
                         </div>
-                        <div class="col-md-5">
+                        <div class="col-md-3">
                             <label class="form-label small fw-bold text-muted">Hasta:</label>
                             <input type="date" name="hasta_fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm">
                         </div>
-                        <div class="col-md-2">
-                            <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold"><i class="fas fa-magnifying-glass me-1"></i> Filtrar</button>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold"><i class="fas fa-magnifying-glass me-1"></i> Filtrar Consolidado</button>
                         </div>
                     </form>
 
-                    <h5 class="fw-bold text-dark mb-3"><i class="fas fa-chart-pie text-tema me-2"></i>Consolidado General de Sistemas</h5>
+                    <h5 class="fw-bold text-dark mb-3">
+                        <i class="fas fa-chart-pie text-tema me-2"></i>Consolidado de Sistemas 
+                        {% if agencia_filtro %}<span class="badge bg-secondary ms-2">{{ agencia_filtro }}</span>{% endif %}
+                    </h5>
                     <div class="table-responsive mb-4">
                         <table class="table table-bordered table-sm align-middle mb-0">
                             <thead class="table-dark">
@@ -687,7 +661,7 @@
                 </div>
             </div>
 
-            <!-- 8. AUDITORÍA -->
+            <!-- 7. AUDITORÍA -->
             <div class="tab-pane fade {% if tab_activa == 'auditoria' %}show active{% endif %}" id="tab-auditoria" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
@@ -742,7 +716,7 @@
                 </div>
             </div>
 
-            <!-- 9. TOTALIZADOR -->
+            <!-- 8. TOTALIZADOR -->
             <div class="tab-pane fade {% if tab_activa == 'totalizador' %}show active{% endif %}" id="tab-totalizador" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end">
@@ -797,7 +771,7 @@
                 </div>
             </div>
 
-            <!-- 10. DESGLOSE BANCA -->
+            <!-- 9. DESGLOSE BANCA -->
             <div class="tab-pane fade {% if tab_activa == 'desglose_banca' %}show active{% endif %}" id="tab-desglose-banca" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end">
@@ -830,9 +804,6 @@
                                 <div class="d-flex gap-1">
                                     <button class="btn btn-outline-primary btn-sm py-0 fw-bold" onclick="copiarReporteBanqueroDetallado('{{ b_nom }}', 'tabla_b_{{ loop.index }}')">
                                         <i class="fas fa-copy me-1"></i> Copiar
-                                    </button>
-                                    <button class="btn btn-outline-secondary btn-sm py-0 fw-bold" onclick="abrirModalEditarReporte('{{ b_nom }}')">
-                                        <i class="fas fa-pen-to-square me-1"></i> Editar
                                     </button>
                                 </div>
                             </div>
@@ -930,64 +901,6 @@
                 {% endfor %}
             </div>
 
-        </div>
-    </div>
-
-    <!-- MODAL EDITAR REPORTE -->
-    <div class="modal fade" id="modalEditarReporte" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-light">
-                    <h6 class="modal-title fw-bold" id="modalEditarTitulo"><i class="fas fa-edit text-tema me-1"></i> Editar Reporte de Sistema</h6>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <form action="/actualizar-reporte-sistema" method="POST">
-                    <input type="hidden" name="origen" value="admin">
-                    <div class="modal-body">
-                        <div class="mb-2">
-                            <label class="form-label small fw-bold">Banquero / Entidad:</label>
-                            <input type="text" name="agencia" id="editAgencia" class="form-control form-control-sm bg-light" readonly>
-                        </div>
-                        <div class="row g-2 mb-2">
-                            <div class="col-md-6">
-                                <label class="form-label small fw-bold">Desde Fecha:</label>
-                                <input type="date" name="fecha_desde" value="{{ desde_fecha }}" class="form-control form-control-sm" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-bold">Hasta Fecha:</label>
-                                <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
-                            </div>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label small fw-bold">Sistema:</label>
-                            <select name="sistema" class="form-select form-select-sm" required>
-                                {% for s in sistemas %}
-                                <option value="{{ s }}">{{ s }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="row g-2">
-                            <div class="col-md-4">
-                                <label class="form-label small fw-bold">Venta (Bs.):</label>
-                                <input type="number" step="0.01" name="venta" id="editVenta" class="form-control form-control-sm" placeholder="0.00" required oninput="calcularComisionAutomatica()">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label small fw-bold">Premio (Bs.):</label>
-                                <input type="number" step="0.01" name="premio" class="form-control form-control-sm" placeholder="0.00" required>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label small fw-bold">Comisión (Bs.):</label>
-                                <input type="number" step="0.01" name="comision" id="editComision" class="form-control form-control-sm" placeholder="Auto o manual">
-                            </div>
-                        </div>
-                        <small class="text-muted d-block mt-2" style="font-size: 11px;">* Si dejas la Comisión vacía, se recalculará automáticamente según el porcentaje establecido.</small>
-                    </div>
-                    <div class="modal-footer bg-light py-2">
-                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-tema btn-sm fw-bold">Guardar Cambios</button>
-                    </div>
-                </form>
-            </div>
         </div>
     </div>
 
@@ -1188,7 +1101,6 @@
             });
         }
 
-        // DESGLOSE CORREGIDO CON FORMULA REAL
         function abrirModalDesglose(agencia, reportes, cashea, adelantos, abonos, totalBackend) {
             document.getElementById("modalDesgloseTitulo").innerText = "Desglose de Balance: " + agencia;
             
@@ -1203,8 +1115,7 @@
             document.getElementById("mdlAdelantos").innerText = formatoBs(adeNum);
             document.getElementById("mdlAbonos").innerText = formatoBs(aboNum);
             
-            // Prioridad al cálculo oficial del Backend
-            var totalFinal = (totBackendNum !== 0) ? totBackendNum : (repNum - casNum - aboNum - adeNum);
+            var totalFinal = (totBackendNum !== 0) ? totBackendNum : ((repNum - casNum) - aboNum + adeNum);
 
             var elemTotal = document.getElementById("mdlTotal");
             elemTotal.innerText = formatoBs(Math.abs(totalFinal));
@@ -1219,38 +1130,29 @@
             modal.show();
         }
 
-        // CONTROL DIRECTO: PAGAR PENDIENTE / LIQUIDAR
-        function abrirAccionRapida(agencia, monto, tipo, fecha) {
-            document.getElementById("rapidaAgencia").value = agencia;
-            document.getElementById("rapidaTipo").value = tipo;
-            document.getElementById("rapidaFecha").value = fecha || "";
-            document.getElementById("rapidaMonto").value = Math.abs(parseMonto(monto)).toFixed(2);
+        // CONTROL RÁPIDO PARA BOTONES "PAGÓ" Y "PAGAR" (SIN FECHA)
+        function abrirModalPagoRapido(agencia, montoSugerido, accion) {
+            document.getElementById("rapidoAgencia").value = agencia;
+            document.getElementById("displayAgenciaRapida").value = agencia;
+            document.getElementById("rapidoAccion").value = accion;
             
-            if (tipo === 'PAGO_TAQUILLA') {
-                document.getElementById("tituloAccionRapida").innerText = "Pagar Deuda: " + agencia;
-                document.getElementById("rapidaDetalle").value = "Abono / Pago de Deuda";
+            var montoNum = Math.abs(parseMonto(montoSugerido));
+            document.getElementById("rapidoMonto").value = montoNum > 0 ? montoNum.toFixed(2) : "";
+
+            if (accion === 'PAGO') {
+                document.getElementById("tituloModalRapido").innerText = "Registrar Pago de Taquilla: " + agencia;
+                document.getElementById("labelMontoRapido").innerText = "Monto que PAGÓ la Taquilla (Bs.):";
+                document.getElementById("btnConfirmarRapido").className = "btn btn-success btn-sm fw-bold";
+                document.getElementById("btnConfirmarRapido").innerText = "Confirmar Pago Recibido";
             } else {
-                document.getElementById("tituloAccionRapida").innerText = "Liquidar Saldo: " + agencia;
-                document.getElementById("rapidaDetalle").value = "Liquidación de Saldo a Favor";
+                document.getElementById("tituloModalRapido").innerText = "Registrar Pago a Taquilla: " + agencia;
+                document.getElementById("labelMontoRapido").innerText = "Monto a PAGAR a la Taquilla (Bs.):";
+                document.getElementById("btnConfirmarRapido").className = "btn btn-primary btn-sm fw-bold";
+                document.getElementById("btnConfirmarRapido").innerText = "Confirmar Pago Enviado";
             }
-            
-            var modal = new bootstrap.Modal(document.getElementById('modalAccionRapida'));
-            modal.show();
-        }
 
-        function abrirModalEditarReporte(banquero) {
-            document.getElementById("editAgencia").value = banquero;
-            document.getElementById("modalEditarTitulo").innerHTML = '<i class="fas fa-edit text-tema me-1"></i> Modificar Sistema - ' + banquero;
-            var modal = new bootstrap.Modal(document.getElementById('modalEditarReporte'));
+            var modal = new bootstrap.Modal(document.getElementById('modalPagoRapido'));
             modal.show();
-        }
-
-        function calcularComisionAutomatica() {
-            var venta = parseFloat(document.getElementById("editVenta").value) || 0;
-            var comInput = document.getElementById("editComision");
-            if (comInput.dataset.manual !== "true" && venta > 0) {
-                comInput.placeholder = (venta * 0.16).toFixed(2);
-            }
         }
 
         function copiarReporteGlobal() {
