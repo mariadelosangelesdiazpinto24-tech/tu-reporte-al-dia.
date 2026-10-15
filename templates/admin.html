@@ -757,7 +757,7 @@
                             </div>
                             <h2 class="fw-bold m-0 mb-3 text-white" id="totalizadorSumaBanqueros">Bs. {{ suma_cuadros_banqueros | dinero }}</h2>
                             <p class="small opacity-75 m-0 border-top border-light border-opacity-25 pt-2">
-                                Representa el total de fondos comprometidos para liquidar a todos los banqueros en las fechas seleccionadas.
+                                Representa el total neto de fondos comprometidos sumando todas las barras de liquidación a banqueros en las fechas seleccionadas.
                             </p>
                         </div>
                     </div>
@@ -978,10 +978,11 @@
             return granTotal;
         }
 
-        document.addEventListener("DOMContentLoaded", function() {
+        function recalcularTodoElPanel() {
             var totalCasheaGeneral = consolidarCasheaPorAgencia();
             var granSumaBanqueros = 0;
             var granTotalPartGlobal = 0;
+            var granTotalExcedenteGlobal = 0;
 
             var bloques = document.querySelectorAll(".banquero-bloque");
             bloques.forEach(function(b) {
@@ -1001,7 +1002,7 @@
                     var t = v - p - c;
                     tr.querySelector(".col-total").innerText = formatoBs(t);
 
-                    // 2. PARTICIPACIÓN = % sobre el TOTAL (o si ya viene calculada por backend)
+                    // 2. PARTICIPACIÓN = % sobre el TOTAL (o monto pre-asignado)
                     var partAttr = tr.getAttribute("data-monto-part");
                     var pctPartAttr = tr.getAttribute("data-pct-part");
                     var part = 0;
@@ -1031,7 +1032,7 @@
                     totFinal += finalRow;
                 });
 
-                // DESCUENTO ESPECIAL CASHEA PARA NYS SI APLICA
+                // CASHEA PARA NYS
                 var casheaDeducido = 0;
                 if (banqueroNombre.includes("NYS") && totalCasheaGeneral > 0) {
                     casheaDeducido = totalCasheaGeneral;
@@ -1058,14 +1059,16 @@
                 tabla.querySelector(".foot-part").innerText = formatoBs(totPart);
                 tabla.querySelector(".foot-final").innerText = formatoBs(totFinalBanquero);
 
+                // ACTUALIZA LA BARRITA EN NEGRO DEL BANQUERO
                 if (badge) {
                     badge.innerText = "Total Banquero: " + formatoBs(totFinalBanquero);
                 }
 
+                // SUMA DIRECTA DE TODAS LAS BARRAS EN NEGRO
                 granSumaBanqueros += totFinalBanquero;
                 granTotalPartGlobal += totPart;
 
-                // TARJETA PRIVADA ADMIN
+                // TARJETA PRIVADA ADMIN POR BANQUERO
                 var box = b.querySelector(".tarjeta-mi-ganancia-banca");
                 var difFilas = box.querySelectorAll(".fila-dif-sistema");
                 var gananciaExcedente = 0;
@@ -1073,6 +1076,7 @@
                     gananciaExcedente += parseMonto(df.querySelector(".dif-monto").innerText);
                 });
 
+                granTotalExcedenteGlobal += gananciaExcedente;
                 var gananciaParticipacion = totPart;
                 var gananciaTotal = gananciaExcedente + gananciaParticipacion;
 
@@ -1081,16 +1085,40 @@
                 box.querySelector(".val-ganancia-participacion").innerText = formatoBs(gananciaParticipacion);
             });
 
-            // ACTUALIZACIÓN DE TARJETAS EN TAB TOTALIZADOR
+            // TARJETA AZUL TOTALIZADOR: "SUMA BANQUEROS" (SUMA DE TODAS LAS BARRAS NEGRAS)
             var cardSumaBanqueros = document.getElementById("totalizadorSumaBanqueros");
-            if (cardSumaBanqueros && granSumaBanqueros !== 0) {
+            if (cardSumaBanqueros) {
                 cardSumaBanqueros.innerText = formatoBs(granSumaBanqueros);
             }
 
+            // TARJETA VERDE TOTALIZADOR: CUÁNTO GANÉ
             var cardPartTotalizador = document.getElementById("totalizadorParticipacion");
             if (cardPartTotalizador) {
                 cardPartTotalizador.innerText = formatoBs(granTotalPartGlobal);
             }
+
+            var cardExcedenteTotalizador = document.getElementById("totalizadorExcedente");
+            if (cardExcedenteTotalizador && granTotalExcedenteGlobal > 0) {
+                cardExcedenteTotalizador.innerText = formatoBs(granTotalExcedenteGlobal);
+            }
+
+            var cardGranTotalGanancia = document.getElementById("totalizadorGranTotalGanancia");
+            if (cardGranTotalGanancia) {
+                var gananciaTotalGlobal = (granTotalExcedenteGlobal > 0 ? granTotalExcedenteGlobal : parseMonto(document.getElementById("totalizadorExcedente").innerText)) + granTotalPartGlobal;
+                cardGranTotalGanancia.innerText = formatoBs(gananciaTotalGlobal);
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            recalcularTodoElPanel();
+        });
+
+        // Asegura recálculo al alternar entre pestañas
+        var tabButtons = document.querySelectorAll('button[data-bs-toggle="tab"]');
+        tabButtons.forEach(function(btn) {
+            btn.addEventListener('shown.bs.tab', function() {
+                recalcularTodoElPanel();
+            });
         });
 
         function copiarCasheaGlobal() {
