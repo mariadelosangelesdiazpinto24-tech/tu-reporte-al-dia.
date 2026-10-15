@@ -239,6 +239,26 @@ def init_db():
 
 init_db()
 
+def limpiar_datos_antiguos_inicio():
+    """Conserva los reportes desde el lunes actual y elimina pagos y abonos viejos (CASHEA queda intacto)."""
+    try:
+        lunes_sem, _ = obtener_rango_semana_actual()
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Eliminar reportes anteriores al lunes actual
+        cursor.execute("DELETE FROM reportes WHERE fecha < %s", (lunes_sem,))
+        
+        # Eliminar pagos/abonos/adelantos anteriores al lunes actual excepto los de CASHEA
+        cursor.execute("DELETE FROM pagos WHERE tipo != 'CASHEA' AND fecha < %s", (lunes_sem,))
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print("Error en limpieza inicial de base de datos:", e)
+
+limpiar_datos_antiguos_inicio()
+
 def extraer_neto_de_html(detalle_html: str) -> float:
     if not detalle_html:
         return 0.0
@@ -272,7 +292,7 @@ def extraer_neto_de_html(detalle_html: str) -> float:
     return neto_acumulado
 
 def calcular_balance_contable_exacto(neto_sistemas: float, cashea: float, abonos: float, adelantos: float, liquidaciones: float) -> float:
-    total = neto_sistemas - cashea - abonos + adelantos + liquidaciones
+    total = (neto_sistemas - cashea) - abonos + adelantos + liquidaciones
     if abs(total) < 0.05:
         total = 0.0
     return total
@@ -589,7 +609,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     if total_neto_sistemas == 0.0:
         total_neto_sistemas = float(rep['ventas'] if rep['ventas'] != 0 else rep['monto'])
 
-    # FÓRMULA UNIFICADA: Total Neto Sistemas - Cashea - Abonos + Adelantos + Liquidaciones
     monto_final = calcular_balance_contable_exacto(
         total_neto_sistemas, 
         total_cashea, 
@@ -675,7 +694,7 @@ def ver_o_descargar_comprobante(pago_id: int):
     if os.path.exists(ruta_disco):
         return FileResponse(
             ruta_disco, 
-            filename=nombre_archivo,
+            filename=nombre_archivo, 
             headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'}
         )
 
@@ -686,8 +705,8 @@ def ver_o_descargar_comprobante(pago_id: int):
             ext = mime.split("/")[-1]
             nombre_archivo = f"Comprobante_{agencia_clean}_{row['fecha']}_{pago_id}.{ext}"
             return Response(
-                content=base64.b64decode(encoded),
-                media_type=mime,
+                content=base64.b64decode(encoded), 
+                media_type=mime, 
                 headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'}
             )
         except Exception:
@@ -911,7 +930,7 @@ def get_agencia(
     nombre: Optional[str] = None, 
     desde_fecha: Optional[str] = None, 
     hasta_fecha: Optional[str] = None, 
-    tab: Optional[str] = "reportes"
+    tab: Optional[str] = "pendiente"
 ):
     if not nombre:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
@@ -932,30 +951,22 @@ def get_agencia(
     f_desde = desde_fecha if desde_fecha else ""
     f_hasta = hasta_fecha if hasta_fecha else ""
 
-    if f_desde and f_hasta:
-        cursor.execute(
-            "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha DESC", 
-            (agencia_norm, f_desde, f_hasta)
-        )
-    else:
-        cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
-    reportes_agencia = [dict(r) for r in cursor.fetchall()]
-
+    # Pagos y registros Cashea
     if f_desde and f_hasta:
         cursor.execute(
             "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", 
             (agencia_norm, f_desde, f_hasta)
         )
-    else:
-        cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
-    pagos_agencia = [dict(row) for row in cursor.fetchall()]
+        pagos_agencia = [dict(row) for row in cursor.fetchall()]
 
-    if f_desde and f_hasta:
         cursor.execute(
             "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s ORDER BY fecha DESC, id DESC",
             (agencia_norm, f_desde, f_hasta)
         )
     else:
+        cursor.execute("SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC", (agencia_norm,))
+        pagos_agencia = [dict(row) for row in cursor.fetchall()]
+
         cursor.execute(
             "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'CASHEA' ORDER BY fecha DESC, id DESC",
             (agencia_norm,)
@@ -970,6 +981,7 @@ def get_agencia(
     row_cdia = cursor.fetchone()
     total_cashea_dia = float(row_cdia['total_dia'] or 0.0) if row_cdia else 0.0
 
+    # Auditoría por sistemas
     cursor.execute(
         "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha ASC", 
         (agencia_norm, f_desde or hoy_vzla, f_hasta or hoy_vzla)
@@ -1036,44 +1048,27 @@ def get_agencia(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
 
-    if f_desde and f_hasta:
-        cursor.execute(
-            """SELECT detalle_html FROM reportes 
-               WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s""",
-            (agencia_norm, f_desde, f_hasta)
-        )
-        reps_html_ag = cursor.fetchall()
-        cursor.execute(
-            """SELECT tipo, SUM(monto) as total FROM pagos 
-               WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' AND fecha >= %s AND fecha <= %s
-               GROUP BY tipo""",
-            (agencia_norm, f_desde, f_hasta)
-        )
-        filas_desglose = cursor.fetchall()
-    else:
-        cursor.execute(
-            """SELECT detalle_html FROM reportes 
-               WHERE UPPER(TRIM(agencia)) = %s""",
-            (agencia_norm,)
-        )
-        reps_html_ag = cursor.fetchall()
-        cursor.execute(
-            """SELECT tipo, SUM(monto) as total FROM pagos 
-               WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' 
-               GROUP BY tipo""",
-            (agencia_norm,)
-        )
-        filas_desglose = cursor.fetchall()
+    # Cálculo acumulado continuo de saldo
+    cursor.execute(
+        """SELECT detalle_html, fecha FROM reportes 
+           WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC""",
+        (agencia_norm,)
+    )
+    reps_html_ag = cursor.fetchall()
+    
+    cursor.execute(
+        """SELECT tipo, SUM(monto) as total FROM pagos 
+           WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' 
+           GROUP BY tipo""",
+        (agencia_norm,)
+    )
+    filas_desglose = cursor.fetchall()
 
     neto_sistemas_calc = 0.0
     for rh in reps_html_ag:
         if rh and rh['detalle_html']:
             neto_sistemas_calc += extraer_neto_de_html(rh['detalle_html'])
 
-    if neto_sistemas_calc == 0.0 and totales_auditoria["neto"] != 0:
-        neto_sistemas_calc = totales_auditoria["neto"]
-
-    fecha_display_desglose = "Saldo Acumulado Pendiente"
     abonos_calc = 0.0
     liquidaciones_calc = 0.0
     adelantos_calc = 0.0
@@ -1100,7 +1095,7 @@ def get_agencia(
     )
 
     desglose_cuenta = {
-        "fecha": fecha_display_desglose,
+        "fecha": "Saldo Acumulado Pendiente",
         "neto_sistemas": neto_sistemas_calc,
         "cashea": cashea_calc,
         "adelantos": adelantos_calc,
@@ -1109,8 +1104,8 @@ def get_agencia(
         "saldo_final": saldo_acumulado
     }
 
-    cursor.execute("SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND abs(monto) > 0.05 ORDER BY fecha DESC", (agencia_norm,))
-    items_pendientes = [dict(row) for row in cursor.fetchall()]
+    cursor.execute("SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
+    reportes_agencia = [dict(row) for row in cursor.fetchall()]
 
     conn.close()
     
@@ -1128,15 +1123,58 @@ def get_agencia(
         "sistemas": SISTEMAS_OFICIALES,
         "saldo_actual": saldo_acumulado,
         "desglose_cuenta": desglose_cuenta,
-        "items_pendientes": items_pendientes,
+        "items_pendientes": reportes_agencia,
         "auditoria_sistemas": auditoria_sistemas_agencia,
         "totales_auditoria": totales_auditoria,
         "auditoria_cashea_monto": auditoria_cashea_monto,
         "facturas_cashea_auditoria": facturas_cashea_auditoria,
         "desde_fecha": f_desde,
         "hasta_fecha": f_hasta,
-        "tab_activa": tab or "reportes"
+        "tab_activa": tab or "pendiente"
     })
+
+@app.post("/admin/registrar-pago-rapido")
+def post_registrar_pago_rapido(
+    agencia: str = Form(...),
+    accion: str = Form(...),  # 'PAGO' (Taquilla abonó) o 'PAGAR' (Banca le pagó)
+    monto: float = Form(...)
+):
+    agencia_norm = normalizar(agencia)
+    monto_val = abs(float(monto))
+    fecha_hoy = obtener_fecha_venezuela()
+
+    if monto_val > 0:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        if accion == "PAGO":
+            cursor.execute(
+                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+                   VALUES (%s, %s, %s, %s, %s, 'AJUSTE_BANCA', 'APROBADO')""",
+                (agencia_norm, fecha_hoy, monto_val, f"Abono Admin ({fecha_hoy})", "Registrado directamente por la administración")
+            )
+            mensaje = f"Se ha registrado tu pago/abono de Bs. {monto_val:,.2f} a la administración."
+        else:
+            cursor.execute(
+                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+                   VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
+                (agencia_norm, fecha_hoy, monto_val, f"Liquidación Admin ({fecha_hoy})", "Pago transferido directamente por la administración")
+            )
+            mensaje = f"Se te ha emitido un pago/liquidación de Bs. {monto_val:,.2f} por parte de la administración."
+
+        try:
+            cursor.execute(
+                "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
+                (mensaje, agencia_norm)
+            )
+        except Exception:
+            cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje,))
+
+        conn.commit()
+        conn.close()
+        recalcular_y_actualizar_reporte(agencia_norm, fecha_hoy)
+
+    return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/saldar-deuda-taquilla")
 def post_saldar_deuda_taquilla(
@@ -1146,24 +1184,23 @@ def post_saldar_deuda_taquilla(
 ):
     agencia_norm = normalizar(agencia)
     fecha_operacion = fecha or obtener_fecha_venezuela()
+    monto_val = abs(float(monto_restante))
     
-    if abs(monto_restante) > 0.01:
+    if monto_val > 0.01:
         conn = get_db()
         cursor = conn.cursor()
         
-        # Si la taquilla debe (monto > 0), registramos un AJUSTE_BANCA que salde la deuda
-        # Si la taquilla tiene saldo a favor (monto < 0), registramos una LIQUIDACION que salde la cuenta
-        if monto_restante > 0:
+        if float(monto_restante) > 0:
             cursor.execute(
                 """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
                    VALUES (%s, %s, %s, %s, %s, 'AJUSTE_BANCA', 'APROBADO')""",
-                (agencia_norm, fecha_operacion, abs(monto_restante), f"Ajuste Saldo #{fecha_operacion}", "Ajuste de banca para saldar cuenta a 0.00")
+                (agencia_norm, fecha_operacion, monto_val, f"Saldar Deuda #{fecha_operacion}", "Ajuste completo de saldo")
             )
         else:
             cursor.execute(
                 """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
                    VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
-                (agencia_norm, fecha_operacion, abs(monto_restante), f"Liquidación Saldo #{fecha_operacion}", "Liquidación manual para saldar cuenta a 0.00")
+                (agencia_norm, fecha_operacion, monto_val, f"Liquidación Saldo #{fecha_operacion}", "Liquidación completa de saldo a favor")
             )
 
         cursor.execute("UPDATE reportes SET monto = 0.0 WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha_operacion))
@@ -1364,7 +1401,7 @@ def post_actualizar_reporte_sistema(
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
 
     if origen == "admin":
-        return RedirectResponse(url="/admin?tab=modificaciones&msg=actualizado", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(url="/admin?tab=balances&msg=actualizado", status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=modificaciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/eliminar-transaccion")
@@ -1432,25 +1469,10 @@ async def post_procesar_solicitud_dinero(
             (f"Se te ha transferido Bs. {monto_pagar:,.2f} ({accion}) para saldar tu cuenta.", agencia_norm)
         )
 
-        cursor.execute(
-            "SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND monto < -0.05 ORDER BY fecha DESC LIMIT 1",
-            (agencia_norm,)
-        )
-        rep_neg = cursor.fetchone()
-        if rep_neg:
-            nuevo_neg = min(0.0, float(rep_neg['monto']) + monto_pagar)
-            cursor.execute("UPDATE reportes SET monto = %s WHERE id = %s", (nuevo_neg, rep_neg['id']))
-            fecha_rep_ajustar = rep_neg['fecha']
-        else:
-            fecha_rep_ajustar = fecha
-
         conn.commit()
         conn.close()
 
         recalcular_y_actualizar_reporte(agencia_norm, fecha)
-        if fecha_rep_ajustar != fecha:
-            recalcular_y_actualizar_reporte(agencia_norm, fecha_rep_ajustar)
-
         return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
     conn.close()
@@ -1467,39 +1489,13 @@ def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
         agencia_p = normalizar(pago['agencia'])
         fecha_pago = pago['fecha']
         monto_p = float(pago['monto'] or 0.0)
-        factura_str = pago['factura'] or ''
         
         if accion == "APROBAR":
             cursor.execute("UPDATE pagos SET estado = 'APROBADO' WHERE id = %s", (solicitud_id,))
             msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido APROBADO y acreditado a tu cuenta."
-            
-            match_f = re.search(r'\d{4}-\d{2}-\d{2}', factura_str)
-            fecha_rep = match_f.group(0) if match_f else None
-
-            if not fecha_rep:
-                cursor.execute(
-                    "SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND monto > 0.05 ORDER BY fecha DESC LIMIT 1",
-                    (agencia_p,)
-                )
-                rep_deuda = cursor.fetchone()
-                if rep_deuda:
-                    fecha_rep = rep_deuda['fecha']
-                else:
-                    fecha_rep = fecha_pago
-
-            cursor.execute(
-                "SELECT id, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s",
-                (agencia_p, fecha_rep)
-            )
-            r_target = cursor.fetchone()
-            if r_target:
-                nuevo_saldo = max(0.0, float(r_target['monto'] or 0.0) - monto_p)
-                cursor.execute("UPDATE reportes SET monto = %s WHERE id = %s", (nuevo_saldo, r_target['id']))
-
         else:
             cursor.execute("UPDATE pagos SET estado = 'RECHAZADO' WHERE id = %s", (solicitud_id,))
             msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido RECHAZADO. Por favor verifica con la administración."
-            fecha_rep = fecha_pago
 
         try:
             cursor.execute(
@@ -1515,10 +1511,7 @@ def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
         conn.commit()
         conn.close()
         
-        recalcular_y_actualizar_reporte(agencia_p, fecha_rep)
-        if fecha_rep != fecha_pago:
-            recalcular_y_actualizar_reporte(agencia_p, fecha_pago)
-            
+        recalcular_y_actualizar_reporte(agencia_p, fecha_pago)
         return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
     conn.close()
@@ -1529,21 +1522,23 @@ async def post_liquidar_saldo_negativo(
     agencia: str = Form(...),
     fecha: str = Form(...),
     monto: float = Form(...),
-    comprobante_file: UploadFile = File(...)
+    comprobante_file: Optional[UploadFile] = File(None)
 ):
     agencia_norm = normalizar(agencia)
     monto_pago = abs(monto)
-    contenido = await comprobante_file.read()
+    comprobante_valor = "Liquidación Directa Admin"
 
-    nombre_archivo = f"liquidacion_negativo_{agencia_norm}_{datetime.now(TZ_VENEZUELA).strftime('%Y%m%d_%H%M%S')}_{comprobante_file.filename}"
-    ruta_guardar = os.path.join("uploads", nombre_archivo)
-    with open(ruta_guardar, "wb") as buffer:
-        buffer.write(contenido)
+    if comprobante_file and comprobante_file.filename:
+        contenido = await comprobante_file.read()
+        nombre_archivo = f"liquidacion_negativo_{agencia_norm}_{datetime.now(TZ_VENEZUELA).strftime('%Y%m%d_%H%M%S')}_{comprobante_file.filename}"
+        ruta_guardar = os.path.join("uploads", nombre_archivo)
+        with open(ruta_guardar, "wb") as buffer:
+            buffer.write(contenido)
 
-    comprobante_valor = nombre_archivo
-    if len(contenido) < 1500000:
-        mime = comprobante_file.content_type or "image/jpeg"
-        comprobante_valor = f"data:{mime};base64,{base64.b64encode(contenido).decode('utf-8')}"
+        comprobante_valor = nombre_archivo
+        if len(contenido) < 1500000:
+            mime = comprobante_file.content_type or "image/jpeg"
+            comprobante_valor = f"data:{mime};base64,{base64.b64encode(contenido).decode('utf-8')}"
 
     conn = get_db()
     cursor = conn.cursor()
@@ -1554,22 +1549,14 @@ async def post_liquidar_saldo_negativo(
         (agencia_norm, fecha, monto_pago, "Liquidación Saldo a Favor", comprobante_valor)
     )
 
-    cursor.execute(
-        "UPDATE reportes SET monto = 0.0 WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s",
-        (agencia_norm, fecha)
-    )
-
-    mensaje = f"✅ Tu saldo a favor de Bs. {monto_pago:,.2f} del día {fecha} ha sido LIQUIDADO. Ya puedes revisar tu capture."
+    mensaje = f"✅ Tu saldo a favor de Bs. {monto_pago:,.2f} ha sido LIQUIDADO."
     try:
         cursor.execute(
             "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
             (mensaje, agencia_norm)
         )
     except Exception:
-        cursor.execute(
-            "INSERT INTO comunicados (mensaje) VALUES (%s)",
-            (mensaje,)
-        )
+        cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje,))
 
     conn.commit()
     conn.close()
@@ -1657,7 +1644,7 @@ def post_comunicado(mensaje: str = Form(...)):
             cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje.strip(),))
         conn.commit()
         conn.close()
-    return RedirectResponse(url="/admin?tab=comunicados", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/admin?tab=notificaciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/eliminar-comunicado")
 def post_eliminar_comunicado(comunicado_id: int = Form(...)):
@@ -1666,7 +1653,7 @@ def post_eliminar_comunicado(comunicado_id: int = Form(...)):
     cursor.execute("DELETE FROM comunicados WHERE id = %s", (comunicado_id,))
     conn.commit()
     conn.close()
-    return RedirectResponse(url="/admin?tab=comunicados", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/admin?tab=notificaciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/crear-agencia")
 @app.post("/admin/crear-taquilla")
@@ -1692,41 +1679,6 @@ def post_eliminar_agencia(agencia_id: int = Form(...)):
     conn.commit()
     conn.close()
     return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/restablecer-monto-reporte-colab")
-def post_restablecer_monto_reporte_colab(
-    agencia: str = Form(...),
-    fecha: str = Form(...)
-):
-    agencia_norm = normalizar(agencia)
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND (fecha = %s OR tipo = 'AJUSTE_PENDIENTE')",
-        (agencia_norm, fecha)
-    )
-    cursor.execute("UPDATE reportes SET monto = 0.0 WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha))
-    conn.commit()
-    conn.close()
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/eliminar-ajustes-agencia")
-def post_eliminar_ajustes_agencia(
-    agencia: str = Form(...),
-    fecha: str = Form(...)
-):
-    agencia_norm = normalizar(agencia)
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_PENDIENTE'",
-        (agencia_norm,)
-    )
-    conn.commit()
-    conn.close()
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/admin", response_class=HTMLResponse)
 def get_admin(
@@ -1797,8 +1749,7 @@ def get_admin(
         casheas_generales = [dict(row) for row in cursor.fetchall()]
         total_cashea_filtrado = sum(float(c.get('monto') or 0.0) for c in casheas_generales)
 
-        hay_filtro_fechas_admin = bool(desde_fecha and hasta_fecha)
-
+        # Cálculo exacto de balances acumulados por agencia
         positivos = []
         negativos = []
         for ag in agencias:
@@ -1807,48 +1758,16 @@ def get_admin(
             ag_nombre = ag['agencia']
             ag_norm = normalizar(ag_nombre)
             
-            if hay_filtro_fechas_admin:
-                cursor.execute(
-                    """SELECT SUM(ventas) as total_ventas, SUM(premios) as total_premios, MAX(fecha) as ultima_fecha
-                       FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s""",
-                    (ag_norm, f_desde, f_hasta)
-                )
-                fila_rep = cursor.fetchone()
+            cursor.execute("SELECT detalle_html FROM reportes WHERE UPPER(TRIM(agencia)) = %s", (ag_norm,))
+            reps_admin_periodo = cursor.fetchall()
 
-                cursor.execute(
-                    """SELECT detalle_html FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s""",
-                    (ag_norm, f_desde, f_hasta)
-                )
-                reps_admin_periodo = cursor.fetchall()
-
-                cursor.execute(
-                    """SELECT tipo, SUM(monto) as total_monto FROM pagos 
-                       WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'
-                       GROUP BY tipo""",
-                    (ag_norm, f_desde, f_hasta)
-                )
-                filas_pagos = cursor.fetchall()
-            else:
-                cursor.execute(
-                    """SELECT SUM(ventas) as total_ventas, SUM(premios) as total_premios, MAX(fecha) as ultima_fecha
-                       FROM reportes WHERE UPPER(TRIM(agencia)) = %s""",
-                    (ag_norm,)
-                )
-                fila_rep = cursor.fetchone()
-
-                cursor.execute(
-                    """SELECT detalle_html FROM reportes WHERE UPPER(TRIM(agencia)) = %s""",
-                    (ag_norm,)
-                )
-                reps_admin_periodo = cursor.fetchall()
-
-                cursor.execute(
-                    """SELECT tipo, SUM(monto) as total_monto FROM pagos 
-                       WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' 
-                       GROUP BY tipo""",
-                    (ag_norm,)
-                )
-                filas_pagos = cursor.fetchall()
+            cursor.execute(
+                """SELECT tipo, SUM(monto) as total_monto FROM pagos 
+                   WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' 
+                   GROUP BY tipo""",
+                (ag_norm,)
+            )
+            filas_pagos = cursor.fetchall()
             
             sum_abonos = 0.0
             sum_cashea = 0.0
@@ -1866,22 +1785,13 @@ def get_admin(
                 elif tipo_fp == 'LIQUIDACION':
                     sum_liquidaciones += m_fp
 
-            v_tot = float(fila_rep['total_ventas'] or 0.0) if fila_rep else 0.0
-            p_tot = float(fila_rep['total_premios'] or 0.0) if fila_rep else 0.0
-            f_rep = fila_rep['ultima_fecha'] if (fila_rep and fila_rep['ultima_fecha']) else f_hasta
-
             neto_desde_html = 0.0
             for r_adm in reps_admin_periodo:
                 if r_adm and r_adm['detalle_html']:
                     neto_desde_html += extraer_neto_de_html(r_adm['detalle_html'])
 
-            if neto_desde_html != 0.0:
-                base_sistemas = neto_desde_html
-            else:
-                base_sistemas = (v_tot - p_tot)
-
             balance_contable = calcular_balance_contable_exacto(
-                base_sistemas, 
+                neto_desde_html, 
                 sum_cashea, 
                 sum_abonos, 
                 sum_adelantos, 
@@ -1892,17 +1802,14 @@ def get_admin(
             
             datos_desglose = {
                 "agencia": ag_nombre,
-                "fecha": f_rep,
+                "fecha": hoy_vzla,
                 "monto": balance_contable,
                 "balance_total": balance_contable,
-                "ventas": v_tot,
-                "premios": p_tot,
-                "reporte_neto": base_sistemas,
+                "reporte_neto": neto_desde_html,
                 "abonos": sum_abonos,
                 "cashea": sum_cashea,
                 "adelantos": sum_adelantos,
-                "liquidaciones": sum_liquidaciones,
-                "pendientes": 0.0
+                "liquidaciones": sum_liquidaciones
             }
 
             if balance_contable > 0.009:
