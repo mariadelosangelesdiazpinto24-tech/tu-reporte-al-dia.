@@ -46,7 +46,7 @@
             font-weight: 600; 
             border: none; 
             padding: 10px 16px; 
-            border-radius: 10px 10px 0 0;
+            border-radius: 10px 10px 0 0; 
             transition: all 0.2s ease;
         }
         .nav-tabs .nav-link:hover { 
@@ -361,7 +361,6 @@
                     </form>
 
                     <div class="row g-3">
-                        <!-- DEBEN A LA BANCA -->
                         <div class="col-md-6">
                             <div class="border rounded-3 p-3 bg-light h-100">
                                 <h6 class="fw-bold text-success mb-3"><i class="fas fa-arrow-down me-1"></i> Deben a la Banca (+)</h6>
@@ -402,7 +401,6 @@
                             </div>
                         </div>
 
-                        <!-- A PAGARLES -->
                         <div class="col-md-6">
                             <div class="border rounded-3 p-3 bg-light h-100">
                                 <h6 class="fw-bold text-danger mb-3"><i class="fas fa-arrow-up me-1"></i> A Pagarles (-)</h6>
@@ -554,8 +552,7 @@
                                     <th class="text-end">Monto Total Absorbido</th>
                                 </tr>
                             </thead>
-                            <tbody id="tbodyCasheaAgrupado">
-                            </tbody>
+                            <tbody id="tbodyCasheaAgrupado"></tbody>
                             <tfoot class="table-light fw-bold">
                                 <tr>
                                     <td colspan="2">TOTAL ABSORBIDO EN PERÍODO:</td>
@@ -738,7 +735,7 @@
                                 <h6 class="fw-bold m-0"><i class="fas fa-wallet me-2"></i>CUÁNTO GANÉ (TOTAL)</h6>
                                 <span class="badge bg-light text-dark fw-bold">PERÍODO</span>
                             </div>
-                            <h2 class="fw-bold m-0 mb-3 text-white">Bs. {{ (total_ganancia_excedente + total_ganancia_participacion) | dinero }}</h2>
+                            <h2 class="fw-bold m-0 mb-3 text-white" id="totalizadorGranTotalGanancia">Bs. {{ (total_ganancia_excedente + total_ganancia_participacion) | dinero }}</h2>
                             <div class="border-top border-light border-opacity-25 pt-2">
                                 <div class="d-flex justify-content-between py-1">
                                     <span>Ganancia por Porcentaje (%):</span>
@@ -796,7 +793,7 @@
                                 <div>
                                     <h6 class="fw-bold text-dark m-0 d-inline-block me-2">{{ b_nom }}</h6>
                                     <span class="badge bg-dark fs-6 badge-total-banquero" id="badge_total_b_{{ loop.index }}">
-                                        Total Banquero: Bs. {{ (b_info.total_a_pagar_banquero or 0) | dinero }}
+                                        Total Banquero: Bs. 0.00
                                     </span>
                                 </div>
                                 <div class="d-flex gap-1">
@@ -813,24 +810,29 @@
                                             <th class="text-end">Venta</th>
                                             <th class="text-end">Premio</th>
                                             <th class="text-end">Comisión</th>
-                                            <th class="text-end">Total</th>
+                                            <th class="text-end">Total (V-P-C)</th>
                                             <th class="text-end">Participación</th>
                                             <th class="text-end fw-bold">Total Final</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {% for sys in b_info.sistemas %}
-                                        <tr>
+                                        <tr data-pct-part="{{ sys.pct_participacion if sys.pct_participacion is defined else '' }}" data-monto-part="{{ sys.monto_participacion if sys.monto_participacion is defined else '' }}">
                                             <td class="fw-bold col-sistema">{{ sys.sistema }}</td>
                                             <td class="text-end col-venta">Bs. {{ (sys.venta or 0) | dinero }}</td>
                                             <td class="text-end text-danger col-premio">Bs. {{ (sys.premios or 0) | dinero }}</td>
                                             <td class="text-end text-primary col-comision">
                                                 Bs. {{ (sys.comision_banquero if sys.comision_banquero is defined else ((sys.venta or 0) * (sys.pct_banquero or 0) / 100)) | dinero }}
                                             </td>
-                                            <td class="text-end col-total">Bs. {{ (sys.total_banquero or 0) | dinero }}</td>
-                                            <td class="text-end col-part {% if (sys.monto_participacion or 0) < 0 %}text-danger{% elif (sys.monto_participacion or 0) > 0 %}text-success{% else %}text-muted{% endif %}">
+                                            <!-- PRIMER TOTAL: VENTA - PREMIO - COMISION -->
+                                            <td class="text-end fw-bold col-total">
+                                                Bs. {{ (sys.total_banquero if sys.total_banquero is defined else ((sys.venta or 0) - (sys.premios or 0) - (sys.comision_banquero or 0))) | dinero }}
+                                            </td>
+                                            <!-- PARTICIPACIÓN: % DE GANANCIA SOBRE EL TOTAL -->
+                                            <td class="text-end col-part">
                                                 Bs. {{ (sys.monto_participacion if sys.monto_participacion is defined else 0) | dinero }}
                                             </td>
+                                            <!-- TOTAL FINAL: TOTAL - PARTICIPACION -->
                                             <td class="text-end fw-bold col-total-final">
                                                 Bs. 0.00
                                             </td>
@@ -979,6 +981,7 @@
         document.addEventListener("DOMContentLoaded", function() {
             var totalCasheaGeneral = consolidarCasheaPorAgencia();
             var granSumaBanqueros = 0;
+            var granTotalPartGlobal = 0;
 
             var bloques = document.querySelectorAll(".banquero-bloque");
             bloques.forEach(function(b) {
@@ -989,16 +992,35 @@
                 
                 var totVenta = 0, totPremio = 0, totComision = 0, totNeto = 0, totPart = 0, totFinal = 0;
 
-                // FÓRMULA POR FILA: TOTAL FINAL = TOTAL - PARTICIPACIÓN
                 filas.forEach(function(tr) {
                     var v = parseMonto(tr.querySelector(".col-venta").innerText);
                     var p = parseMonto(tr.querySelector(".col-premio").innerText);
                     var c = parseMonto(tr.querySelector(".col-comision").innerText);
-                    var t = parseMonto(tr.querySelector(".col-total").innerText);
-                    var part = parseMonto(tr.querySelector(".col-part").innerText);
 
+                    // 1. TOTAL = VENTA - PREMIO - COMISIÓN
+                    var t = v - p - c;
+                    tr.querySelector(".col-total").innerText = formatoBs(t);
+
+                    // 2. PARTICIPACIÓN = % sobre el TOTAL (o si ya viene calculada por backend)
+                    var partAttr = tr.getAttribute("data-monto-part");
+                    var pctPartAttr = tr.getAttribute("data-pct-part");
+                    var part = 0;
+
+                    if (pctPartAttr && !isNaN(parseFloat(pctPartAttr))) {
+                        part = t * (parseFloat(pctPartAttr) / 100);
+                    } else if (partAttr && !isNaN(parseFloat(partAttr)) && parseFloat(partAttr) !== 0) {
+                        part = parseFloat(partAttr);
+                    } else {
+                        var partCelda = parseMonto(tr.querySelector(".col-part").innerText);
+                        part = partCelda !== 0 ? partCelda : 0;
+                    }
+
+                    var celdaPart = tr.querySelector(".col-part");
+                    celdaPart.innerText = formatoBs(part);
+                    celdaPart.className = "text-end col-part " + (part < 0 ? "text-danger" : (part > 0 ? "text-success" : "text-muted"));
+
+                    // 3. TOTAL FINAL = TOTAL - PARTICIPACIÓN
                     var finalRow = t - part;
-
                     tr.querySelector(".col-total-final").innerText = formatoBs(finalRow);
 
                     totVenta += v;
@@ -1009,7 +1031,7 @@
                     totFinal += finalRow;
                 });
 
-                // DESCUENTO ESPECIAL CASHEA PARA NYS
+                // DESCUENTO ESPECIAL CASHEA PARA NYS SI APLICA
                 var casheaDeducido = 0;
                 if (banqueroNombre.includes("NYS") && totalCasheaGeneral > 0) {
                     casheaDeducido = totalCasheaGeneral;
@@ -1036,12 +1058,12 @@
                 tabla.querySelector(".foot-part").innerText = formatoBs(totPart);
                 tabla.querySelector(".foot-final").innerText = formatoBs(totFinalBanquero);
 
-                // SINCRONIZAR EL BADGE DE ARRIBA CON EL TOTAL CALCULADO
                 if (badge) {
                     badge.innerText = "Total Banquero: " + formatoBs(totFinalBanquero);
                 }
 
                 granSumaBanqueros += totFinalBanquero;
+                granTotalPartGlobal += totPart;
 
                 // TARJETA PRIVADA ADMIN
                 var box = b.querySelector(".tarjeta-mi-ganancia-banca");
@@ -1059,10 +1081,15 @@
                 box.querySelector(".val-ganancia-participacion").innerText = formatoBs(gananciaParticipacion);
             });
 
-            // ACTUALIZA LA TARJETA DE RESUMEN "SUMA BANQUEROS" SI EXISTE
+            // ACTUALIZACIÓN DE TARJETAS EN TAB TOTALIZADOR
             var cardSumaBanqueros = document.getElementById("totalizadorSumaBanqueros");
-            if (cardSumaBanqueros && granSumaBanqueros > 0) {
+            if (cardSumaBanqueros && granSumaBanqueros !== 0) {
                 cardSumaBanqueros.innerText = formatoBs(granSumaBanqueros);
+            }
+
+            var cardPartTotalizador = document.getElementById("totalizadorParticipacion");
+            if (cardPartTotalizador) {
+                cardPartTotalizador.innerText = formatoBs(granTotalPartGlobal);
             }
         });
 
@@ -1092,7 +1119,6 @@
 
         function copiarReporteBanqueroDetallado(nombreBanquero, tableId, badgeId) {
             var tabla = document.getElementById(tableId);
-            var badge = document.getElementById(badgeId);
             var texto = "🏪 LIQUIDACIÓN: " + nombreBanquero.toUpperCase() + "\n";
             texto += "Período: {{ desde_fecha }} al {{ hasta_fecha }}\n";
             texto += "----------------------------------------\n\n";
@@ -1105,7 +1131,7 @@
                     texto += "   • Venta: " + c[1].innerText.trim() + "\n";
                     texto += "   • Premios: " + c[2].innerText.trim() + "\n";
                     texto += "   • Comisión: " + c[3].innerText.trim() + "\n";
-                    texto += "   • Total Neto: " + c[4].innerText.trim() + "\n";
+                    texto += "   • Total (V-P-C): " + c[4].innerText.trim() + "\n";
                     texto += "   • Part. (+/-): " + c[5].innerText.trim() + "\n";
                     texto += "   • Total Final: " + c[6].innerText.trim() + "\n\n";
                 }
