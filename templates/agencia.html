@@ -77,7 +77,7 @@
         .nav-tabs .nav-link.active { 
             background-color: var(--color-primario) !important; 
             color: #ffffff !important; 
-            border: none !important;
+            border: none !important; 
             border-bottom: 3px solid var(--color-secundario) !important; 
             font-weight: bold; 
         }
@@ -173,7 +173,7 @@
             </form>
         </div>
 
-        <!-- PESTAÑAS (NAIKKATEN TI MIS REPORTES) -->
+        <!-- PESTAÑAS -->
         <ul class="nav nav-tabs mb-4" id="agenciaTabs" role="tablist">
             <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'pendiente' or not tab_activa or tab_activa == 'reportes' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-pendiente" type="button" onclick="setTab('pendiente')">
@@ -209,7 +209,7 @@
 
         <div class="tab-content" id="agenciaTabsContent">
 
-            <!-- 1. PENDIENTES / PAGOS (PRINCIPAL) -->
+            <!-- 1. PENDIENTES / PAGOS (LIMPIO: SOLO BALANCE, JUSTIFICACIÓN Y BOTONES) -->
             <div class="tab-pane fade {% if tab_activa == 'pendiente' or not tab_activa or tab_activa == 'reportes' %}show active{% endif %}" id="tab-pendiente" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-4">
                     
@@ -257,7 +257,7 @@
                         </div>
                     </div>
 
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-6">
                             <button class="btn btn-success btn-lg w-100 fw-bold shadow-sm rounded-pill py-3" data-bs-toggle="collapse" data-bs-target="#seccionPagar">
                                 <i class="fas fa-credit-card me-2 accent-amarillo"></i> Registrar Pago o Abono a la Banca
@@ -271,7 +271,7 @@
                     </div>
 
                     <!-- FORMULARIO DE PAGO -->
-                    <div class="collapse mb-4" id="seccionPagar">
+                    <div class="collapse mt-3 mb-3" id="seccionPagar">
                         <div class="card p-3 border rounded-3 bg-light shadow-sm">
                             <h5 class="fw-bold text-success mb-2"><i class="fas fa-check-square me-2"></i>Reportar Pago a la Banca:</h5>
                             <p class="small text-muted mb-3">Introduce los datos del pago móvil o transferencia realizada.</p>
@@ -303,7 +303,7 @@
                     </div>
 
                     <!-- FORMULARIO DE SOLICITUD DE SALDO A FAVOR -->
-                    <div class="collapse mb-4" id="seccionSolicitar">
+                    <div class="collapse mt-3 mb-3" id="seccionSolicitar">
                         <div class="card p-3 border rounded-3 bg-light shadow-sm">
                             <h5 class="fw-bold text-tema mb-2"><i class="fas fa-hand-holding-usd me-2"></i>Solicitar Saldo a Favor</h5>
                             <form action="/solicitar-banca-directo" method="POST" class="row g-3">
@@ -322,26 +322,6 @@
                             </form>
                         </div>
                     </div>
-
-                    <!-- TABLA DETALLADA DE REPORTES DEL PERIODO -->
-                    <h5 class="fw-bold text-dark mt-4 mb-3"><i class="fas fa-file-invoice-dollar text-tema me-2"></i>Detalle Diario de Reportes Cargados</h5>
-                    {% if reportes %}
-                        {% for r in reportes %}
-                        <div class="p-3 mb-3 rounded-3 border bg-light">
-                            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
-                                <h6 class="fw-bold text-dark m-0"><i class="far fa-calendar-alt me-1 text-tema"></i> Fecha: {{ r.fecha }}</h6>
-                                <span class="badge {% if r.monto < 0 %}bg-success{% elif r.monto > 0 %}bg-danger{% else %}bg-secondary{% endif %} fs-6">
-                                    {% if r.monto < 0 %}Saldo a Favor: Bs. {{ (-r.monto) | dinero }}{% elif r.monto > 0 %}Deuda: Bs. {{ r.monto | dinero }}{% else %}Saldado (0.00 Bs.){% endif %}
-                                </span>
-                            </div>
-                            <div class="detalle-reporte-contenedor">
-                                {{ r.detalle_html | safe }}
-                            </div>
-                        </div>
-                        {% endfor %}
-                    {% else %}
-                        <p class="text-center text-muted py-3">No hay reportes cargados en este período.</p>
-                    {% endif %}
 
                 </div>
             </div>
