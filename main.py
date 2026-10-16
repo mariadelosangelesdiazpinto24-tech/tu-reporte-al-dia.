@@ -286,7 +286,7 @@ def calcular_balance_contable_exacto(neto_sistemas: float, cashea: float, abonos
     return total
 
 # ==============================================================================
-# MOTOR CONTABLE UNIFICADO CON CORTE A LAS 7:00 PM VENEZUELA
+# MOTOR CONTABLE UNIFICADO: ÚLTIMO SALDO PENDIENTE + REPORTE HOY - CASHEA HOY
 # ==============================================================================
 def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = None):
     ag_norm = normalizar(agencia_raw)
@@ -308,10 +308,8 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     ajuste_manual = cursor.fetchone()
 
     if ajuste_manual:
-        # Se toma directamente el saldo que tú editaste en el Admin
         saldo_anterior = float(ajuste_manual['monto'] or 0.0)
     else:
-        # Si no hay ajuste manual, se calcula todo lo ocurrido antes de fecha_corte
         cursor.execute("""
             SELECT detalle_html FROM reportes 
             WHERE UPPER(TRIM(agencia)) = %s AND fecha < %s
@@ -812,7 +810,7 @@ def ver_o_descargar_comprobante(pago_id: int):
     return HTMLResponse(f"<h3>Comprobante: {comp}</h3>")
 
 # ==============================================================================
-# RUTA NUEVA: AJUSTAR SALDO ANTERIOR DIRECTO DESDE EL ADMIN
+# RUTA: AJUSTAR SALDO ANTERIOR DIRECTO DESDE EL ADMIN
 # ==============================================================================
 @app.post("/admin/ajustar-saldo-anterior")
 def post_ajustar_saldo_anterior(
@@ -825,10 +823,10 @@ def post_ajustar_saldo_anterior(
     conn = get_db()
     cursor = conn.cursor()
     
-    # Se elimina cualquier ajuste anterior para dejar el nuevo saldo oficial
+    # Se elimina el ajuste manual previo si existía
     cursor.execute("DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'", (agencia_norm,))
     
-    # Se guarda el nuevo saldo
+    # Se inserta el nuevo saldo anterior oficial
     cursor.execute("""
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
         VALUES (%s, %s, %s, 'Ajuste Manual Saldo Anterior', 'Ajuste fijado desde panel de administración', 'AJUSTE_SALDO_ANTERIOR', 'APROBADO')
@@ -918,13 +916,11 @@ async def guardar_reporte_colab(request: Request):
 
     cursor.execute("INSERT INTO usuarios (agencia, clave, genero, rol) VALUES (%s, '123456', 'FEMENINO', 'TAQUILLA') ON CONFLICT (agencia) DO NOTHING", (agencia,))
 
-    # Lógica de cierre automático de corte (7:00 PM Venezuela)
-    ahora_vzla = obtener_ahora_vzla()
+    # LÓGICA DE CIERRE DIARIO Y CONSOLIDACIÓN
     cursor.execute("SELECT fecha FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC LIMIT 1", (agencia,))
     row_prev = cursor.fetchone()
     
     if row_prev and row_prev['fecha'] and row_prev['fecha'] < fecha:
-        # Si ya es un día nuevo, fijamos el saldo de cierre del día anterior
         cuenta_cierre = obtener_cuenta_agencia_corte(agencia, row_prev['fecha'])
         saldo_cierre = cuenta_cierre["saldo_final"]
         
@@ -1577,360 +1573,4 @@ async def post_procesar_solicitud_dinero(
         conn.close()
 
         recalcular_y_actualizar_reporte(agencia_norm, fecha)
-        return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
-
-    conn.close()
-    return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/validar-pago")
-def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM pagos WHERE id = %s", (solicitud_id,))
-    pago = cursor.fetchone()
-
-    if pago:
-        agencia_p = normalizar(pago['agencia'])
-        fecha_pago = pago['fecha']
-        monto_p = float(pago['monto'] or 0.0)
-        
-        if accion == "APROBAR":
-            cursor.execute("UPDATE pagos SET estado = 'APROBADO' WHERE id = %s", (solicitud_id,))
-            msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido APROBADO y acreditado a tu cuenta."
-        else:
-            cursor.execute("UPDATE pagos SET estado = 'RECHAZADO' WHERE id = %s", (solicitud_id,))
-            msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido RECHAZADO. Por favor verifica con la administración."
-
-        try:
-            cursor.execute(
-                "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
-                (msg_notif, agencia_p)
-            )
-        except Exception:
-            cursor.execute(
-                "INSERT INTO comunicados (mensaje) VALUES (%s)",
-                (msg_notif,)
-            )
-
-        conn.commit()
-        conn.close()
-        
-        recalcular_y_actualizar_reporte(agencia_p, fecha_pago)
-        return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
-
-    conn.close()
-    return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/liquidar-saldo-negativo")
-async def post_liquidar_saldo_negativo(
-    agencia: str = Form(...),
-    fecha: str = Form(...),
-    monto: float = Form(...),
-    comprobante_file: Optional[UploadFile] = File(None)
-):
-    agencia_norm = normalizar(agencia)
-    monto_pago = abs(monto)
-    comprobante_valor = "Liquidación Directa Admin"
-
-    if comprobante_file and comprobante_file.filename:
-        contenido = await comprobante_file.read()
-        nombre_archivo = f"liquidacion_negativo_{agencia_norm}_{datetime.now(TZ_VENEZUELA).strftime('%Y%m%d_%H%M%S')}_{comprobante_file.filename}"
-        ruta_guardar = os.path.join("uploads", nombre_archivo)
-        with open(ruta_guardar, "wb") as buffer:
-            buffer.write(contenido)
-
-        comprobante_valor = nombre_archivo
-        if len(contenido) < 1500000:
-            mime = comprobante_file.content_type or "image/jpeg"
-            comprobante_valor = f"data:{mime};base64,{base64.b64encode(contenido).decode('utf-8')}"
-
-    conn = get_db()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-           VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
-        (agencia_norm, fecha, monto_pago, "Liquidación Saldo a Favor", comprobante_valor)
-    )
-
-    mensaje = f"✅ Tu saldo a favor de Bs. {monto_pago:,.2f} ha sido LIQUIDADO."
-    try:
-        cursor.execute(
-            "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
-            (mensaje, agencia_norm)
-        )
-    except Exception:
-        cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje,))
-
-    conn.commit()
-    conn.close()
-
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
-    return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/actualizar-regla-banquero")
-def post_actualizar_regla_banquero(
-    regla_id: int = Form(...),
-    pct_banquero: float = Form(...),
-    pct_taquilla: float = Form(...),
-    pct_participacion: float = Form(...),
-    desde_fecha: Optional[str] = Form(None),
-    hasta_fecha: Optional[str] = Form(None)
-):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        """UPDATE configuracion_banqueros 
-           SET pct_banquero = %s, pct_taquilla = %s, pct_participacion = %s
-           WHERE id = %s""",
-        (pct_banquero / 100.0, pct_taquilla / 100.0, pct_participacion / 100.0, regla_id)
-    )
-    conn.commit()
-    conn.close()
-
-    url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
-    return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/guardar-ajuste-banquero-sistema")
-def post_guardar_ajuste_banquero_sistema(
-    banquero: str = Form(...),
-    sistema: str = Form(...),
-    fecha: str = Form(...),
-    venta: float = Form(...),
-    comision: float = Form(...),
-    premios: float = Form(...),
-    desde_fecha: Optional[str] = Form(None),
-    hasta_fecha: Optional[str] = Form(None)
-):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        """INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
-           VALUES (%s, %s, %s, %s, %s, %s)
-           ON CONFLICT (banquero, sistema, fecha) 
-           DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
-        (banquero, sistema, fecha, venta, comision, premios)
-    )
-    conn.commit()
-    conn.close()
-
-    url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
-    return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/restablecer-ajuste-banquero-sistema")
-def post_restablecer_ajuste_banquero_sistema(
-    banquero: str = Form(...),
-    sistema: str = Form(...),
-    desde_fecha: Optional[str] = Form(None),
-    hasta_fecha: Optional[str] = Form(None)
-):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        "DELETE FROM ajustes_banqueros_manuales WHERE banquero = %s AND sistema = %s",
-        (banquero, sistema)
-    )
-    conn.commit()
-    conn.close()
-
-    url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
-    return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/crear-comunicado")
-@app.post("/admin/comunicado")
-def post_comunicado(mensaje: str = Form(...)):
-    if mensaje and mensaje.strip():
-        conn = get_db()
-        cursor = conn.cursor()
-        try:
-            cursor.execute("INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, 'TODAS')", (mensaje.strip(),))
-        except Exception:
-            cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje.strip(),))
-        conn.commit()
-        conn.close()
-    return RedirectResponse(url="/admin?tab=notificaciones", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/eliminar-comunicado")
-def post_eliminar_comunicado(comunicado_id: int = Form(...)):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM comunicados WHERE id = %s", (comunicado_id,))
-    conn.commit()
-    conn.close()
-    return RedirectResponse(url="/admin?tab=notificaciones", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/crear-agencia")
-@app.post("/admin/crear-taquilla")
-def post_crear_agencia(agencia: str = Form(...), clave: str = Form(...), genero: str = Form("FEMENINO")):
-    agencia_norm = normalizar(agencia)
-    if agencia_norm and clave:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute(
-            """INSERT INTO usuarios (agencia, clave, genero, rol) VALUES (%s, %s, %s, 'TAQUILLA')
-               ON CONFLICT (agencia) DO UPDATE SET clave = EXCLUDED.clave, genero = EXCLUDED.genero, rol = 'TAQUILLA'""",
-            (agencia_norm, clave, genero)
-        )
-        conn.commit()
-        conn.close()
-    return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.post("/admin/eliminar-agencia")
-def post_eliminar_agencia(agencia_id: int = Form(...)):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM usuarios WHERE id = %s", (agencia_id,))
-    conn.commit()
-    conn.close()
-    return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
-
-@app.get("/admin", response_class=HTMLResponse)
-def get_admin(
-    request: Request, 
-    agencia: Optional[str] = None, 
-    desde_fecha: Optional[str] = None, 
-    hasta_fecha: Optional[str] = None, 
-    tipo_transaccion: Optional[str] = None, 
-    tab: str = "balances"
-):
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT * FROM reportes ORDER BY id DESC")
-        reportes = [dict(row) for row in cursor.fetchall()]
-        
-        query_pagos = "SELECT * FROM pagos WHERE tipo != 'CASHEA' AND tipo != 'AJUSTE_SALDO_ANTERIOR'"
-        params_pagos = []
-        if tipo_transaccion:
-            if tipo_transaccion == 'RECIBIDOS':
-                query_pagos += " AND tipo IN ('PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA')"
-            elif tipo_transaccion == 'ENVIADOS':
-                query_pagos += " AND tipo IN ('LIQUIDACION')"
-            elif tipo_transaccion == 'ADELANTOS':
-                query_pagos += " AND tipo = 'ADELANTO'"
-            elif tipo_transaccion == 'MODIFICACIONES':
-                query_pagos += " AND tipo = 'MODIFICACION'"
-            elif tipo_transaccion == 'SOLICITUDES':
-                query_pagos += " AND tipo = 'SOLICITUD_BANCA'"
-        query_pagos += " ORDER BY id DESC"
-        cursor.execute(query_pagos, tuple(params_pagos))
-        pagos = [dict(row) for row in cursor.fetchall()]
-
-        cursor.execute("SELECT * FROM usuarios ORDER BY id DESC")
-        agencias = [dict(row) for row in cursor.fetchall()]
-        
-        try:
-            cursor.execute("SELECT * FROM comunicados WHERE agencia_destino = 'TODAS' ORDER BY id DESC")
-            comunicados = [dict(row) for row in cursor.fetchall()]
-        except Exception:
-            cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
-            comunicados = [dict(row) for row in cursor.fetchall()]
-
-        hoy_vzla = obtener_fecha_venezuela()
-        cursor.execute("SELECT fecha FROM reportes ORDER BY id DESC LIMIT 1")
-        ultima_fila = cursor.fetchone()
-        fecha_bd_reciente = ultima_fila['fecha'] if (ultima_fila and ultima_fila['fecha']) else hoy_vzla
-
-        lunes_sem, domingo_sem = obtener_rango_semana_actual()
-        if tab in ['totalizador', 'desglose_banca'] and not desde_fecha and not hasta_fecha:
-            f_desde = lunes_sem
-            f_hasta = domingo_sem
-        else:
-            f_desde = desde_fecha if desde_fecha else fecha_bd_reciente
-            f_hasta = hasta_fecha if hasta_fecha else fecha_bd_reciente
-
-        agencia_filtro = agencia if agencia else ""
-
-        cursor.execute("SELECT * FROM pagos WHERE estado = 'PENDIENTE' ORDER BY id DESC")
-        solicitudes_pendientes = [dict(r) for r in cursor.fetchall()]
-        solicitudes_pendientes_count = len(solicitudes_pendientes)
-
-        if agencia_filtro:
-            cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (normalizar(agencia_filtro), f_desde, f_hasta))
-        else:
-            cursor.execute("SELECT * FROM pagos WHERE tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s ORDER BY id DESC", (f_desde, f_hasta))
-        casheas_generales = [dict(row) for row in cursor.fetchall()]
-        total_cashea_filtrado = sum(float(c.get('monto') or 0.0) for c in casheas_generales)
-
-        # CÁLCULO DE BALANCES ADMIN USANDO LA MISMA FUNCIÓN MAESTRA
-        positivos = []
-        negativos = []
-        for ag in agencias:
-            if ag.get('rol') == 'BANQUERO':
-                continue
-            ag_nombre = ag['agencia']
-            
-            # Obtiene exactamente los mismos datos contables de la taquilla
-            cuenta_taquilla = obtener_cuenta_agencia_corte(ag_nombre, f_hasta)
-            balance_contable = cuenta_taquilla["saldo_final"]
-
-            ag['saldo_pendiente'] = balance_contable
-            
-            datos_desglose = {
-                "agencia": ag_nombre,
-                "fecha": cuenta_taquilla["fecha"],
-                "monto": balance_contable,
-                "balance_total": balance_contable,
-                "saldo_anterior": cuenta_taquilla["saldo_anterior"],
-                "reporte_neto": cuenta_taquilla["neto_hoy"],
-                "abonos": cuenta_taquilla["abonos_hoy"],
-                "cashea": cuenta_taquilla["cashea_hoy"],
-                "adelantos": cuenta_taquilla["adelantos_hoy"],
-                "liquidaciones": cuenta_taquilla["liquidaciones_hoy"]
-            }
-
-            if balance_contable > 0.009:
-                positivos.append(datos_desglose)
-            elif balance_contable < -0.009:
-                datos_desglose_neg = dict(datos_desglose)
-                datos_desglose_neg["monto"] = abs(balance_contable)
-                negativos.append(datos_desglose_neg)
-
-        conn.close()
-
-        (
-            sistemas_consolidados,
-            sistemas_agencias_detalle,
-            totales_generales,
-            totales_auxiliares,
-            desglose_banqueros,
-            total_ganancia_excedente,
-            total_ganancia_participacion,
-            total_mi_ganancia_global,
-            suma_cuadros_banqueros
-        ) = calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro)
-
-        return templates.TemplateResponse(request=request, name="admin.html", context={
-            "reportes": reportes,
-            "pagos": pagos,
-            "agencias": agencias,
-            "sistemas": SISTEMAS_OFICIALES,
-            "comunicados": comunicados,
-            "casheas_generales": casheas_generales,
-            "total_cashea_filtrado": total_cashea_filtrado,
-            "positivos": positivos,
-            "negativos": negativos,
-            "sistemas_consolidados": sistemas_consolidados,
-            "sistemas_agencias_detalle": sistemas_agencias_detalle,
-            "totales_generales": totales_generales,
-            "totales_auxiliares": totales_auxiliares,
-            "desglose_banqueros": desglose_banqueros,
-            "total_ganancia_excedente": total_ganancia_excedente,
-            "total_ganancia_participacion": total_ganancia_participacion,
-            "total_mi_ganancia_global": total_mi_ganancia_global,
-            "suma_cuadros_banqueros": suma_cuadros_banqueros,
-            "solicitudes_pendientes": solicitudes_pendientes,
-            "solicitudes_pendientes_count": solicitudes_pendientes_count,
-            "desde_fecha": f_desde,
-            "hasta_fecha": f_hasta,
-            "agencia_filtro": agencia_filtro,
-            "tipo_transaccion": tipo_transaccion or "",
-            "tab_activa": tab,
-            "tab": tab
-        })
-
-    except Exception as e:
-        print("Error en admin:", e)
-        traceback.print_exc()
-        return HTMLResponse(content=f"Error interno en admin: {e}", status_code=500)
+        return RedirectResponse(url="/admin?
