@@ -286,6 +286,7 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     ag_norm = normalizar(agencia_raw)
     ahora_vzla = datetime.now(TZ_VENEZUELA)
     
+    # Corte operativo a las 7:00 PM (19:00 hrs)
     if ahora_vzla.hour < 19:
         fecha_hoy_contable = ahora_vzla.date().strftime('%Y-%m-%d')
     else:
@@ -294,47 +295,19 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     conn = get_db()
     cursor = conn.cursor()
 
-    # 1. Buscar si existe un ajuste manual de saldo anterior fijado antes de hoy
+    # 1. SALDO ANTERIOR (Apertura)
+    # Si tú le diste al lápiz para fijar su saldo, se toma ese monto EXACTO como saldo de partida.
     cursor.execute("""
-        SELECT fecha, monto FROM pagos 
+        SELECT monto FROM pagos 
         WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'
-          AND fecha < %s
-        ORDER BY fecha DESC, id DESC LIMIT 1
-    """, (ag_norm, fecha_hoy_contable))
-    ajuste_previo = cursor.fetchone()
+        ORDER BY id DESC LIMIT 1
+    """, (ag_norm,))
+    ajuste_fijado = cursor.fetchone()
 
-    if ajuste_previo:
-        base_prev = float(ajuste_previo['monto'] or 0.0)
-        f_prev = ajuste_previo['fecha']
-
-        # Se usa fecha > f_prev para no duplicar los reportes del día del ajuste manual
-        cursor.execute("""
-            SELECT detalle_html FROM reportes 
-            WHERE UPPER(TRIM(agencia)) = %s AND fecha > %s AND fecha < %s
-        """, (ag_norm, f_prev, fecha_hoy_contable))
-        reps_prev = cursor.fetchall()
-        neto_prev = sum(extraer_neto_de_html(r['detalle_html']) for r in reps_prev if r and r['detalle_html'])
-
-        cursor.execute("""
-            SELECT tipo, SUM(monto) as total FROM pagos 
-            WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' 
-              AND tipo != 'AJUSTE_SALDO_ANTERIOR'
-              AND fecha > %s AND fecha < %s
-            GROUP BY tipo
-        """, (ag_norm, f_prev, fecha_hoy_contable))
-        pagos_prev = cursor.fetchall()
-
-        ab_p, ca_p, ad_p, li_p = 0.0, 0.0, 0.0, 0.0
-        for p in pagos_prev:
-            tp = str(p['tipo']).upper()
-            m = float(p['total'] or 0.0)
-            if tp in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']: ab_p += m
-            elif tp == 'CASHEA': ca_p += m
-            elif tp == 'ADELANTO': ad_p += m
-            elif tp == 'LIQUIDACION': li_p += m
-
-        saldo_anterior = base_prev + (neto_prev - ca_p) - ab_p + ad_p + li_p
+    if ajuste_fijado is not None and ajuste_fijado['monto'] is not None:
+        saldo_anterior = float(ajuste_fijado['monto'])
     else:
+        # Si no hay ajuste manual, se calcula todo el historial previo a hoy
         cursor.execute("""
             SELECT detalle_html FROM reportes 
             WHERE UPPER(TRIM(agencia)) = %s AND fecha < %s
@@ -364,7 +337,7 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     if abs(saldo_anterior) < 0.05:
         saldo_anterior = 0.0
 
-    # 2. MOVIMIENTOS EN VIVO DEL DÍA ACTUAL
+    # 2. MOVIMIENTOS EN VIVO DEL DÍA ACTUAL (HOY)
     cursor.execute("""
         SELECT detalle_html FROM reportes 
         WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s
@@ -832,25 +805,25 @@ def post_ajustar_saldo_anterior(
     nuevo_saldo: float = Form(...)
 ):
     agencia_norm = normalizar(agencia)
-    fecha_ayer = (datetime.now(TZ_VENEZUELA).date() - timedelta(days=1)).strftime('%Y-%m-%d')
-    fecha_hoy = datetime.now(TZ_VENEZUELA).date().strftime('%Y-%m-%d')
+    fecha_hoy = obtener_fecha_venezuela()
 
     conn = get_db()
     cursor = conn.cursor()
     
+    # 1. Limpiar cualquier saldo anterior fijado previamente
     cursor.execute("DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'", (agencia_norm,))
     
+    # 2. Guardar el valor exacto que ingresaste
     cursor.execute("""
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
         VALUES (%s, %s, %s, 'Ajuste Manual Saldo Anterior', 'Fijado desde panel admin', 'AJUSTE_SALDO_ANTERIOR', 'APROBADO')
-    """, (agencia_norm, fecha_ayer, float(nuevo_saldo)))
+    """, (agencia_norm, fecha_hoy, float(nuevo_saldo)))
 
     conn.commit()
     conn.close()
 
     recalcular_y_actualizar_reporte(agencia_norm, fecha_hoy)
     return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
-
 @app.post("/admin/guardar-ajustes-banquero-global")
 def post_guardar_ajustes_banquero_global(
     banquero: str = Form(...),
