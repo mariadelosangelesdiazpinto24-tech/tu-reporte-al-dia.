@@ -193,10 +193,13 @@
                                         {% endif %}
                                     </td>
                                     <td><code>{{ ag.clave }}</code></td>
-                                    <td class="text-end fw-bold {% if (ag.pendiente or 0) > 0 %}text-success{% elif (ag.pendiente or 0) < 0 %}text-danger{% else %}text-muted{% endif %}">
-                                        Bs. {{ (ag.pendiente or 0) | dinero }}
+                                    <td class="text-end fw-bold {% if (ag.saldo_pendiente or 0) > 0 %}text-success{% elif (ag.saldo_pendiente or 0) < 0 %}text-danger{% else %}text-muted{% endif %}">
+                                        Bs. {{ (ag.saldo_pendiente or 0) | dinero }}
                                     </td>
                                     <td class="text-center">
+                                        <button type="button" class="btn btn-outline-warning btn-sm py-0 me-1" title="Ajustar Saldo Anterior" onclick="abrirModalAjustarSaldoPara('{{ ag.agencia }}', '{{ ag.saldo_pendiente or 0 }}')">
+                                            <i class="fas fa-pen-to-square"></i>
+                                        </button>
                                         <form action="/admin/eliminar-agencia" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar agencia?');">
                                             <input type="hidden" name="agencia_id" value="{{ ag.id }}">
                                             <button type="submit" class="btn btn-outline-danger btn-sm py-0"><i class="fas fa-trash-can"></i></button>
@@ -361,10 +364,10 @@
                             </div>
                         </form>
                         
-                        <!-- BOTÓN MODIFICAR SALDO PENDIENTE -->
-                        <div>
-                            <button type="button" class="btn btn-tema btn-sm fw-bold px-3 shadow-sm" onclick="abrirModalModificarGeneral()">
-                                <i class="fas fa-pen-to-square me-1"></i> Ajustar Saldo Taquilla (Adelanto / Abono)
+                        <!-- BOTÓN MODIFICAR SALDO ANTERIOR (CORRECCIÓN DIRECTA) -->
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-warning btn-sm fw-bold px-3 shadow-sm text-dark" onclick="abrirModalAjustarSaldoGeneral()">
+                                <i class="fas fa-pen-to-square me-1"></i> Ajustar Saldo Anterior Taquilla
                             </button>
                         </div>
                     </div>
@@ -377,7 +380,7 @@
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover align-middle mb-0 bg-white" id="tablaPositivos">
                                         <thead class="table-light">
-                                            <tr><th>AGENCIA</th><th class="text-end">DEUDA</th></tr>
+                                            <tr><th>AGENCIA</th><th class="text-end">DEUDA</th><th class="text-center" style="width: 50px;">AJUSTE</th></tr>
                                         </thead>
                                         <tbody>
                                             {% for pos in positivos %}
@@ -389,9 +392,14 @@
                                                     </a>
                                                 </td>
                                                 <td class="text-end fw-bold text-success col-monto-cobrar">Bs. {{ pos.monto | dinero }}</td>
+                                                <td class="text-center">
+                                                    <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" title="Ajustar Saldo Anterior" onclick="abrirModalAjustarSaldoPara('{{ pos.agencia }}', '{{ pos.saldo_anterior or pos.monto }}')">
+                                                        <i class="fas fa-pen"></i>
+                                                    </button>
+                                                </td>
                                             </tr>
                                             {% else %}
-                                            <tr><td colspan="2" class="text-center text-muted py-2">Sin deudas pendientes.</td></tr>
+                                            <tr><td colspan="3" class="text-center text-muted py-2">Sin deudas pendientes.</td></tr>
                                             {% endfor %}
                                         </tbody>
                                     </table>
@@ -406,7 +414,7 @@
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover align-middle mb-0 bg-white" id="tablaNegativos">
                                         <thead class="table-light">
-                                            <tr><th>AGENCIA</th><th class="text-end">MONTO</th></tr>
+                                            <tr><th>AGENCIA</th><th class="text-end">MONTO</th><th class="text-center" style="width: 50px;">AJUSTE</th></tr>
                                         </thead>
                                         <tbody>
                                             {% for neg in negativos %}
@@ -418,9 +426,14 @@
                                                     </a>
                                                 </td>
                                                 <td class="text-end fw-bold text-danger col-monto-pagar">Bs. {{ neg.monto | dinero }}</td>
+                                                <td class="text-center">
+                                                    <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" title="Ajustar Saldo Anterior" onclick="abrirModalAjustarSaldoPara('{{ neg.agencia }}', '{{ neg.saldo_anterior or (-neg.monto) }}')">
+                                                        <i class="fas fa-pen"></i>
+                                                    </button>
+                                                </td>
                                             </tr>
                                             {% else %}
-                                            <tr><td colspan="2" class="text-center text-muted py-2">Sin saldos a favor.</td></tr>
+                                            <tr><td colspan="3" class="text-center text-muted py-2">Sin saldos a favor.</td></tr>
                                             {% endfor %}
                                         </tbody>
                                     </table>
@@ -473,7 +486,7 @@
                         <div class="modal-body">
                             <div class="p-3 bg-light rounded-3 mb-3">
                                 <div class="d-flex justify-content-between mb-1">
-                                    <span>(+) Reportes Sistemas:</span>
+                                    <span>(+) Reporte del Día (Hoy):</span>
                                     <strong id="mdlReportes">Bs. 0,00</strong>
                                 </div>
                                 <div class="d-flex justify-content-between mb-1 text-danger">
@@ -490,69 +503,56 @@
                                 </div>
                                 <hr>
                                 <div class="d-flex justify-content-between fs-6 fw-bold">
-                                    <span>Balance Total Oficial:</span>
+                                    <span>Total Pendiente Exacto:</span>
                                     <span id="mdlTotal">Bs. 0,00</span>
                                 </div>
                             </div>
-                            <small class="text-muted d-block text-center">Fórmula: <code>(Reportes - Cashea) - Abonos + Adelantos/Liquidaciones</code></small>
+                            <small class="text-muted d-block text-center">Fórmula: <code>Último Saldo Pendiente + Reporte Hoy - Cashea Hoy - Abonos Hoy</code></small>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- MODAL MODIFICAR PENDIENTES CON DESPLEGABLE (CONECTADO A REGISTRAR-PAGO-RAPIDO) -->
-            <div class="modal fade" id="modalModificarPendiente" tabindex="-1" aria-hidden="true">
+            <!-- MODAL EXCLUSIVO: AJUSTAR SALDO ANTERIOR OFICIAL -->
+            <div class="modal fade" id="modalAjustarSaldoAnterior" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content border-0 shadow">
-                        <div class="modal-header bg-light py-2">
-                            <h6 class="modal-title fw-bold text-dark">
-                                <i class="fas fa-pen-to-square text-tema me-1"></i> Modificar Saldo Pendiente (Ajuste Banca)
+                        <div class="modal-header bg-warning text-dark py-2">
+                            <h6 class="modal-title fw-bold">
+                                <i class="fas fa-edit me-1"></i> Fijar / Ajustar Último Saldo Pendiente
                             </h6>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
-                        <form action="/admin/registrar-pago-rapido" method="POST">
-                            <input type="hidden" name="accion" value="AJUSTE_BANCA">
-                            <input type="hidden" name="redirect_to" value="/admin?tab=balances">
+                        <form action="/admin/ajustar-saldo-anterior" method="POST">
                             <div class="modal-body">
                                 <div class="mb-3">
-                                    <label class="form-label small fw-bold text-dark">Selecciona la Taquilla:</label>
-                                    <select name="agencia" id="selectAgenciaAjuste" class="form-select form-select-sm fw-bold" onchange="actualizarInfoSaldoAgencia(this)" required>
+                                    <label class="form-label small fw-bold text-dark">Taquilla / Agencia:</label>
+                                    <select name="agencia" id="selectAgenciaSaldoAnterior" class="form-select form-select-sm fw-bold" required>
                                         <option value="">-- Elige una Taquilla --</option>
                                         {% for ag in agencias %}
                                             {% if ag.rol != 'BANQUERO' %}
-                                            <option value="{{ ag.agencia }}" data-saldo="{{ ag.pendiente or 0 }}">
-                                                {{ ag.agencia }} (Actual: Bs. {{ (ag.pendiente or 0) | dinero }})
-                                            </option>
+                                            <option value="{{ ag.agencia }}">{{ ag.agencia }}</option>
                                             {% endif %}
                                         {% endfor %}
                                     </select>
                                 </div>
-                                
-                                <div class="mb-3 p-2 bg-light rounded border text-center">
-                                    <small class="text-muted d-block">Saldo Actual Registrado en Taquilla:</small>
-                                    <h5 class="fw-bold m-0" id="displaySaldoActualModal">Bs. 0,00</h5>
-                                </div>
 
                                 <div class="mb-3">
-                                    <label class="form-label small fw-bold text-dark">Monto a Ajustar (Bs.):</label>
-                                    <input type="number" step="0.01" name="monto" id="pendienteMontoAjuste" class="form-control form-control-sm fw-bold fs-6 text-center" placeholder="Ej: 5000 o -5000" required>
+                                    <label class="form-label small fw-bold text-dark">Nuevo Saldo Anterior (Bs.):</label>
+                                    <input type="number" step="0.01" name="nuevo_saldo" id="inputNuevoSaldoAnterior" class="form-control form-control-sm fw-bold text-center fs-5 text-dark" placeholder="Ej: 19747.00 o -5000.00" required>
                                     <div class="d-flex justify-content-between small text-muted mt-1 px-1">
-                                        <span><i class="fas fa-plus text-danger"></i> <strong>Positivo (+)</strong>: Adelanto (Le suma a su deuda)</span>
-                                        <span><i class="fas fa-minus text-success"></i> <strong>Negativo (-)</strong>: Abono (Le resta deuda)</span>
+                                        <span><i class="fas fa-arrow-down text-success"></i> <strong>Positivo (+)</strong>: Deuda que te debe</span>
+                                        <span><i class="fas fa-arrow-up text-danger"></i> <strong>Negativo (-)</strong>: Saldo a su favor</span>
                                     </div>
                                 </div>
 
-                                <div class="mb-2">
-                                    <label class="form-label small fw-bold text-muted">Concepto / Motivo del Movimiento:</label>
-                                    <input type="text" name="factura" class="form-control form-control-sm" placeholder="Ej: Retiro personal, préstamo, corrección..." required>
-                                </div>
-                                <div class="alert alert-info py-1 px-2 m-0 small" style="font-size: 11px;">
-                                    <i class="fas fa-info-circle me-1"></i> Se reflejará automáticamente en el <strong>Pendiente de Taquillas</strong> y en la pestaña <strong>Transacciones</strong>.
+                                <div class="alert alert-info py-2 px-3 small m-0" style="font-size: 12px;">
+                                    <i class="fas fa-circle-check me-1"></i> <strong>Garantizado:</strong> Al guardar este monto, cambiará instantáneamente el <em>"Último Saldo Pendiente"</em> tanto en la pantalla de la taquilla como en tu panel de administración. A las 7:00 PM se consolidará automáticamente con el reporte nuevo.
                                 </div>
                             </div>
                             <div class="modal-footer bg-light py-2">
                                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-                                <button type="submit" class="btn btn-tema btn-sm fw-bold px-3">Guardar Ajuste</button>
+                                <button type="submit" class="btn btn-warning btn-sm fw-bold px-3">Guardar Saldo Anterior</button>
                             </div>
                         </form>
                     </div>
@@ -1071,11 +1071,9 @@
                     var p = parseMonto(tr.querySelector(".col-premio").innerText);
                     var c = parseMonto(tr.querySelector(".col-comision").innerText);
 
-                    // 1. TOTAL = VENTA - PREMIO - COMISIÓN
                     var t = v - p - c;
                     tr.querySelector(".col-total").innerText = formatoBs(t);
 
-                    // 2. PARTICIPACIÓN = % sobre el TOTAL
                     var partAttr = tr.getAttribute("data-monto-part");
                     var pctPartAttr = tr.getAttribute("data-pct-part");
                     var part = 0;
@@ -1093,7 +1091,6 @@
                     celdaPart.innerText = formatoBs(part);
                     celdaPart.className = "text-end col-part " + (part < 0 ? "text-danger" : (part > 0 ? "text-success" : "text-muted"));
 
-                    // 3. TOTAL FINAL = TOTAL - PARTICIPACIÓN
                     var finalRow = t - part;
                     tr.querySelector(".col-total-final").innerText = formatoBs(finalRow);
 
@@ -1105,7 +1102,6 @@
                     totFinal += finalRow;
                 });
 
-                // CASHEA PARA NYS
                 var casheaDeducido = 0;
                 if (banqueroNombre.includes("NYS") && totalCasheaGeneral > 0) {
                     casheaDeducido = totalCasheaGeneral;
@@ -1190,33 +1186,26 @@
             });
         });
 
-        // FUNCIONES MODAL MODIFICAR PENDIENTE CON DESPLEGABLE
-        function abrirModalModificarGeneral() {
-            var select = document.getElementById("selectAgenciaAjuste");
+        // FUNCIONES MODAL MODIFICAR SALDO ANTERIOR
+        function abrirModalAjustarSaldoGeneral() {
+            var select = document.getElementById("selectAgenciaSaldoAnterior");
             if (select) select.selectedIndex = 0;
-            document.getElementById("displaySaldoActualModal").innerText = "Bs. 0,00";
-            document.getElementById("displaySaldoActualModal").className = "fw-bold m-0 text-muted";
-            document.getElementById("pendienteMontoAjuste").value = "";
-            
-            var modal = new bootstrap.Modal(document.getElementById('modalModificarPendiente'));
+            document.getElementById("inputNuevoSaldoAnterior").value = "";
+            var modal = new bootstrap.Modal(document.getElementById('modalAjustarSaldoAnterior'));
             modal.show();
         }
 
-        function actualizarInfoSaldoAgencia(selectElem) {
-            var selectedOpt = selectElem.options[selectElem.selectedIndex];
-            var saldo = parseFloat(selectedOpt.getAttribute("data-saldo") || 0);
-            var elDisplay = document.getElementById("displaySaldoActualModal");
-            
-            if (elDisplay) {
-                elDisplay.innerText = formatoBs(saldo);
-                if (saldo > 0) {
-                    elDisplay.className = "fw-bold m-0 text-success";
-                } else if (saldo < 0) {
-                    elDisplay.className = "fw-bold m-0 text-danger";
-                } else {
-                    elDisplay.className = "fw-bold m-0 text-muted";
-                }
+        function abrirModalAjustarSaldoPara(nombreAgencia, saldoActual) {
+            var select = document.getElementById("selectAgenciaSaldoAnterior");
+            if (select) {
+                select.value = nombreAgencia;
             }
+            var input = document.getElementById("inputNuevoSaldoAnterior");
+            if (input) {
+                input.value = parseFloat(saldoActual) || 0;
+            }
+            var modal = new bootstrap.Modal(document.getElementById('modalAjustarSaldoAnterior'));
+            modal.show();
         }
 
         function copiarCasheaGlobal() {
