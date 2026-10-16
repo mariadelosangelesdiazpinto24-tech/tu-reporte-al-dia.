@@ -368,7 +368,6 @@
                             </div>
                         </form>
                         
-                        <!-- BOTÓN MODIFICAR SALDO ANTERIOR (CORRECCIÓN DIRECTA) -->
                         <div class="d-flex gap-2">
                             <button type="button" class="btn btn-warning btn-sm fw-bold px-3 shadow-sm text-dark" 
                                     data-bs-toggle="modal" 
@@ -430,7 +429,7 @@
                                             {% for neg in negativos %}
                                             <tr>
                                                 <td>
-                                                    <a href="javascript:void(0)" class="fw-bold text-decoration-none text-dark"
+                                                    <a href="javascript:void(0)" class="fw-bold text-decoration-none text-dark" 
                                                        onclick="abrirModalDesglose('{{ neg.agencia }}', '{{ neg.reporte_neto or 0 }}', '{{ neg.cashea or 0 }}', '{{ neg.adelantos or 0 }}', '{{ neg.abonos or 0 }}', '{{ neg.monto }}')">
                                                         <i class="fas fa-circle-info text-danger me-1"></i>{{ neg.agencia }}
                                                     </a>
@@ -1192,7 +1191,6 @@
         document.addEventListener("DOMContentLoaded", function() {
             recalcularTodoElPanel();
 
-            // CONTROL DEL MODAL DE AJUSTAR SALDO ANTERIOR
             var modalAjuste = document.getElementById('modalAjustarSaldoAnterior');
             if (modalAjuste) {
                 modalAjuste.addEventListener('show.bs.modal', function(event) {
