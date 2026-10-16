@@ -301,14 +301,51 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
 
     # 1. Verificar si hay un Ajuste Manual de Saldo Anterior fijado por la Administración
     cursor.execute("""
-        SELECT monto FROM pagos 
+        SELECT id, fecha, monto FROM pagos 
         WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'
         ORDER BY id DESC LIMIT 1
     """, (ag_norm,))
     ajuste_manual = cursor.fetchone()
 
     if ajuste_manual is not None and ajuste_manual['monto'] is not None:
-        saldo_anterior = float(ajuste_manual['monto'])
+        saldo_base = float(ajuste_manual['monto'])
+        id_ajuste = ajuste_manual['id']
+        fecha_ajuste = ajuste_manual['fecha']
+
+        # Si el ajuste fue anterior a la fecha de corte, sumar transacciones intermedias
+        cursor.execute("""
+            SELECT tipo, SUM(monto) as total FROM pagos 
+            WHERE UPPER(TRIM(agencia)) = %s 
+              AND estado = 'APROBADO' 
+              AND tipo != 'AJUSTE_SALDO_ANTERIOR'
+              AND id > %s
+              AND fecha < %s
+            GROUP BY tipo
+        """, (ag_norm, id_ajuste, fecha_corte))
+        pagos_intermedios = cursor.fetchall()
+
+        abonos_int, cashea_int, adelantos_int, liq_int = 0.0, 0.0, 0.0, 0.0
+        for p in pagos_intermedios:
+            tp = str(p['tipo']).upper()
+            m_val = float(p['total'] or 0.0)
+            if tp in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']:
+                abonos_int += m_val
+            elif tp == 'CASHEA':
+                cashea_int += m_val
+            elif tp == 'ADELANTO':
+                adelantos_int += m_val
+            elif tp == 'LIQUIDACION':
+                liq_int += m_val
+
+        # Reportes intermedios
+        cursor.execute("""
+            SELECT detalle_html FROM reportes 
+            WHERE UPPER(TRIM(agencia)) = %s AND fecha > %s AND fecha < %s
+        """, (ag_norm, fecha_ajuste, fecha_corte))
+        reps_int = cursor.fetchall()
+        neto_int = sum(extraer_neto_de_html(r['detalle_html']) for r in reps_int if r and r['detalle_html'])
+
+        saldo_anterior = saldo_base + neto_int - cashea_int - abonos_int + adelantos_int + liq_int
     else:
         cursor.execute("""
             SELECT detalle_html FROM reportes 
@@ -342,7 +379,7 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
 
         saldo_anterior = calcular_balance_contable_exacto(neto_anterior, cashea_ant, abonos_ant, adelantos_ant, liq_ant)
 
-    # 2. Movimientos exclusivamente de la fecha activa (Hoy)
+    # 2. Movimientos exclusivamente de la fecha activa
     cursor.execute("""
         SELECT detalle_html FROM reportes 
         WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s
@@ -350,11 +387,15 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     rep_hoy = cursor.fetchone()
     neto_hoy = extraer_neto_de_html(rep_hoy['detalle_html']) if rep_hoy and rep_hoy['detalle_html'] else 0.0
 
+    # Si la fecha de corte es hoy o la más reciente, tomar todos los pagos de esa fecha o posteriores
     cursor.execute("""
         SELECT tipo, SUM(monto) as total FROM pagos 
-        WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND estado = 'APROBADO' AND tipo != 'AJUSTE_SALDO_ANTERIOR'
+        WHERE UPPER(TRIM(agencia)) = %s 
+          AND ((fecha = %s) OR (fecha >= %s AND %s >= %s))
+          AND estado = 'APROBADO' 
+          AND tipo != 'AJUSTE_SALDO_ANTERIOR'
         GROUP BY tipo
-    """, (ag_norm, fecha_corte))
+    """, (ag_norm, fecha_corte, fecha_corte, fecha_corte, hoy_vzla))
     pagos_hoy = cursor.fetchall()
 
     abonos_hoy = 0.0
@@ -635,7 +676,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         """SELECT * FROM pagos 
            WHERE UPPER(TRIM(agencia)) = %s 
              AND estado = 'APROBADO' 
-             AND tipo NOT IN ('AJUSTE_PENDIENTE', 'MODIFICACION')
+             AND tipo NOT IN ('AJUSTE_PENDIENTE', 'MODIFICACION', 'AJUSTE_SALDO_ANTERIOR')
              AND (fecha = %s OR factura LIKE %s)""", 
         (agencia_norm, fecha_reporte, f"%{fecha_reporte}%")
     )
@@ -833,6 +874,7 @@ def post_ajustar_saldo_anterior(
     conn.commit()
     conn.close()
 
+    recalcular_y_actualizar_reporte(agencia_norm, fecha_hoy)
     return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/guardar-ajustes-banquero-global")
@@ -1519,6 +1561,9 @@ def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[st
         return RedirectResponse(url=redirect_to, status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
+# ==============================================================================
+# PROCESAR SOLICITUD DE DINERO AJUSTADO Y RECALCULADO
+# ==============================================================================
 @app.post("/admin/procesar-solicitud-dinero")
 async def post_procesar_solicitud_dinero(
     solicitud_id: int = Form(...),
@@ -1537,6 +1582,7 @@ async def post_procesar_solicitud_dinero(
         monto_original = float(solicitud['monto'] or 0.0)
         monto_pagar = monto_original if accion == "COMPLETO" else float(monto_abono or 0.0)
         agencia_norm = normalizar(agencia)
+        fecha_actual = obtener_fecha_venezuela()
 
         nombre_guardado = f"Liquidación Saldo #{solicitud_id}"
         if comprobante_file and comprobante_file.filename:
@@ -1552,12 +1598,14 @@ async def post_procesar_solicitud_dinero(
                 mime = comprobante_file.content_type or "image/jpeg"
                 nombre_guardado = f"data:{mime};base64,{base64.b64encode(contenido).decode('utf-8')}"
 
+        # 1. Marcar la solicitud como PROCESADA para sacarla de pendientes
         cursor.execute("UPDATE pagos SET estado = 'PROCESADO' WHERE id = %s", (solicitud_id,))
         
+        # 2. Registrar la liquidación aprobada con la fecha de hoy para que impacte el saldo
         cursor.execute(
             """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) 
                VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
-            (agencia_norm, fecha, monto_pagar, f"Liquidación {accion} ({fecha})", nombre_guardado)
+            (agencia_norm, fecha_actual, monto_pagar, f"Liquidación {accion} ({fecha_actual})", nombre_guardado)
         )
 
         cursor.execute(
@@ -1568,7 +1616,11 @@ async def post_procesar_solicitud_dinero(
         conn.commit()
         conn.close()
 
+        # 3. Recalcular la fecha del reporte y la fecha de hoy
         recalcular_y_actualizar_reporte(agencia_norm, fecha)
+        if fecha != fecha_actual:
+            recalcular_y_actualizar_reporte(agencia_norm, fecha_actual)
+
         return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
     conn.close()
