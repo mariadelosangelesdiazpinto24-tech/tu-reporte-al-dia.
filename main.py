@@ -48,8 +48,12 @@ SISTEMAS_OFICIALES = [
 ]
 
 ALIAS_AGENCIAS = {
+    # Mapeo unificado para JC PEREZ (todos apuntan a "JC PEREZ")
     "JCPEREZ": "JC PEREZ",
-    "JC PEREZ": "JCPEREZ",
+    "JC PEREZ": "JC PEREZ",
+    "JC_PEREZ": "JC PEREZ",
+    
+    # Resto de agencias y alias
     "RUTA MILLONARIA": "ANA MARIA",
     "LA SUERTE DE JANN": "NABEL",
     "LADD LA CONEJITA": "MILA",
@@ -65,11 +69,7 @@ ALIAS_AGENCIAS = {
     "AGENCIA ORQUÍDEA 2": "ORQUIDEA",
     "LA LEONA": "ALEXA",
     "ALEXA🦁": "ALEXA",
-    "PALOMITA🕊️": "PALOMITA",
-    "FRANYE": "PALOMITA",
-    "FRANYE🕊️": "PALOMITA",
     "GEGE🐼": "GEGE",
-    "LILI LA LOBA": "LILI LA LOBA",
     "LAS VECINAS": "LAS VECINAS",
     "LA MOROCHA": "LA MOROCHA",
     "LOS LLANOS": "LOS LLANOS",
