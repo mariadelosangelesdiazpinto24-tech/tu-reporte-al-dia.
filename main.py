@@ -1272,7 +1272,7 @@ def post_registrar_pago_rapido(
         if accion == "PAGO":
             cursor.execute(
                 """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-                   VALUES (%s, %s, %s, %s, %s, 'AJUSTE_BANCA', 'APROBADO')""",
+                   VALUES (%s, %s, %s, %s, %s, 'PAGO_BANCA', 'APROBADO')""",
                 (agencia_norm, fecha_hoy, monto_val, f"Abono Admin ({fecha_hoy})", "Registrado directamente por la administración")
             )
             mensaje = f"Se ha registrado tu pago/abono de Bs. {monto_val:,.2f} a la administración."
@@ -1298,6 +1298,41 @@ def post_registrar_pago_rapido(
 
     return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 
+
+@app.post("/admin/saldar-deuda-taquilla")
+def post_saldar_deuda_taquilla(
+    agencia: str = Form(...),
+    monto_restante: float = Form(...),
+    fecha: Optional[str] = Form(None)
+):
+    agencia_norm = normalizar(agencia)
+    fecha_operacion = fecha or obtener_fecha_venezuela()
+    monto_val = abs(float(monto_restante))
+    
+    if monto_val > 0.01:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        if float(monto_restante) > 0:
+            cursor.execute(
+                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+                   VALUES (%s, %s, %s, %s, %s, 'PAGO_BANCA', 'APROBADO')""",
+                (agencia_norm, fecha_operacion, monto_val, f"Saldar Deuda #{fecha_operacion}", "Ajuste completo de saldo")
+            )
+        else:
+            cursor.execute(
+                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+                   VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
+                (agencia_norm, fecha_operacion, monto_val, f"Liquidación Saldo #{fecha_operacion}", "Liquidación completa de saldo a favor")
+            )
+
+        cursor.execute("UPDATE reportes SET monto = 0.0 WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha_operacion))
+        conn.commit()
+        conn.close()
+
+        recalcular_y_actualizar_reporte(agencia_norm, fecha_operacion)
+
+    return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 @app.post("/admin/saldar-deuda-taquilla")
 def post_saldar_deuda_taquilla(
     agencia: str = Form(...),
