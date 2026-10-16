@@ -246,10 +246,7 @@ def limpiar_datos_antiguos_inicio():
         conn = get_db()
         cursor = conn.cursor()
         
-        # Eliminar reportes anteriores al lunes actual
         cursor.execute("DELETE FROM reportes WHERE fecha < %s", (lunes_sem,))
-        
-        # Eliminar pagos/abonos/adelantos anteriores al lunes actual excepto los de CASHEA
         cursor.execute("DELETE FROM pagos WHERE tipo != 'CASHEA' AND fecha < %s", (lunes_sem,))
         
         conn.commit()
@@ -1086,9 +1083,10 @@ def get_agencia(
         elif t_d == 'CASHEA':
             cashea_calc += m_d
 
+    # Balance y desglose utilizando únicamente el Cashea del día
     saldo_acumulado = calcular_balance_contable_exacto(
         neto_sistemas_calc, 
-        cashea_calc, 
+        total_cashea_dia, 
         abonos_calc, 
         adelantos_calc, 
         liquidaciones_calc
@@ -1097,7 +1095,7 @@ def get_agencia(
     desglose_cuenta = {
         "fecha": "Saldo Acumulado Pendiente",
         "neto_sistemas": neto_sistemas_calc,
-        "cashea": cashea_calc,
+        "cashea": total_cashea_dia,
         "adelantos": adelantos_calc,
         "abonos": abonos_calc,
         "liquidaciones": liquidaciones_calc,
