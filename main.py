@@ -286,7 +286,7 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     ag_norm = normalizar(agencia_raw)
     ahora_vzla = datetime.now(TZ_VENEZUELA)
     
-    # Si aún no son las 5:00 AM, el día contable en curso es ayer
+    # 1. Definir la fecha operativa según el corte de las 5:00 AM
     if ahora_vzla.hour < 5:
         fecha_hoy_contable = (ahora_vzla.date() - timedelta(days=1)).strftime('%Y-%m-%d')
     else:
@@ -295,7 +295,7 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     conn = get_db()
     cursor = conn.cursor()
 
-    # 1. Buscar si ya se congeló el saldo anterior oficial para la fecha contable
+    # 2. Buscar si ya existe el saldo congelado de apertura para hoy
     cursor.execute("""
         SELECT monto FROM pagos 
         WHERE UPPER(TRIM(agencia)) = %s 
@@ -308,8 +308,7 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     if ajuste_hoy is not None and ajuste_hoy['monto'] is not None:
         saldo_anterior = float(ajuste_hoy['monto'])
     else:
-        # Si aún no existe el registro de las 5:00 AM, calcular el saldo neto acumulado
-        # con todo lo ocurrido ANTES de la fecha operativa actual
+        # Calcular el balance acumulado con todo lo previo a la fecha contable
         cursor.execute("""
             SELECT id, fecha, monto FROM pagos 
             WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'
@@ -348,9 +347,9 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
                 elif tp == 'ADELANTO': ad_p += m
                 elif tp == 'LIQUIDACION': li_p += m
 
-            saldo_anterior = base_prev + neto_prev - ca_p - ab_p + ad_p - li_p
+            # Saldo: Lo que debía + reportes - lo pagado - cashea + adelantos que pidió - lo que le liquidamos
+            saldo_anterior = base_prev + neto_prev - ca_p - ab_p + ad_p + li_p
         else:
-            # Histórico limpio antes de hoy
             cursor.execute("""
                 SELECT detalle_html FROM reportes 
                 WHERE UPPER(TRIM(agencia)) = %s AND fecha < %s
@@ -375,9 +374,9 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
                 elif tp == 'ADELANTO': ad_p += m
                 elif tp == 'LIQUIDACION': li_p += m
 
-            saldo_anterior = neto_prev - ca_p - ab_p + ad_p - li_p
+            saldo_anterior = neto_prev - ca_p - ab_p + ad_p + li_p
 
-        # Congelar automáticamente el saldo para que quede fijo durante todo el día
+        # Congelar el registro de apertura de las 5:00 AM
         try:
             cursor.execute("""
                 INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
@@ -387,7 +386,7 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
         except Exception:
             pass
 
-    # 2. Movimientos del día en curso (desde las 5:00 AM de hoy en adelante)
+    # 3. MOVIMIENTOS EN TIEMPO REAL DEL DÍA CONTABLE ACTUAL
     cursor.execute("""
         SELECT detalle_html FROM reportes 
         WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s
@@ -396,12 +395,11 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     neto_hoy = extraer_neto_de_html(rep_hoy['detalle_html']) if rep_hoy and rep_hoy['detalle_html'] else 0.0
 
     cursor.execute("""
-        SELECT tipo, SUM(monto) as total FROM pagos 
+        SELECT tipo, monto FROM pagos 
         WHERE UPPER(TRIM(agencia)) = %s 
-          AND fecha >= %s 
+          AND fecha = %s 
           AND estado = 'APROBADO' 
           AND tipo != 'AJUSTE_SALDO_ANTERIOR'
-        GROUP BY tipo
     """, (ag_norm, fecha_hoy_contable))
     pagos_hoy = cursor.fetchall()
 
@@ -412,7 +410,7 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
 
     for p in pagos_hoy:
         tp = str(p['tipo']).upper()
-        m_val = float(p['total'] or 0.0)
+        m_val = float(p['monto'] or 0.0)
         if tp in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']:
             abonos_hoy += m_val
         elif tp == 'CASHEA':
@@ -422,8 +420,10 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
         elif tp == 'LIQUIDACION':
             liquidaciones_hoy += m_val
 
-    # 3. SALDO PENDIENTE VIVO EN TIEMPO REAL
-    saldo_final = (saldo_anterior + neto_hoy - cashea_hoy) - abonos_hoy + adelantos_hoy - liquidaciones_hoy
+    # FÓRMULA CONTABLE VIVA:
+    # Si la banca liquida a la taquilla un saldo a favor, suma al balance para llevarlo hacia 0.
+    # Si la taquilla abona dinero a la banca, resta al balance de la deuda.
+    saldo_final = saldo_anterior + neto_hoy - cashea_hoy - abonos_hoy + adelantos_hoy + liquidaciones_hoy
 
     if abs(saldo_final) < 0.05:
         saldo_final = 0.0
