@@ -301,14 +301,14 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
 
     # 1. Verificar si hay un Ajuste Manual de Saldo Anterior fijado por la Administración
     cursor.execute("""
-        SELECT monto, fecha FROM pagos 
+        SELECT monto FROM pagos 
         WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'
         ORDER BY id DESC LIMIT 1
     """, (ag_norm,))
     ajuste_manual = cursor.fetchone()
 
-    if ajuste_manual:
-        saldo_anterior = float(ajuste_manual['monto'] or 0.0)
+    if ajuste_manual is not None and ajuste_manual['monto'] is not None:
+        saldo_anterior = float(ajuste_manual['monto'])
     else:
         cursor.execute("""
             SELECT detalle_html FROM reportes 
@@ -319,7 +319,7 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
 
         cursor.execute("""
             SELECT tipo, SUM(monto) as total FROM pagos 
-            WHERE UPPER(TRIM(agencia)) = %s AND fecha < %s AND estado = 'APROBADO'
+            WHERE UPPER(TRIM(agencia)) = %s AND fecha < %s AND estado = 'APROBADO' AND tipo != 'AJUSTE_SALDO_ANTERIOR'
             GROUP BY tipo
         """, (ag_norm, fecha_corte))
         pagos_ant = cursor.fetchall()
@@ -833,7 +833,7 @@ def post_ajustar_saldo_anterior(
     conn.commit()
     conn.close()
 
-    return RedirectResponse(url="/admin?tab=balances&msg=saldo_actualizado", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/guardar-ajustes-banquero-global")
 def post_guardar_ajustes_banquero_global(
@@ -1845,6 +1845,7 @@ def get_admin(
         casheas_generales = [dict(row) for row in cursor.fetchall()]
         total_cashea_filtrado = sum(float(c.get('monto') or 0.0) for c in casheas_generales)
 
+        # CÁLCULO DE BALANCES ADMIN USANDO LA MISMA FUNCIÓN MAESTRA
         positivos = []
         negativos = []
         for ag in agencias:
