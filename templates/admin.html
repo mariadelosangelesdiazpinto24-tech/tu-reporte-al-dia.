@@ -392,7 +392,7 @@
                                             <tr>
                                                 <td>
                                                     <a href="javascript:void(0)" class="fw-bold text-decoration-none text-dark" 
-                                                       onclick="abrirModalDesglose('{{ pos.agencia }}', '{{ pos.reporte_neto or 0 }}', '{{ pos.cashea or 0 }}', '{{ pos.adelantos or 0 }}', '{{ pos.abonos or 0 }}', '{{ pos.monto }}')">
+                                                       onclick="abrirModalDesglose('{{ pos.agencia }}', '{{ pos.saldo_anterior or 0 }}', '{{ pos.reporte_neto or 0 }}', '{{ pos.cashea or 0 }}', '{{ pos.adelantos or 0 }}', '{{ pos.abonos or 0 }}', '{{ pos.monto }}')">
                                                         <i class="fas fa-circle-info text-primary me-1"></i>{{ pos.agencia }}
                                                     </a>
                                                 </td>
@@ -430,7 +430,7 @@
                                             <tr>
                                                 <td>
                                                     <a href="javascript:void(0)" class="fw-bold text-decoration-none text-dark" 
-                                                       onclick="abrirModalDesglose('{{ neg.agencia }}', '{{ neg.reporte_neto or 0 }}', '{{ neg.cashea or 0 }}', '{{ neg.adelantos or 0 }}', '{{ neg.abonos or 0 }}', '{{ neg.monto }}')">
+                                                       onclick="abrirModalDesglose('{{ neg.agencia }}', '{{ neg.saldo_anterior or 0 }}', '{{ neg.reporte_neto or 0 }}', '{{ neg.cashea or 0 }}', '{{ neg.adelantos or 0 }}', '{{ neg.abonos or 0 }}', '{{ neg.monto }}')">
                                                         <i class="fas fa-circle-info text-danger me-1"></i>{{ neg.agencia }}
                                                     </a>
                                                 </td>
@@ -488,7 +488,7 @@
                 </div>
             </div>
 
-            <!-- MODAL DESGLOSE -->
+            <!-- MODAL DESGLOSE CON SALDO ANTERIOR -->
             <div class="modal fade" id="modalDesgloseAgencia" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content border-0 shadow">
@@ -498,6 +498,10 @@
                         </div>
                         <div class="modal-body">
                             <div class="p-3 bg-light rounded-3 mb-3">
+                                <div class="d-flex justify-content-between mb-1 text-secondary">
+                                    <span>(±) Saldo Pendiente Anterior:</span>
+                                    <strong id="mdlSaldoAnterior">Bs. 0,00</strong>
+                                </div>
                                 <div class="d-flex justify-content-between mb-1">
                                     <span>(+) Reporte del Día (Hoy):</span>
                                     <strong id="mdlReportes">Bs. 0,00</strong>
@@ -520,7 +524,7 @@
                                     <span id="mdlTotal">Bs. 0,00</span>
                                 </div>
                             </div>
-                            <small class="text-muted d-block text-center">Fórmula: <code>Último Saldo Pendiente + Reporte Hoy - Cashea Hoy - Abonos Hoy</code></small>
+                            <small class="text-muted d-block text-center">Fórmula: <code>Saldo Anterior + Reporte Hoy - Cashea Hoy - Abonos Hoy + Adelantos Hoy</code></small>
                         </div>
                     </div>
                 </div>
@@ -940,7 +944,7 @@
                                     <tbody>
                                         {% for sys in b_info.sistemas %}
                                         <tr class="fila-dif-sistema">
-                                            <td class="dif-nombre">{{ sys.sistema }}</td>
+                                            <td classdif-nombre">{{ sys.sistema }}</td>
                                             <td class="text-end fw-bold dif-monto">
                                                 Bs. {{ (sys.mi_ganancia if sys.mi_ganancia is defined else ((sys.venta or 0) * 0.04)) | dinero }}
                                             </td>
@@ -1304,21 +1308,33 @@
             });
         }
 
-        function abrirModalDesglose(agencia, reportes, cashea, adelantos, abonos, totalBackend) {
+        function abrirModalDesglose(agencia, saldoAnterior, reportes, cashea, adelantos, abonos, totalBackend) {
             document.getElementById("modalDesgloseTitulo").innerText = "Desglose de Balance: " + agencia;
             
+            var antNum = parseMonto(saldoAnterior);
             var repNum = parseMonto(reportes);
             var casNum = parseMonto(cashea);
             var adeNum = parseMonto(adelantos);
             var aboNum = parseMonto(abonos);
             var totBackendNum = parseMonto(totalBackend);
 
+            // Pintar Saldo Pendiente Anterior
+            var elemAnt = document.getElementById("mdlSaldoAnterior");
+            elemAnt.innerText = formatoBs(antNum);
+            if (antNum > 0) {
+                elemAnt.className = "text-success fw-bold";
+            } else if (antNum < 0) {
+                elemAnt.className = "text-danger fw-bold";
+            } else {
+                elemAnt.className = "text-muted";
+            }
+
             document.getElementById("mdlReportes").innerText = formatoBs(repNum);
             document.getElementById("mdlCashea").innerText = formatoBs(casNum);
             document.getElementById("mdlAdelantos").innerText = formatoBs(adeNum);
             document.getElementById("mdlAbonos").innerText = formatoBs(aboNum);
             
-            var totalFinal = (totBackendNum !== 0) ? totBackendNum : ((repNum - casNum) - aboNum + adeNum);
+            var totalFinal = (totBackendNum !== 0) ? totBackendNum : (antNum + repNum - casNum - aboNum + adeNum);
 
             var elemTotal = document.getElementById("mdlTotal");
             elemTotal.innerText = formatoBs(Math.abs(totalFinal));
