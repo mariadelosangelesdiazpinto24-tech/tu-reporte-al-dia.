@@ -839,37 +839,19 @@ def post_ajustar_saldo_anterior(
     nuevo_saldo: float = Form(...)
 ):
     agencia_norm = normalizar(agencia)
-    # Fecha de ayer para que cumpla 'fecha < fecha_hoy_contable' y la función sí lo tome
-    fecha_ayer = (datetime.now(TZ_VENEZUELA).date() - timedelta(days=1)).strftime('%Y-%m-%d')
-    fecha_hoy = datetime.now(TZ_VENEZUELA).date().strftime('%Y-%m-%d')
+    fecha_hoy = obtener_fecha_venezuela()
 
     conn = get_db()
     cursor = conn.cursor()
     
-    # 1. Si quieres poner la cuenta en CERO (saldada):
-    if abs(float(nuevo_saldo)) < 0.05:
-        # Borra cualquier ajuste previo para que no haga ruido
-        cursor.execute("DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'", (agencia_norm,))
-        
-        # Inserta una liquidación/abono de balance que neutralice todo lo anterior y lo deje en 0.00
-        cursor.execute("""
-            INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-            VALUES (%s, %s, 0.0, 'Ajuste Saldo en Cero', 'Cuenta saldada desde panel admin', 'AJUSTE_SALDO_ANTERIOR', 'APROBADO')
-        """, (agencia_norm, fecha_ayer))
-        
-        # Eliminamos reportes pasados pendientes de saldar si se fuerza el 0
-        cursor.execute("""
-            INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-            VALUES (%s, %s, 0.0, 'Saldado Manual', 'Ajuste forzado a cero', 'AJUSTE_BANCA', 'APROBADO')
-        """, (agencia_norm, fecha_ayer))
-        
-    else:
-        # 2. Si le pones un monto específico (ejemplo 80.000 Bs.):
-        cursor.execute("DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'", (agencia_norm,))
-        cursor.execute("""
-            INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-            VALUES (%s, %s, %s, 'Ajuste Manual Saldo Anterior', 'Fijado desde panel admin', 'AJUSTE_SALDO_ANTERIOR', 'APROBADO')
-        """, (agencia_norm, fecha_ayer, float(nuevo_saldo)))
+    # 1. Borrar cualquier ajuste anterior de esa agencia para dejar solo el nuevo
+    cursor.execute("DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'", (agencia_norm,))
+    
+    # 2. Insertar el nuevo saldo fijado
+    cursor.execute("""
+        INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+        VALUES (%s, %s, %s, 'Ajuste Manual Saldo Anterior', 'Fijado desde panel admin', 'AJUSTE_SALDO_ANTERIOR', 'APROBADO')
+    """, (agencia_norm, fecha_hoy, float(nuevo_saldo)))
 
     conn.commit()
     conn.close()
