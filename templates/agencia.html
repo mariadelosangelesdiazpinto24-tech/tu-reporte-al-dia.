@@ -230,20 +230,22 @@
                             <h6 class="fw-bold text-dark border-bottom pb-2 mb-2"><i class="fas fa-calculator text-tema me-2"></i>Justificación de la Cuenta:</h6>
                             <div class="row g-2">
                                 <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
-                                    <span>📊 Total Neto Loterías:</span>
-                                    <strong>Bs. {{ (desglose_cuenta.neto_sistemas or 0) | dinero }}</strong>
+                                    <span>⏳ Último Saldo Pendiente:</span>
+                                    <strong class="{% if desglose_cuenta.saldo_anterior > 0 %}text-danger{% elif desglose_cuenta.saldo_anterior < 0 %}text-success{% else %}text-muted{% endif %}">
+                                        Bs. {{ (desglose_cuenta.saldo_anterior or 0) | dinero }}
+                                    </strong>
                                 </div>
                                 <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
-                                    <span class="text-info">🛒 Menos Facturas Cashea:</span>
-                                    <strong class="text-info">- Bs. {{ (desglose_cuenta.cashea or 0) | dinero }}</strong>
+                                    <span>📊 Reporte del Día (Hoy):</span>
+                                    <strong class="text-primary">+ Bs. {{ (desglose_cuenta.neto_hoy or 0) | dinero }}</strong>
                                 </div>
                                 <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
-                                    <span class="text-success">🏦 Menos Abonos/Pagos Realizados:</span>
-                                    <strong class="text-success">- Bs. {{ (desglose_cuenta.abonos or 0) | dinero }}</strong>
+                                    <span class="text-info">🛒 Menos Facturas Cashea (Hoy):</span>
+                                    <strong class="text-info">- Bs. {{ (desglose_cuenta.cashea_hoy or 0) | dinero }}</strong>
                                 </div>
                                 <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
-                                    <span class="text-secondary">💸 Adelantos/Liquidaciones de Banca:</span>
-                                    <strong class="text-secondary">+ Bs. {{ ((desglose_cuenta.adelantos or 0) + (desglose_cuenta.liquidaciones or 0)) | dinero }}</strong>
+                                    <span class="text-success">🏦 Menos Abonos/Pagos Realizados (Hoy):</span>
+                                    <strong class="text-success">- Bs. {{ (desglose_cuenta.abonos_hoy or 0) | dinero }}</strong>
                                 </div>
                                 <div class="col-12 d-flex justify-content-between border-top py-2 bg-white rounded px-2 mt-2">
                                     <strong>💰 TOTAL PENDIENTE EXACTO:</strong>
