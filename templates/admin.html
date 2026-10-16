@@ -197,7 +197,11 @@
                                         Bs. {{ (ag.saldo_pendiente or 0) | dinero }}
                                     </td>
                                     <td class="text-center">
-                                        <button type="button" class="btn btn-outline-warning btn-sm py-0 me-1" title="Ajustar Saldo Anterior" onclick="abrirModalAjustarSaldoPara('{{ ag.agencia }}', '{{ ag.saldo_pendiente or 0 }}')">
+                                        <button type="button" class="btn btn-outline-warning btn-sm py-0 me-1" title="Ajustar Saldo Anterior" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#modalAjustarSaldoAnterior" 
+                                                data-agencia="{{ ag.agencia }}" 
+                                                data-saldo="{{ ag.saldo_pendiente or 0 }}">
                                             <i class="fas fa-pen-to-square"></i>
                                         </button>
                                         <form action="/admin/eliminar-agencia" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar agencia?');">
@@ -366,7 +370,9 @@
                         
                         <!-- BOTÓN MODIFICAR SALDO ANTERIOR (CORRECCIÓN DIRECTA) -->
                         <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-warning btn-sm fw-bold px-3 shadow-sm text-dark" onclick="abrirModalAjustarSaldoGeneral()">
+                            <button type="button" class="btn btn-warning btn-sm fw-bold px-3 shadow-sm text-dark" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#modalAjustarSaldoAnterior">
                                 <i class="fas fa-pen-to-square me-1"></i> Ajustar Saldo Anterior Taquilla
                             </button>
                         </div>
@@ -393,7 +399,11 @@
                                                 </td>
                                                 <td class="text-end fw-bold text-success col-monto-cobrar">Bs. {{ pos.monto | dinero }}</td>
                                                 <td class="text-center">
-                                                    <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" title="Ajustar Saldo Anterior" onclick="abrirModalAjustarSaldoPara('{{ pos.agencia }}', '{{ pos.saldo_anterior or pos.monto }}')">
+                                                    <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" title="Ajustar Saldo Anterior" 
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#modalAjustarSaldoAnterior" 
+                                                            data-agencia="{{ pos.agencia }}" 
+                                                            data-saldo="{{ pos.saldo_anterior or pos.monto }}">
                                                         <i class="fas fa-pen"></i>
                                                     </button>
                                                 </td>
@@ -427,7 +437,11 @@
                                                 </td>
                                                 <td class="text-end fw-bold text-danger col-monto-pagar">Bs. {{ neg.monto | dinero }}</td>
                                                 <td class="text-center">
-                                                    <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" title="Ajustar Saldo Anterior" onclick="abrirModalAjustarSaldoPara('{{ neg.agencia }}', '{{ neg.saldo_anterior or (-neg.monto) }}')">
+                                                    <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" title="Ajustar Saldo Anterior" 
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#modalAjustarSaldoAnterior" 
+                                                            data-agencia="{{ neg.agencia }}" 
+                                                            data-saldo="{{ neg.saldo_anterior or (-neg.monto) }}">
                                                         <i class="fas fa-pen"></i>
                                                     </button>
                                                 </td>
@@ -1177,6 +1191,27 @@
 
         document.addEventListener("DOMContentLoaded", function() {
             recalcularTodoElPanel();
+
+            // CONTROL DEL MODAL DE AJUSTAR SALDO ANTERIOR
+            var modalAjuste = document.getElementById('modalAjustarSaldoAnterior');
+            if (modalAjuste) {
+                modalAjuste.addEventListener('show.bs.modal', function(event) {
+                    var button = event.relatedTarget;
+                    var select = document.getElementById("selectAgenciaSaldoAnterior");
+                    var input = document.getElementById("inputNuevoSaldoAnterior");
+
+                    if (button && button.hasAttribute('data-agencia')) {
+                        var agencia = button.getAttribute('data-agencia');
+                        var saldo = button.getAttribute('data-saldo');
+
+                        if (select) select.value = agencia;
+                        if (input) input.value = parseFloat(saldo) || 0;
+                    } else {
+                        if (select) select.selectedIndex = 0;
+                        if (input) input.value = "";
+                    }
+                });
+            }
         });
 
         var tabButtons = document.querySelectorAll('button[data-bs-toggle="tab"]');
@@ -1185,28 +1220,6 @@
                 recalcularTodoElPanel();
             });
         });
-
-        // FUNCIONES MODAL MODIFICAR SALDO ANTERIOR
-        function abrirModalAjustarSaldoGeneral() {
-            var select = document.getElementById("selectAgenciaSaldoAnterior");
-            if (select) select.selectedIndex = 0;
-            document.getElementById("inputNuevoSaldoAnterior").value = "";
-            var modal = new bootstrap.Modal(document.getElementById('modalAjustarSaldoAnterior'));
-            modal.show();
-        }
-
-        function abrirModalAjustarSaldoPara(nombreAgencia, saldoActual) {
-            var select = document.getElementById("selectAgenciaSaldoAnterior");
-            if (select) {
-                select.value = nombreAgencia;
-            }
-            var input = document.getElementById("inputNuevoSaldoAnterior");
-            if (input) {
-                input.value = parseFloat(saldoActual) || 0;
-            }
-            var modal = new bootstrap.Modal(document.getElementById('modalAjustarSaldoAnterior'));
-            modal.show();
-        }
 
         function copiarCasheaGlobal() {
             var texto = "🛒 FACTURAS CASHEA ABSORBIDAS POR AGENCIA 🛒\n";
