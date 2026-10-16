@@ -286,8 +286,7 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     ag_norm = normalizar(agencia_raw)
     ahora_vzla = datetime.now(TZ_VENEZUELA)
     
-    # Si aún no son las 7:00 PM (19:00), el día operativo actual es HOY.
-    # A partir de las 7:00 PM en adelante, ya arranca la contabilidad del día siguiente.
+    # Corte a las 7:00 PM (19:00 hrs)
     if ahora_vzla.hour < 19:
         fecha_hoy_contable = ahora_vzla.date().strftime('%Y-%m-%d')
     else:
@@ -296,7 +295,7 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     conn = get_db()
     cursor = conn.cursor()
 
-    # 1. Buscar el saldo base fijado previamente (el último ajuste registrado antes de hoy)
+    # 1. Buscar el saldo base fijado previamente
     cursor.execute("""
         SELECT id, fecha, monto FROM pagos 
         WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'
@@ -310,9 +309,8 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
         id_prev = ajuste_previo['id']
         f_prev = ajuste_previo['fecha']
 
-        # Incluir los reportes ocurridos entre el ajuste y hoy (utilizando >= para no ignorar el mismo día)
         cursor.execute("""
-            SELECT id, detalle_html FROM reportes 
+            SELECT detalle_html FROM reportes 
             WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha < %s
         """, (ag_norm, f_prev, fecha_hoy_contable))
         reps_prev = cursor.fetchall()
@@ -336,10 +334,9 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
             elif tp == 'ADELANTO': ad_p += m
             elif tp == 'LIQUIDACION': li_p += m
 
-        # Saldo que quedó ayer: Base + Reportes pasados - Cashea - Pagos Taquilla + Adelantos - Liquidaciones
-        saldo_anterior = base_prev + neto_prev - ca_p - ab_p + ad_p - li_p
+        # REGLA: Si la banca le transfirió liquidación (+li_p), ese saldo negativo se lleva a 0
+        saldo_anterior = base_prev + neto_prev - ca_p - ab_p + ad_p + li_p
     else:
-        # Si nunca hubo un ajuste manual previo, sumamos todo el historial antes de hoy
         cursor.execute("""
             SELECT detalle_html FROM reportes 
             WHERE UPPER(TRIM(agencia)) = %s AND fecha < %s
@@ -364,9 +361,9 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
             elif tp == 'ADELANTO': ad_p += m
             elif tp == 'LIQUIDACION': li_p += m
 
-        saldo_anterior = neto_prev - ca_p - ab_p + ad_p - li_p
+        saldo_anterior = neto_prev - ca_p - ab_p + ad_p + li_p
 
-    # 2. TRANSACCIONES EN TIEMPO REAL DEL DÍA DE HOY
+    # 2. MOVIMIENTOS EN TIEMPO REAL DE HOY
     cursor.execute("""
         SELECT detalle_html FROM reportes 
         WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s
@@ -400,9 +397,10 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
         elif tp == 'LIQUIDACION':
             liquidaciones_hoy += m_val
 
-    # 3. SALDO PENDIENTE FINAL EN VIVO
-    # Deuda anterior + Ventas netas hoy - Cashea hoy - Abonos hoy + Adelantos entregados - Liquidaciones entregadas
-    saldo_final = saldo_anterior + neto_hoy - cashea_hoy - abonos_hoy + adelantos_hoy - liquidaciones_hoy
+    # 3. SALDO PENDIENTE VIVO
+    # - Si nos deben: los abonos bajan la deuda (- abonos_hoy)
+    # - Si les debemos (negativo): las liquidaciones saldan la cuenta (+ liquidaciones_hoy)
+    saldo_final = saldo_anterior + neto_hoy - cashea_hoy - abonos_hoy + adelantos_hoy + liquidaciones_hoy
 
     if abs(saldo_final) < 0.05:
         saldo_final = 0.0
