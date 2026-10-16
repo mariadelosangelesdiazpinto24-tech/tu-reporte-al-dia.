@@ -295,51 +295,19 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     conn = get_db()
     cursor = conn.cursor()
 
-    # 1. Buscar si existe un ajuste manual de saldo anterior fijado antes de hoy
+    # 1. SALDO ANTERIOR (Apertura)
+    # Si tú le diste al lápiz, se respeta ese monto como partida
     cursor.execute("""
-        SELECT fecha, monto FROM pagos 
+        SELECT monto FROM pagos 
         WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'
-          AND fecha < %s
-        ORDER BY fecha DESC, id DESC LIMIT 1
-    """, (ag_norm, fecha_hoy_contable))
+        ORDER BY id DESC LIMIT 1
+    """, (ag_norm,))
     ajuste_previo = cursor.fetchone()
 
-    if ajuste_previo:
-        base_prev = float(ajuste_previo['monto'] or 0.0)
-        f_prev = ajuste_previo['fecha']
-
-        # Reportes entre la fecha base y el inicio del día contable de hoy
-        cursor.execute("""
-            SELECT detalle_html FROM reportes 
-            WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha < %s
-        """, (ag_norm, f_prev, fecha_hoy_contable))
-        reps_prev = cursor.fetchall()
-        neto_prev = sum(extraer_neto_de_html(r['detalle_html']) for r in reps_prev if r and r['detalle_html'])
-
-        # Todos los movimientos aprobados en ese mismo rango de fechas
-        cursor.execute("""
-            SELECT tipo, SUM(monto) as total FROM pagos 
-            WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' 
-              AND tipo != 'AJUSTE_SALDO_ANTERIOR'
-              AND fecha >= %s AND fecha < %s
-            GROUP BY tipo
-        """, (ag_norm, f_prev, fecha_hoy_contable))
-        pagos_prev = cursor.fetchall()
-
-        ab_p, ca_p, ad_p, li_p = 0.0, 0.0, 0.0, 0.0
-        for p in pagos_prev:
-            tp = str(p['tipo']).upper()
-            m = float(p['total'] or 0.0)
-            if tp in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']: ab_p += m
-            elif tp == 'CASHEA': ca_p += m
-            elif tp == 'ADELANTO': ad_p += m
-            elif tp == 'LIQUIDACION': li_p += m
-
-        # Saldo consolidado al cierre de ayer:
-        # Base + (Neto - Cashea) - Abonos Taquilla + Adelantos + Liquidaciones de saldos a favor
-        saldo_anterior = base_prev + (neto_prev - ca_p) - ab_p + ad_p + li_p
+    if ajuste_previo is not None:
+        saldo_anterior = float(ajuste_previo['monto'] or 0.0)
     else:
-        # Historial completo antes de hoy
+        # Historial completo automático antes de hoy
         cursor.execute("""
             SELECT detalle_html FROM reportes 
             WHERE UPPER(TRIM(agencia)) = %s AND fecha < %s
@@ -366,7 +334,6 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
 
         saldo_anterior = (neto_prev - ca_p) - ab_p + ad_p + li_p
 
-    # Si el balance previo quedó saldado (cercano a cero), forzar 0.0
     if abs(saldo_anterior) < 0.05:
         saldo_anterior = 0.0
 
@@ -405,7 +372,6 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
             liquidaciones_hoy += m_val
 
     # 3. SALDO PENDIENTE VIVO EN TIEMPO REAL
-    # Saldo anterior + (Neto hoy - Cashea hoy) - Abonos hoy + Adelantos hoy + Liquidaciones hoy
     saldo_final = saldo_anterior + (neto_hoy - cashea_hoy) - abonos_hoy + adelantos_hoy + liquidaciones_hoy
 
     if abs(saldo_final) < 0.05:
@@ -840,24 +806,26 @@ def post_ajustar_saldo_anterior(
 ):
     agencia_norm = normalizar(agencia)
     fecha_hoy = obtener_fecha_venezuela()
+    valor_saldo = float(nuevo_saldo)
 
     conn = get_db()
     cursor = conn.cursor()
     
-    # 1. Borrar cualquier ajuste anterior de esa agencia para dejar solo el nuevo
+    # Borrar ajustes anteriores previos para que el nuevo tome control absoluto
     cursor.execute("DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'", (agencia_norm,))
     
-    # 2. Insertar el nuevo saldo fijado
+    # Insertar el ajuste manual con el monto exacto
     cursor.execute("""
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
         VALUES (%s, %s, %s, 'Ajuste Manual Saldo Anterior', 'Fijado desde panel admin', 'AJUSTE_SALDO_ANTERIOR', 'APROBADO')
-    """, (agencia_norm, fecha_hoy, float(nuevo_saldo)))
+    """, (agencia_norm, fecha_hoy, valor_saldo))
 
     conn.commit()
     conn.close()
 
     recalcular_y_actualizar_reporte(agencia_norm, fecha_hoy)
     return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
+
 @app.post("/admin/guardar-ajustes-banquero-global")
 def post_guardar_ajustes_banquero_global(
     banquero: str = Form(...),
@@ -1280,7 +1248,6 @@ def post_registrar_pago_rapido(
 
     return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 
-
 @app.post("/admin/saldar-deuda-taquilla")
 def post_saldar_deuda_taquilla(
     agencia: str = Form(...),
@@ -1299,40 +1266,6 @@ def post_saldar_deuda_taquilla(
             cursor.execute(
                 """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
                    VALUES (%s, %s, %s, %s, %s, 'PAGO_BANCA', 'APROBADO')""",
-                (agencia_norm, fecha_operacion, monto_val, f"Saldar Deuda #{fecha_operacion}", "Ajuste completo de saldo")
-            )
-        else:
-            cursor.execute(
-                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-                   VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
-                (agencia_norm, fecha_operacion, monto_val, f"Liquidación Saldo #{fecha_operacion}", "Liquidación completa de saldo a favor")
-            )
-
-        cursor.execute("UPDATE reportes SET monto = 0.0 WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha_operacion))
-        conn.commit()
-        conn.close()
-
-        recalcular_y_actualizar_reporte(agencia_norm, fecha_operacion)
-
-    return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
-@app.post("/admin/saldar-deuda-taquilla")
-def post_saldar_deuda_taquilla(
-    agencia: str = Form(...),
-    monto_restante: float = Form(...),
-    fecha: Optional[str] = Form(None)
-):
-    agencia_norm = normalizar(agencia)
-    fecha_operacion = fecha or obtener_fecha_venezuela()
-    monto_val = abs(float(monto_restante))
-    
-    if monto_val > 0.01:
-        conn = get_db()
-        cursor = conn.cursor()
-        
-        if float(monto_restante) > 0:
-            cursor.execute(
-                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-                   VALUES (%s, %s, %s, %s, %s, 'AJUSTE_BANCA', 'APROBADO')""",
                 (agencia_norm, fecha_operacion, monto_val, f"Saldar Deuda #{fecha_operacion}", "Ajuste completo de saldo")
             )
         else:
