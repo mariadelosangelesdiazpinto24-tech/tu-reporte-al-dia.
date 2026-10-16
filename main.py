@@ -240,7 +240,6 @@ def init_db():
 init_db()
 
 def limpiar_datos_antiguos_inicio():
-    """Conserva los reportes desde el lunes actual y elimina pagos y abonos viejos (CASHEA queda intacto)."""
     try:
         lunes_sem, _ = obtener_rango_semana_actual()
         conn = get_db()
@@ -945,6 +944,11 @@ def get_agencia(
     if agencia_info and agencia_info.get('genero'):
         genero_agencia = str(agencia_info['genero']).strip().upper()
     
+    # Determinar fecha de consulta
+    cursor.execute("SELECT fecha FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC LIMIT 1", (agencia_norm,))
+    row_ult = cursor.fetchone()
+    fecha_reporte_activa = hasta_fecha or (row_ult['fecha'] if row_ult else hoy_vzla)
+
     f_desde = desde_fecha if desde_fecha else ""
     f_hasta = hasta_fecha if hasta_fecha else ""
 
@@ -973,7 +977,7 @@ def get_agencia(
     
     cursor.execute(
         "SELECT SUM(monto) as total_dia FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'CASHEA' AND fecha = %s",
-        (agencia_norm, f_hasta or hoy_vzla)
+        (agencia_norm, fecha_reporte_activa)
     )
     row_cdia = cursor.fetchone()
     total_cashea_dia = float(row_cdia['total_dia'] or 0.0) if row_cdia else 0.0
@@ -981,7 +985,7 @@ def get_agencia(
     # Auditoría por sistemas
     cursor.execute(
         "SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s ORDER BY fecha ASC", 
-        (agencia_norm, f_desde or hoy_vzla, f_hasta or hoy_vzla)
+        (agencia_norm, f_desde or fecha_reporte_activa, f_hasta or fecha_reporte_activa)
     )
     reps_rango = cursor.fetchall()
     
@@ -1026,7 +1030,7 @@ def get_agencia(
 
     cursor.execute(
         "SELECT * FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'CASHEA' AND fecha >= %s AND fecha <= %s AND estado = 'APROBADO'",
-        (agencia_norm, f_desde or hoy_vzla, f_hasta or hoy_vzla)
+        (agencia_norm, f_desde or fecha_reporte_activa, f_hasta or fecha_reporte_activa)
     )
     facturas_cashea_auditoria = [dict(r) for r in cursor.fetchall()]
     auditoria_cashea_monto = sum(float(c['monto'] or 0.0) for c in facturas_cashea_auditoria)
@@ -1045,31 +1049,28 @@ def get_agencia(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
 
-    # Cálculo acumulado continuo de saldo
+    # Balance contable directo del día activo
     cursor.execute(
-        """SELECT detalle_html, fecha FROM reportes 
-           WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC""",
-        (agencia_norm,)
+        "SELECT detalle_html FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s",
+        (agencia_norm, fecha_reporte_activa)
     )
-    reps_html_ag = cursor.fetchall()
+    rep_activo = cursor.fetchone()
     
+    neto_sistemas_calc = 0.0
+    if rep_activo and rep_activo['detalle_html']:
+        neto_sistemas_calc = extraer_neto_de_html(rep_activo['detalle_html'])
+
     cursor.execute(
         """SELECT tipo, SUM(monto) as total FROM pagos 
-           WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' 
+           WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND estado = 'APROBADO' 
            GROUP BY tipo""",
-        (agencia_norm,)
+        (agencia_norm, fecha_reporte_activa)
     )
     filas_desglose = cursor.fetchall()
-
-    neto_sistemas_calc = 0.0
-    for rh in reps_html_ag:
-        if rh and rh['detalle_html']:
-            neto_sistemas_calc += extraer_neto_de_html(rh['detalle_html'])
 
     abonos_calc = 0.0
     liquidaciones_calc = 0.0
     adelantos_calc = 0.0
-    cashea_calc = 0.0
 
     for fd in filas_desglose:
         t_d = str(fd['tipo']).upper()
@@ -1080,10 +1081,7 @@ def get_agencia(
             liquidaciones_calc += m_d
         elif t_d == 'ADELANTO':
             adelantos_calc += m_d
-        elif t_d == 'CASHEA':
-            cashea_calc += m_d
 
-    # Balance y desglose utilizando únicamente el Cashea del día
     saldo_acumulado = calcular_balance_contable_exacto(
         neto_sistemas_calc, 
         total_cashea_dia, 
@@ -1093,7 +1091,7 @@ def get_agencia(
     )
 
     desglose_cuenta = {
-        "fecha": "Saldo Acumulado Pendiente",
+        "fecha": fecha_reporte_activa,
         "neto_sistemas": neto_sistemas_calc,
         "cashea": total_cashea_dia,
         "adelantos": adelantos_calc,
@@ -1102,7 +1100,7 @@ def get_agencia(
         "saldo_final": saldo_acumulado
     }
 
-    cursor.execute("SELECT id, fecha, monto FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
+    cursor.execute("SELECT id, fecha, monto, detalle_html FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
     reportes_agencia = [dict(row) for row in cursor.fetchall()]
 
     conn.close()
@@ -1134,7 +1132,7 @@ def get_agencia(
 @app.post("/admin/registrar-pago-rapido")
 def post_registrar_pago_rapido(
     agencia: str = Form(...),
-    accion: str = Form(...),  # 'PAGO' (Taquilla abonó) o 'PAGAR' (Banca le pagó)
+    accion: str = Form(...),
     monto: float = Form(...)
 ):
     agencia_norm = normalizar(agencia)
@@ -1747,7 +1745,7 @@ def get_admin(
         casheas_generales = [dict(row) for row in cursor.fetchall()]
         total_cashea_filtrado = sum(float(c.get('monto') or 0.0) for c in casheas_generales)
 
-        # Cálculo exacto de balances acumulados por agencia
+        # Cálculo exacto de balances sincronizados con la fecha activa
         positivos = []
         negativos = []
         for ag in agencias:
@@ -1756,14 +1754,27 @@ def get_admin(
             ag_nombre = ag['agencia']
             ag_norm = normalizar(ag_nombre)
             
-            cursor.execute("SELECT detalle_html FROM reportes WHERE UPPER(TRIM(agencia)) = %s", (ag_norm,))
-            reps_admin_periodo = cursor.fetchall()
+            cursor.execute(
+                "SELECT fecha, detalle_html FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC LIMIT 1", 
+                (ag_norm,)
+            )
+            rep_ult_ag = cursor.fetchone()
+            fecha_corte_ag = f_hasta if f_hasta else (rep_ult_ag['fecha'] if rep_ult_ag else hoy_vzla)
+
+            neto_desde_html = 0.0
+            cursor.execute(
+                "SELECT detalle_html FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", 
+                (ag_norm, fecha_corte_ag)
+            )
+            rep_corte = cursor.fetchone()
+            if rep_corte and rep_corte['detalle_html']:
+                neto_desde_html = extraer_neto_de_html(rep_corte['detalle_html'])
 
             cursor.execute(
                 """SELECT tipo, SUM(monto) as total_monto FROM pagos 
-                   WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' 
+                   WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND estado = 'APROBADO' 
                    GROUP BY tipo""",
-                (ag_norm,)
+                (ag_norm, fecha_corte_ag)
             )
             filas_pagos = cursor.fetchall()
             
@@ -1783,11 +1794,6 @@ def get_admin(
                 elif tipo_fp == 'LIQUIDACION':
                     sum_liquidaciones += m_fp
 
-            neto_desde_html = 0.0
-            for r_adm in reps_admin_periodo:
-                if r_adm and r_adm['detalle_html']:
-                    neto_desde_html += extraer_neto_de_html(r_adm['detalle_html'])
-
             balance_contable = calcular_balance_contable_exacto(
                 neto_desde_html, 
                 sum_cashea, 
@@ -1800,7 +1806,7 @@ def get_admin(
             
             datos_desglose = {
                 "agencia": ag_nombre,
-                "fecha": hoy_vzla,
+                "fecha": fecha_corte_ag,
                 "monto": balance_contable,
                 "balance_total": balance_contable,
                 "reporte_neto": neto_desde_html,
