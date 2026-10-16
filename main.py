@@ -279,118 +279,151 @@ def extraer_neto_de_html(detalle_html: str) -> float:
                         pass
     return neto_acumulado
 
-# ==============================================================================
+#==============================================================================
 # MOTOR CONTABLE DEFINITIVO: CORTE DIARIO A LAS 7:00 PM (19:00 VZLA)
 # ==============================================================================
 def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = None):
-    ag_norm = normalizar(agencia_raw)
-    ahora_vzla = datetime.now(TZ_VENEZUELA)
-    
-    # Corte operativo a las 7:00 PM (19:00 hrs)
-    if ahora_vzla.hour < 19:
-        fecha_hoy_contable = ahora_vzla.date().strftime('%Y-%m-%d')
-    else:
-        fecha_hoy_contable = (ahora_vzla.date() + timedelta(days=1)).strftime('%Y-%m-%d')
+    ag_norm = normalizar(agencia_raw)
+    ahora_vzla = datetime.now(TZ_VENEZUELA)
+    
+    # Corte operativo a las 7:00 PM (19:00 hrs)
+    if ahora_vzla.hour < 19:
+        fecha_hoy_contable = ahora_vzla.date().strftime('%Y-%m-%d')
+    else:
+        fecha_hoy_contable = (ahora_vzla.date() + timedelta(days=1)).strftime('%Y-%m-%d')
 
-    conn = get_db()
-    cursor = conn.cursor()
+    conn = get_db()
+    cursor = conn.cursor()
 
-    # 1. SALDO ANTERIOR (Apertura)
-    # Si tú le diste al lápiz, se respeta ese monto como partida
-    cursor.execute("""
-        SELECT monto FROM pagos 
-        WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'
-        ORDER BY id DESC LIMIT 1
-    """, (ag_norm,))
-    ajuste_previo = cursor.fetchone()
+    # 1. Buscar si existe un ajuste manual de saldo anterior fijado antes de hoy
+    cursor.execute("""
+        SELECT fecha, monto FROM pagos 
+        WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'
+          AND fecha < %s
+        ORDER BY fecha DESC, id DESC LIMIT 1
+    """, (ag_norm, fecha_hoy_contable))
+    ajuste_previo = cursor.fetchone()
 
-    if ajuste_previo is not None:
-        saldo_anterior = float(ajuste_previo['monto'] or 0.0)
-    else:
-        # Historial completo automático antes de hoy
-        cursor.execute("""
-            SELECT detalle_html FROM reportes 
-            WHERE UPPER(TRIM(agencia)) = %s AND fecha < %s
-        """, (ag_norm, fecha_hoy_contable))
-        reps_prev = cursor.fetchall()
-        neto_prev = sum(extraer_neto_de_html(r['detalle_html']) for r in reps_prev if r and r['detalle_html'])
+    if ajuste_previo:
+        base_prev = float(ajuste_previo['monto'] or 0.0)
+        f_prev = ajuste_previo['fecha']
 
-        cursor.execute("""
-            SELECT tipo, SUM(monto) as total FROM pagos 
-            WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' 
-              AND tipo != 'AJUSTE_SALDO_ANTERIOR' AND fecha < %s
-            GROUP BY tipo
-        """, (ag_norm, fecha_hoy_contable))
-        pagos_prev = cursor.fetchall()
+        # Reportes entre la fecha base y el inicio del día contable de hoy
+        cursor.execute("""
+            SELECT detalle_html FROM reportes 
+            WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha < %s
+        """, (ag_norm, f_prev, fecha_hoy_contable))
+        reps_prev = cursor.fetchall()
+        neto_prev = sum(extraer_neto_de_html(r['detalle_html']) for r in reps_prev if r and r['detalle_html'])
 
-        ab_p, ca_p, ad_p, li_p = 0.0, 0.0, 0.0, 0.0
-        for p in pagos_prev:
-            tp = str(p['tipo']).upper()
-            m = float(p['total'] or 0.0)
-            if tp in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']: ab_p += m
-            elif tp == 'CASHEA': ca_p += m
-            elif tp == 'ADELANTO': ad_p += m
-            elif tp == 'LIQUIDACION': li_p += m
+        # Todos los movimientos aprobados en ese mismo rango de fechas
+        cursor.execute("""
+            SELECT tipo, SUM(monto) as total FROM pagos 
+            WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' 
+              AND tipo != 'AJUSTE_SALDO_ANTERIOR'
+              AND fecha >= %s AND fecha < %s
+            GROUP BY tipo
+        """, (ag_norm, f_prev, fecha_hoy_contable))
+        pagos_prev = cursor.fetchall()
 
-        saldo_anterior = (neto_prev - ca_p) - ab_p + ad_p + li_p
+        ab_p, ca_p, ad_p, li_p = 0.0, 0.0, 0.0, 0.0
+        for p in pagos_prev:
+            tp = str(p['tipo']).upper()
+            m = float(p['total'] or 0.0)
+            if tp in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']: ab_p += m
+            elif tp == 'CASHEA': ca_p += m
+            elif tp == 'ADELANTO': ad_p += m
+            elif tp == 'LIQUIDACION': li_p += m
 
-    if abs(saldo_anterior) < 0.05:
-        saldo_anterior = 0.0
+        # Saldo consolidado al cierre de ayer:
+        # Base + (Neto - Cashea) - Abonos Taquilla + Adelantos + Liquidaciones de saldos a favor
+        saldo_anterior = base_prev + (neto_prev - ca_p) - ab_p + ad_p + li_p
+    else:
+        # Historial completo antes de hoy
+        cursor.execute("""
+            SELECT detalle_html FROM reportes 
+            WHERE UPPER(TRIM(agencia)) = %s AND fecha < %s
+        """, (ag_norm, fecha_hoy_contable))
+        reps_prev = cursor.fetchall()
+        neto_prev = sum(extraer_neto_de_html(r['detalle_html']) for r in reps_prev if r and r['detalle_html'])
 
-    # 2. MOVIMIENTOS EN VIVO DEL DÍA ACTUAL (HOY)
-    cursor.execute("""
-        SELECT detalle_html FROM reportes 
-        WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s
-    """, (ag_norm, fecha_hoy_contable))
-    rep_hoy = cursor.fetchone()
-    neto_hoy = extraer_neto_de_html(rep_hoy['detalle_html']) if rep_hoy and rep_hoy['detalle_html'] else 0.0
+        cursor.execute("""
+            SELECT tipo, SUM(monto) as total FROM pagos 
+            WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' 
+              AND tipo != 'AJUSTE_SALDO_ANTERIOR' AND fecha < %s
+            GROUP BY tipo
+        """, (ag_norm, fecha_hoy_contable))
+        pagos_prev = cursor.fetchall()
 
-    cursor.execute("""
-        SELECT tipo, monto FROM pagos 
-        WHERE UPPER(TRIM(agencia)) = %s 
-          AND fecha = %s 
-          AND estado = 'APROBADO' 
-          AND tipo != 'AJUSTE_SALDO_ANTERIOR'
-    """, (ag_norm, fecha_hoy_contable))
-    pagos_hoy = cursor.fetchall()
+        ab_p, ca_p, ad_p, li_p = 0.0, 0.0, 0.0, 0.0
+        for p in pagos_prev:
+            tp = str(p['tipo']).upper()
+            m = float(p['total'] or 0.0)
+            if tp in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']: ab_p += m
+            elif tp == 'CASHEA': ca_p += m
+            elif tp == 'ADELANTO': ad_p += m
+            elif tp == 'LIQUIDACION': li_p += m
 
-    abonos_hoy = 0.0
-    cashea_hoy = 0.0
-    adelantos_hoy = 0.0
-    liquidaciones_hoy = 0.0
+        saldo_anterior = (neto_prev - ca_p) - ab_p + ad_p + li_p
 
-    for p in pagos_hoy:
-        tp = str(p['tipo']).upper()
-        m_val = float(p['monto'] or 0.0)
-        if tp in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']:
-            abonos_hoy += m_val
-        elif tp == 'CASHEA':
-            cashea_hoy += m_val
-        elif tp == 'ADELANTO':
-            adelantos_hoy += m_val
-        elif tp == 'LIQUIDACION':
-            liquidaciones_hoy += m_val
+    # Si el balance previo quedó saldado (cercano a cero), forzar 0.0
+    if abs(saldo_anterior) < 0.05:
+        saldo_anterior = 0.0
 
-    # 3. SALDO PENDIENTE VIVO EN TIEMPO REAL
-    saldo_final = saldo_anterior + (neto_hoy - cashea_hoy) - abonos_hoy + adelantos_hoy + liquidaciones_hoy
+    # 2. MOVIMIENTOS EN VIVO DEL DÍA ACTUAL (HOY)
+    cursor.execute("""
+        SELECT detalle_html FROM reportes 
+        WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s
+    """, (ag_norm, fecha_hoy_contable))
+    rep_hoy = cursor.fetchone()
+    neto_hoy = extraer_neto_de_html(rep_hoy['detalle_html']) if rep_hoy and rep_hoy['detalle_html'] else 0.0
 
-    if abs(saldo_final) < 0.05:
-        saldo_final = 0.0
+    cursor.execute("""
+        SELECT tipo, monto FROM pagos 
+        WHERE UPPER(TRIM(agencia)) = %s 
+          AND fecha = %s 
+          AND estado = 'APROBADO' 
+          AND tipo != 'AJUSTE_SALDO_ANTERIOR'
+    """, (ag_norm, fecha_hoy_contable))
+    pagos_hoy = cursor.fetchall()
 
-    conn.close()
+    abonos_hoy = 0.0
+    cashea_hoy = 0.0
+    adelantos_hoy = 0.0
+    liquidaciones_hoy = 0.0
 
-    return {
-        "agencia": ag_norm,
-        "fecha": fecha_hoy_contable,
-        "saldo_anterior": saldo_anterior,
-        "neto_hoy": neto_hoy,
-        "cashea_hoy": cashea_hoy,
-        "abonos_hoy": abonos_hoy,
-        "adelantos_hoy": adelantos_hoy,
-        "liquidaciones_hoy": liquidaciones_hoy,
-        "saldo_final": saldo_final
-    }
+    for p in pagos_hoy:
+        tp = str(p['tipo']).upper()
+        m_val = float(p['monto'] or 0.0)
+        if tp in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']:
+            abonos_hoy += m_val
+        elif tp == 'CASHEA':
+            cashea_hoy += m_val
+        elif tp == 'ADELANTO':
+            adelantos_hoy += m_val
+        elif tp == 'LIQUIDACION':
+            liquidaciones_hoy += m_val
 
+    # 3. SALDO PENDIENTE VIVO EN TIEMPO REAL
+    # Saldo anterior + (Neto hoy - Cashea hoy) - Abonos hoy + Adelantos hoy + Liquidaciones hoy
+    saldo_final = saldo_anterior + (neto_hoy - cashea_hoy) - abonos_hoy + adelantos_hoy + liquidaciones_hoy
+
+    if abs(saldo_final) < 0.05:
+        saldo_final = 0.0
+
+    conn.close()
+
+    return {
+        "agencia": ag_norm,
+        "fecha": fecha_hoy_contable,
+        "saldo_anterior": saldo_anterior,
+        "neto_hoy": neto_hoy,
+        "cashea_hoy": cashea_hoy,
+        "abonos_hoy": abonos_hoy,
+        "adelantos_hoy": adelantos_hoy,
+        "liquidaciones_hoy": liquidaciones_hoy,
+        "saldo_final": saldo_final
+    }
 def obtener_estructura_banqueros_bd():
     conn = get_db()
     cursor = conn.cursor()
