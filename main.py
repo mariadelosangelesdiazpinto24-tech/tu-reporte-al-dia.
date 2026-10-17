@@ -1241,10 +1241,10 @@ def get_agencia(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
 
-    cuenta_ag = obtener_cuenta_agencia_corte(agencia_norm, fecha_reporte_activa)
+    cuenta_ag = obtener_cuenta_agencia_corte(agencia_norm)
 
     desglose_cuenta = {
-        "fecha": fecha_reporte_activa,
+        "fecha": hoy_vzla,
         "saldo_anterior": cuenta_ag["saldo_anterior"],
         "neto_hoy": cuenta_ag["neto_hoy"],
         "cashea_hoy": cuenta_ag["cashea_hoy"],
