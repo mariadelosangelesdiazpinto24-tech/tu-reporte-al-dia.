@@ -7,6 +7,7 @@ import re
 import shutil
 import traceback
 import base64
+import requests
 from zoneinfo import ZoneInfo
 from typing import Optional
 from datetime import datetime, timedelta
@@ -17,6 +18,43 @@ from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
 
+# ==============================================================================
+# CONFIGURACIÓN ONESIGNAL PUSH NOTIFICATIONS
+# ==============================================================================
+ONESIGNAL_APP_ID = "88b4cb90-08ed-4ef3-8852-c45316493190"
+# Puedes configurar tu ONESIGNAL_REST_KEY en Render (Environment Variables) o dejarla vacía por ahora
+ONESIGNAL_REST_KEY = os.environ.get("ONESIGNAL_REST_KEY", "")
+
+def disparar_notificacion(agencia_destino: str, titulo: str, mensaje: str):
+    if not ONESIGNAL_REST_KEY:
+        return
+    headers = {
+        "Authorization": f"Basic {ONESIGNAL_REST_KEY}",
+        "Content-Type": "application/json; charset=utf-8"
+    }
+    payload = {
+        "app_id": ONESIGNAL_APP_ID,
+        "headings": {"es": titulo, "en": titulo},
+        "contents": {"es": mensaje, "en": mensaje}
+    }
+    if agencia_destino == "TODAS":
+        payload["included_segments"] = ["Total Subscriptions"]
+    else:
+        payload["include_aliases"] = {"external_id": [agencia_destino]}
+        payload["target_channel"] = "push"
+
+    try:
+        requests.post("https://onesignal.com/api/v1/notifications", headers=headers, json=payload, timeout=5)
+    except Exception as e:
+        print("Error enviando notificacion push:", e)
+
+@app.get("/OneSignalSDKWorker.js")
+def onesignal_worker():
+    return RedirectResponse(url="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js")
+
+# ==============================================================================
+# CONFIGURACIÓN GENERAL Y HORARIA
+# ==============================================================================
 TZ_VENEZUELA = ZoneInfo("America/Caracas")
 
 def obtener_fecha_venezuela() -> str:
@@ -282,7 +320,7 @@ def extraer_neto_de_html(detalle_html: str) -> float:
     return neto_acumulado
 
 # ==============================================================================
-# MOTOR CONTABLE NORMALIZADO (SIN SALTO DE HORA NI CORTE A LAS 7:00 PM)
+# MOTOR CONTABLE NORMALIZADO (CON ARRASTRE DE CIERRE EXACTO)
 # ==============================================================================
 def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = None):
     ag_norm = normalizar(agencia_raw)
@@ -401,6 +439,7 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
         "liquidaciones_hoy": liquidaciones_hoy,
         "saldo_final": saldo_final
     }
+
 def obtener_estructura_banqueros_bd():
     conn = get_db()
     cursor = conn.cursor()
@@ -945,6 +984,23 @@ async def guardar_reporte_colab(request: Request):
     conn.close()
 
     recalcular_y_actualizar_reporte(agencia, fecha)
+
+    # --- NOTIFICACIÓN AUTOMÁTICA DE REPORTE A LA TAQUILLA ---
+    cuenta_act = obtener_cuenta_agencia_corte(agencia, fecha)
+    saldo_taquilla = cuenta_act["saldo_final"]
+    if saldo_taquilla > 0:
+        texto_saldo = f"Total a pagar a la banca: Bs. {saldo_taquilla:,.2f}"
+    elif saldo_taquilla < 0:
+        texto_saldo = f"Tienes saldo a favor: Bs. {abs(saldo_taquilla):,.2f}"
+    else:
+        texto_saldo = "Tu cuenta se encuentra saldada (0.00 Bs.)"
+
+    disparar_notificacion(
+        agencia,
+        "📊 Reporte del Día Cargado",
+        f"Tu reporte del {fecha} ya está listo en tu panel. {texto_saldo}"
+    )
+
     return {"status": "ok", "mensaje": "Reporte actualizado con éxito"}
 
 @app.get("/", response_class=HTMLResponse)
@@ -1253,6 +1309,7 @@ def post_registrar_pago_rapido(
         conn.commit()
         conn.close()
         recalcular_y_actualizar_reporte(agencia_norm, fecha_hoy)
+        disparar_notificacion(agencia_norm, "💳 Movimiento Registrado", mensaje)
 
     return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -1288,6 +1345,7 @@ def post_saldar_deuda_taquilla(
         conn.close()
 
         recalcular_y_actualizar_reporte(agencia_norm, fecha_operacion)
+        disparar_notificacion(agencia_norm, "✅ Cuenta Saldada", f"Tu cuenta del {fecha_operacion} ha quedado saldada con éxito.")
 
     return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -1545,15 +1603,17 @@ async def post_procesar_solicitud_dinero(
             (agencia_norm, fecha_actual, monto_pagar, f"Liquidación {accion} ({fecha_actual})", nombre_guardado)
         )
 
+        mensaje_com = f"Se te ha transferido Bs. {monto_pagar:,.2f} ({accion}) para saldar tu cuenta."
         cursor.execute(
             "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
-            (f"Se te ha transferido Bs. {monto_pagar:,.2f} ({accion}) para saldar tu cuenta.", agencia_norm)
+            (mensaje_com, agencia_norm)
         )
 
         conn.commit()
         conn.close()
 
         recalcular_y_actualizar_reporte(agencia_norm, fecha_actual)
+        disparar_notificacion(agencia_norm, "💸 Liquidación Procesada", mensaje_com)
         return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
     conn.close()
@@ -1593,6 +1653,7 @@ def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
         conn.close()
         
         recalcular_y_actualizar_reporte(agencia_p, fecha_pago)
+        disparar_notificacion(agencia_p, "🔔 Estado de Pago", msg_notif)
         return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
     conn.close()
@@ -1643,6 +1704,7 @@ async def post_liquidar_saldo_negativo(
     conn.close()
 
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
+    disparar_notificacion(agencia_norm, "💸 Saldo Liquidado", mensaje)
     return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/actualizar-regla-banquero")
@@ -1725,6 +1787,7 @@ def post_comunicado(mensaje: str = Form(...)):
             cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje.strip(),))
         conn.commit()
         conn.close()
+        disparar_notificacion("TODAS", "📢 Comunicado Los Ángeles del Dinero", mensaje.strip())
     return RedirectResponse(url="/admin?tab=notificaciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/eliminar-comunicado")
