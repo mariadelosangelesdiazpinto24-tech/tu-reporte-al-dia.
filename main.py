@@ -49,7 +49,7 @@ def disparar_notificacion(agencia_destino: str, titulo: str, mensaje: str):
         "app_id": ONESIGNAL_APP_ID,
         "headings": {"es": titulo, "en": titulo},
         "contents": {"es": mensaje, "en": mensaje},
-        "chrome_web_icon": "https://tu-reporte-al-dia.onrender.com/static/logo.png",
+        "chrome_web_icon": "https://tu-reporte-al-dia.onrender.com/templates/logo.png",
         "url": "/login"
     }
 
