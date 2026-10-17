@@ -26,41 +26,54 @@ app = FastAPI()
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # ==============================================================================
-# CONFIGURACIÓN ONESIGNAL PUSH NOTIFICATIONS (SIN LIBRERÍAS EXTERNAS)
+# CONFIGURACIÓN ONESIGNAL PUSH NOTIFICATIONS
 # ==============================================================================
 ONESIGNAL_APP_ID = "88b4cb90-08ed-4ef3-8852-c45316493190"
-ONESIGNAL_REST_KEY = os.environ.get("ONESIGNAL_REST_KEY", "")
+ONESIGNAL_REST_KEY = os.environ.get("ONESIGNAL_REST_KEY", "os_v2_app_xxxxxxxxxxxxxxxxxxxxxxxx") # Pega tu Rest API Key aquí si no usas variables de Render
 
 def disparar_notificacion(agencia_destino: str, titulo: str, mensaje: str):
-    if not ONESIGNAL_REST_KEY:
-        return
     url = "https://onesignal.com/api/v1/notifications"
+    
+    # Si la variable de entorno o la clave están configuradas
+    api_key = ONESIGNAL_REST_KEY.strip()
+    if not api_key or "xxxxxxxx" in api_key:
+        print("⚠️ AVISO: ONESIGNAL_REST_KEY no está configurada. Agrega la clave en Render > Environment Variables.")
+        return
+
     headers = {
-        "Authorization": f"Basic {ONESIGNAL_REST_KEY}",
+        "Authorization": f"Key {api_key}" if api_key.startswith("os_v2_") else f"Basic {api_key}",
         "Content-Type": "application/json; charset=utf-8"
     }
+
     payload = {
         "app_id": ONESIGNAL_APP_ID,
         "headings": {"es": titulo, "en": titulo},
-        "contents": {"es": mensaje, "en": mensaje}
+        "contents": {"es": mensaje, "en": mensaje},
+        "chrome_web_icon": "https://tu-reporte-al-dia.onrender.com/static/logo.png",
+        "url": "/login"
     }
+
     if agencia_destino == "TODAS":
         payload["included_segments"] = ["Total Subscriptions"]
     else:
-        payload["include_aliases"] = {"external_id": [agencia_destino]}
+        payload["include_aliases"] = {"external_id": [normalizar(agencia_destino)]}
         payload["target_channel"] = "push"
 
     try:
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            pass
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            print(f"✅ Notificación enviada con éxito a {agencia_destino}: Código {resp.status}")
+    except urllib.error.HTTPError as e:
+        print(f"❌ Error HTTP al enviar notificación OneSignal: {e.code} - {e.read().decode('utf-8')}")
     except Exception as e:
-        print("Error enviando notificacion push:", e)
+        print("❌ Error general enviando notificación push:", e)
 
 @app.get("/OneSignalSDKWorker.js")
 def onesignal_worker():
-    return RedirectResponse(url="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js")
+    # Sirve el worker directamente para evitar rechazos de seguridad del navegador
+    contenido_worker = 'importScripts("https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js");'
+    return Response(content=contenido_worker, media_type="application/javascript", headers={"Service-Worker-Allowed": "/"})
 
 @app.get("/manifest.json")
 def get_manifest():
@@ -68,7 +81,6 @@ def get_manifest():
     if os.path.exists(ruta_manifest):
         return FileResponse(ruta_manifest, media_type="application/manifest+json")
     return FileResponse("manifest.json", media_type="application/manifest+json")
-
 # ==============================================================================
 # CONFIGURACIÓN GENERAL Y HORARIA
 # ==============================================================================
