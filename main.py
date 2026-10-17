@@ -1,5 +1,7 @@
 import os
 import urllib.parse as urlparse
+import urllib.request
+import json
 import psycopg2
 import psycopg2.extras
 import unicodedata
@@ -7,7 +9,6 @@ import re
 import shutil
 import traceback
 import base64
-import requests
 from zoneinfo import ZoneInfo
 from typing import Optional
 from datetime import datetime, timedelta
@@ -19,15 +20,15 @@ from fastapi.templating import Jinja2Templates
 app = FastAPI()
 
 # ==============================================================================
-# CONFIGURACIÓN ONESIGNAL PUSH NOTIFICATIONS
+# CONFIGURACIÓN ONESIGNAL PUSH NOTIFICATIONS (SIN LIBRERÍAS EXTERNAS)
 # ==============================================================================
 ONESIGNAL_APP_ID = "88b4cb90-08ed-4ef3-8852-c45316493190"
-# Puedes configurar tu ONESIGNAL_REST_KEY en Render (Environment Variables) o dejarla vacía por ahora
 ONESIGNAL_REST_KEY = os.environ.get("ONESIGNAL_REST_KEY", "")
 
 def disparar_notificacion(agencia_destino: str, titulo: str, mensaje: str):
     if not ONESIGNAL_REST_KEY:
         return
+    url = "https://onesignal.com/api/v1/notifications"
     headers = {
         "Authorization": f"Basic {ONESIGNAL_REST_KEY}",
         "Content-Type": "application/json; charset=utf-8"
@@ -44,7 +45,10 @@ def disparar_notificacion(agencia_destino: str, titulo: str, mensaje: str):
         payload["target_channel"] = "push"
 
     try:
-        requests.post("https://onesignal.com/api/v1/notifications", headers=headers, json=payload, timeout=5)
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            pass
     except Exception as e:
         print("Error enviando notificacion push:", e)
 
@@ -354,10 +358,8 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
         rep_ayer = cursor.fetchone()
 
         if rep_ayer and rep_ayer['monto'] is not None:
-            # Si ayer ya quedó calculado o saldado en 0.00 en la base de datos, toma ese valor exacto
             saldo_anterior = float(rep_ayer['monto'])
         else:
-            # Si no existe reporte de ayer, calcula el saldo histórico acumulado hasta antes de hoy
             cursor.execute("""
                 SELECT detalle_html FROM reportes 
                 WHERE UPPER(TRIM(agencia)) = %s AND fecha < %s
