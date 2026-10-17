@@ -5,15 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Agencia - {{ nombre_agencia }}</title>
     
-    <!-- Configuración PWA e Icono Oficial -->
+    <!-- Configuración PWA e Iconos Oficiales -->
     <link rel="manifest" href="/manifest.json">
-    <link rel="icon" type="image/png" href="/templates/logo.png">
-    <link rel="apple-touch-icon" href="/templates/logo.png">
+    <link rel="icon" type="image/png" href="/static/logo.png">
+    <link rel="apple-touch-icon" href="/static/logo.png">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
-    <!-- OneSignal Web Push SDK - Versión Móvil Robusta -->
+    <!-- OneSignal Web Push SDK -->
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
@@ -42,42 +42,15 @@
           return;
         }
 
-        if ("serviceWorker" in navigator) {
+        window.OneSignalDeferred.push(async function(OneSignal) {
           try {
-            await navigator.serviceWorker.register("/OneSignalSDKWorker.js", { scope: "/" });
-          } catch (swErr) {
-            console.warn("Aviso Service Worker:", swErr);
+            await OneSignal.Notifications.requestPermission();
+            await OneSignal.login("{{ nombre_agencia }}");
+            alert("¡Notificaciones activadas con éxito para {{ nombre_agencia }}! 🍀");
+          } catch (err) {
+            alert("Permiso de notificaciones procesado.");
           }
-        }
-
-        function procesarRespuesta(permiso) {
-          if (permiso === "granted") {
-            window.OneSignalDeferred.push(async function(OneSignal) {
-              try {
-                await OneSignal.login("{{ nombre_agencia }}");
-                if (OneSignal.Notifications && OneSignal.Notifications.requestPermission) {
-                  await OneSignal.Notifications.requestPermission();
-                }
-                alert("¡Notificaciones activadas con éxito para {{ nombre_agencia }}! 🍀");
-              } catch (errOne) {
-                alert("Permiso concedido en el teléfono.");
-              }
-            });
-          } else if (permiso === "denied") {
-            alert("Seleccionaste 'Bloquear'. Si deseas recibir alertas, permite el acceso desde el candado de la barra de direcciones.");
-          } else {
-            alert("No se otorgaron permisos. Vuelve a intentarlo.");
-          }
-        }
-
-        try {
-          var p = Notification.requestPermission(procesarRespuesta);
-          if (p && p.then) {
-            p.then(procesarRespuesta);
-          }
-        } catch (err) {
-          alert("Error solicitando permisos: " + err);
-        }
+        });
       }
     </script>
     
@@ -131,8 +104,8 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.15);
         }
 
-        .nav-tabs {
-            border-bottom: 2px solid var(--color-acento-verde);
+        .nav-tabs { 
+            border-bottom: 2px solid var(--color-acento-verde); 
         }
 
         .nav-tabs .nav-link { 
@@ -140,12 +113,12 @@
             font-weight: 600; 
             border: none; 
             border-radius: 10px 10px 0 0; 
-            margin-right: 4px;
+            margin-right: 4px; 
         }
 
         .nav-tabs .nav-link:hover { 
             color: var(--color-hover); 
-            background-color: rgba(255, 255, 255, 0.6);
+            background-color: rgba(255, 255, 255, 0.6); 
         }
 
         .nav-tabs .nav-link.active { 
@@ -166,7 +139,7 @@
             cursor: pointer; 
             transition: transform 0.2s, box-shadow 0.2s; 
             border: 2px solid var(--color-primario) !important; 
-            border-left: 6px solid var(--color-acento-verde) !important;
+            border-left: 6px solid var(--color-acento-verde) !important; 
             background: linear-gradient(135deg, #ffffff, var(--color-fondo)) !important; 
         }
 
