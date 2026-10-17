@@ -224,7 +224,7 @@
                         </h2>
                     </div>
 
-                    <!-- DESGLOSE DETALLADO -->
+                    <!-- DESGLOSE DETALLADO JUSTIFICACIÓN DE LA CUENTA -->
                     <div class="collapse show mb-4" id="desglosePendienteDetalle">
                         <div class="card p-3 border rounded-3 bg-light shadow-sm small">
                             <h6 class="fw-bold text-dark border-bottom pb-2 mb-2"><i class="fas fa-calculator text-tema me-2"></i>Justificación de la Cuenta:</h6>
@@ -247,6 +247,18 @@
                                     <span class="text-success">🏦 Menos Abonos/Pagos Realizados (Hoy):</span>
                                     <strong class="text-success">- Bs. {{ (desglose_cuenta.abonos_hoy or 0) | dinero }}</strong>
                                 </div>
+                                <!-- DETALLE DE LIQUIDACIONES -->
+                                <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
+                                    <span class="text-danger">💸 Liquidaciones / Pagos de Banca (Hoy):</span>
+                                    <strong class="text-danger">+ Bs. {{ (desglose_cuenta.liquidaciones_hoy or 0) | dinero }}</strong>
+                                </div>
+                                <!-- ADELANTOS (SI EXISTEN) -->
+                                {% if desglose_cuenta.adelantos_hoy and desglose_cuenta.adelantos_hoy > 0 %}
+                                <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
+                                    <span class="text-warning">🤝 Adelantos Entregados (Hoy):</span>
+                                    <strong class="text-warning">+ Bs. {{ (desglose_cuenta.adelantos_hoy or 0) | dinero }}</strong>
+                                </div>
+                                {% endif %}
                                 <div class="col-12 d-flex justify-content-between border-top py-2 bg-white rounded px-2 mt-2">
                                     <strong>💰 TOTAL PENDIENTE EXACTO:</strong>
                                     <strong class="{% if saldo_actual < 0 %}text-success{% elif saldo_actual > 0 %}text-danger{% else %}text-dark{% endif %} fs-6">
