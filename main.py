@@ -1985,3 +1985,7 @@ def get_admin(
         print("Error en admin:", e)
         traceback.print_exc()
         return HTMLResponse(content=f"Error interno en admin: {e}", status_code=500)
+
+@app.get("/templates/logo.png")
+def get_logo():
+    return FileResponse("templates/logo.png", media_type="image/png")
