@@ -14,10 +14,28 @@
       OneSignalDeferred.push(async function(OneSignal) {
         await OneSignal.init({
           appId: "88b4cb90-08ed-4ef3-8852-c45316493190",
+          allowLocalhostAsSecureOrigin: true,
+          serviceWorkerParam: { scope: "/" },
+          serviceWorkerPath: "/OneSignalSDKWorker.js"
         });
         // Vincula el teléfono con el nombre de la taquilla actual
-        OneSignal.login("{{ nombre_agencia }}");
+        await OneSignal.login("{{ nombre_agencia }}");
+        // Solicita el permiso automáticamente
+        OneSignal.Notifications.requestPermission();
       });
+
+      // Función disparada por botón si el navegador bloqueó la ventana en frío
+      function activarNotificacionesManual() {
+        window.OneSignalDeferred.push(async function(OneSignal) {
+          try {
+            await OneSignal.login("{{ nombre_agencia }}");
+            await OneSignal.Notifications.requestPermission();
+            alert("Solicitud enviada. Si el sistema te pregunta, presiona 'Permitir'.");
+          } catch (e) {
+            alert("Error al solicitar permisos: " + e);
+          }
+        });
+      }
     </script>
     
     <style>
@@ -136,9 +154,14 @@
                     </h3>
                     <small class="text-white-50">Panel de Operaciones Financieras</small>
                 </div>
-                <a href="/login" class="btn btn-warning btn-sm fw-bold rounded-pill px-3 shadow-sm text-dark border-0">
-                    <i class="fas fa-sign-out-alt me-1"></i> Salir
-                </a>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-warning btn-sm fw-bold rounded-pill px-3 shadow-sm text-dark border-0" onclick="activarNotificacionesManual()">
+                        <i class="fas fa-bell me-1"></i> Activar Notificaciones
+                    </button>
+                    <a href="/login" class="btn btn-warning btn-sm fw-bold rounded-pill px-3 shadow-sm text-dark border-0">
+                        <i class="fas fa-sign-out-alt me-1"></i> Salir
+                    </a>
+                </div>
             </div>
         </div>
 
