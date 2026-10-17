@@ -282,22 +282,18 @@ def extraer_neto_de_html(detalle_html: str) -> float:
     return neto_acumulado
 
 # ==============================================================================
-# MOTOR CONTABLE DEFINITIVO: CORTE DIARIO A LAS 7:00 PM (19:00 VZLA)
+# MOTOR CONTABLE NORMALIZADO (SIN SALTO DE HORA NI CORTE A LAS 7:00 PM)
 # ==============================================================================
 def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = None):
     ag_norm = normalizar(agencia_raw)
-    ahora_vzla = datetime.now(TZ_VENEZUELA)
     
-    # Corte operativo a las 7:00 PM (19:00 hrs)
-    if ahora_vzla.hour < 19:
-        fecha_hoy_contable = ahora_vzla.date().strftime('%Y-%m-%d')
-    else:
-        fecha_hoy_contable = (ahora_vzla.date() + timedelta(days=1)).strftime('%Y-%m-%d')
+    # Se toma la fecha real sin importar la hora del día
+    fecha_hoy_contable = fecha_corte if fecha_corte else obtener_fecha_venezuela()
 
     conn = get_db()
     cursor = conn.cursor()
 
-    # 1. Buscar si existe un ajuste manual de saldo anterior fijado antes de hoy
+    # 1. Buscar si existe un ajuste manual de saldo anterior fijado antes de esta fecha
     cursor.execute("""
         SELECT fecha, monto FROM pagos 
         WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'
@@ -310,7 +306,7 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
         base_prev = float(ajuste_previo['monto'] or 0.0)
         f_prev = ajuste_previo['fecha']
 
-        # Reportes entre la fecha base y el inicio del día contable de hoy
+        # Reportes entre la fecha base y el inicio del día contable
         cursor.execute("""
             SELECT detalle_html FROM reportes 
             WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha < %s
@@ -369,7 +365,7 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     if abs(saldo_anterior) < 0.05:
         saldo_anterior = 0.0
 
-    # 2. MOVIMIENTOS EN VIVO DEL DÍA ACTUAL (HOY)
+    # 2. MOVIMIENTOS EN VIVO DEL DÍA ACTUAL
     cursor.execute("""
         SELECT detalle_html FROM reportes 
         WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s
@@ -403,7 +399,7 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
         elif tp == 'LIQUIDACION':
             liquidaciones_hoy += m_val
 
-    # 3. SALDO PENDIENTE VIVO EN TIEMPO REAL
+    # 3. SALDO PENDIENTE EN TIEMPO REAL
     saldo_final = saldo_anterior + (neto_hoy - cashea_hoy) - abonos_hoy + adelantos_hoy + liquidaciones_hoy
 
     if abs(saldo_final) < 0.05:
@@ -1691,7 +1687,7 @@ def post_actualizar_regla_banquero(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/guardar-ajuste-banquero-sistema")
-def post_guardar_ajuste_banquero_sistema(
+def post_guardar_ajuste_banquero-sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     fecha: str = Form(...),
