@@ -2,7 +2,9 @@
   "name": "Los Ángeles del Dinero",
   "short_name": "LADD",
   "start_url": "/login",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#fdf2f4",
   "theme_color": "#e91e63",
   "icons": [
