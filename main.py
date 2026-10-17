@@ -16,8 +16,14 @@ from fastapi import FastAPI, Request, Form, UploadFile, File, status
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.gzip import GZipMiddleware
 
 app = FastAPI()
+
+# ==============================================================================
+# COMPRESIÓN DE ALTA VELOCIDAD (OPTIMIZACIÓN MÓVIL)
+# ==============================================================================
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # ==============================================================================
 # CONFIGURACIÓN ONESIGNAL PUSH NOTIFICATIONS (SIN LIBRERÍAS EXTERNAS)
@@ -55,6 +61,13 @@ def disparar_notificacion(agencia_destino: str, titulo: str, mensaje: str):
 @app.get("/OneSignalSDKWorker.js")
 def onesignal_worker():
     return RedirectResponse(url="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js")
+
+@app.get("/manifest.json")
+def get_manifest():
+    ruta_manifest = os.path.join("templates", "manifest.json")
+    if os.path.exists(ruta_manifest):
+        return FileResponse(ruta_manifest, media_type="application/manifest+json")
+    return FileResponse("manifest.json", media_type="application/manifest+json")
 
 # ==============================================================================
 # CONFIGURACIÓN GENERAL Y HORARIA
