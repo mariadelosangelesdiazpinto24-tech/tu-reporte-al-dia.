@@ -55,6 +55,9 @@ def disparar_notificacion(agencia_destino: str, titulo: str, mensaje: str):
 
     if agencia_destino == "TODAS":
         payload["included_segments"] = ["Total Subscriptions"]
+    elif agencia_destino.upper() == "ADMIN":
+        payload["include_aliases"] = {"external_id": ["ADMIN"]}
+        payload["target_channel"] = "push"
     else:
         payload["include_aliases"] = {"external_id": [normalizar(agencia_destino)]}
         payload["target_channel"] = "push"
@@ -1417,6 +1420,9 @@ def post_solicitar_banca_directo(agencia: str = Form(...), fecha: str = Form(...
     )
     conn.commit()
     conn.close()
+    
+    # Notificación enviada al Admin
+    disparar_notificacion("ADMIN", "📩 Solicitud de Dinero Recibida", f"La taquilla {agencia_norm} solicitó Bs. {monto_abs:,.2f} para liquidar saldo.")
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/reportar")
@@ -1450,6 +1456,8 @@ async def post_reportar(
     conn.commit()
     conn.close()
 
+    # Notificación enviada al Admin
+    disparar_notificacion("ADMIN", "💰 Pago Reportado", f"{agencia_norm} ha reportado un pago de Bs. {monto:,.2f} con comprobante.")
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/solicitar-adelanto")
@@ -1466,6 +1474,7 @@ def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), mo
     conn.close()
     
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
+    disparar_notificacion("ADMIN", "💵 Adelanto Registrado", f"La taquilla {agencia_norm} registró un adelanto de Bs. {monto:,.2f}.")
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/actualizar-reporte-sistema")
