@@ -674,8 +674,9 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             subtotal_banquero += total_despues_participacion
             desglose_banqueros[b_nombre]["total_mi_ganancia_banca"] += g_total
 
+        # Descontar Cashea y aplicar ajustes de adelantos y pendientes de la banca
         subtotal_banquero -= cashea_a_descontar
-        subtotal_banquero = subtotal_banquero + adelantos_b_val + pendientes_b_val
+        subtotal_banquero = subtotal_banquero - adelantos_b_val + pendientes_b_val
 
         desglose_banqueros[b_nombre]["total_a_pagar_banquero"] = subtotal_banquero
         desglose_banqueros[b_nombre]["total"] = subtotal_banquero
@@ -924,17 +925,42 @@ def post_guardar_ajustes_banquero_global(
     desde_fecha: Optional[str] = Form(None),
     hasta_fecha: Optional[str] = Form(None)
 ):
+    b_norm = banquero.strip().upper()
     conn = get_db()
     cursor = conn.cursor()
+
+    # 1. Guardar en la tabla de configuración global del banquero
     cursor.execute(
         """INSERT INTO ajustes_globales_banqueros (banquero, fecha, adelantos, pendientes)
            VALUES (%s, %s, %s, %s)
            ON CONFLICT (banquero, fecha)
            DO UPDATE SET adelantos = EXCLUDED.adelantos, pendientes = EXCLUDED.pendientes""",
-        (banquero, fecha, adelantos, pendientes)
+        (b_norm, fecha, adelantos, pendientes)
     )
+
+    # 2. Registrar en la tabla de pagos/transacciones para auditoría
+    cursor.execute(
+        "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo IN ('ADELANTO_BANQUERO', 'PENDIENTE_BANQUERO')",
+        (b_norm, fecha)
+    )
+
+    if adelantos > 0:
+        cursor.execute(
+            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+               VALUES (%s, %s, %s, %s, %s, 'ADELANTO_BANQUERO', 'APROBADO')""",
+            (b_norm, fecha, adelantos, f"Adelanto recibido de {b_norm}", f"Adelanto de dinero entregado por banquero ({fecha})")
+        )
+
+    if pendientes > 0:
+        cursor.execute(
+            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+               VALUES (%s, %s, %s, %s, %s, 'PENDIENTE_BANQUERO', 'APROBADO')""",
+            (b_norm, fecha, pendientes, f"Saldo pendiente atrasado de {b_norm}", f"Saldo pendiente acumulado a cobrar ({fecha})")
+        )
+
     conn.commit()
     conn.close()
+
     url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
@@ -2066,7 +2092,6 @@ def post_restablecer_ajuste_banquero_sistema(
     desde_fecha: Optional[str] = Form(None),
     hasta_fecha: Optional[str] = Form(None)
 ):
-    # Proteger Guaca y Calamar contra restablecimientos accidentales
     if sistema.upper() in ["GUACA", "CALAMAR"]:
         url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
         return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
@@ -2156,7 +2181,7 @@ def get_admin(
             elif tipo_transaccion == 'ENVIADOS':
                 query_pagos += " AND tipo IN ('LIQUIDACION')"
             elif tipo_transaccion == 'ADELANTOS':
-                query_pagos += " AND tipo = 'ADELANTO'"
+                query_pagos += " AND tipo = 'ADELANTO', 'ADELANTO_BANQUERO'"
             elif tipo_transaccion == 'MODIFICACIONES':
                 query_pagos += " AND tipo = 'MODIFICACION'"
             elif tipo_transaccion == 'SOLICITUDES':
@@ -2198,7 +2223,6 @@ def get_admin(
         casheas_generales = [dict(row) for row in cursor.fetchall()]
         total_cashea_filtrado = sum(float(c.get('monto') or 0.0) for c in casheas_generales)
 
-        # CÁLCULO DE BALANCES EN TIEMPO REAL
         positivos = []
         negativos = []
         for ag in agencias:
