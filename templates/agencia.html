@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="/templates/logo.png">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <!-- OneSignal Web Push SDK -->
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
@@ -251,7 +251,7 @@
             </li>
             <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'adelanto' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-adelanto" type="button" onclick="setTab('adelanto')">
-                    <i class="fas fa-hand-holding-dollar me-1"></i> Adelantos / Avance
+                    <i class="fas fa-hand-holding-dollar me-1"></i> Solicitar Avance
                 </button>
             </li>
             <li class="nav-item">
@@ -334,7 +334,7 @@
                         </div>
                         <div class="col-md-6">
                             <button class="btn btn-tema btn-lg w-100 fw-bold shadow-sm rounded-pill py-3" data-bs-toggle="collapse" data-bs-target="#seccionSolicitar">
-                                <i class="fas fa-university me-2 accent-amarillo"></i> Solicitar Dinero a la Banca
+                                <i class="fas fa-hand-holding-dollar me-2 accent-amarillo"></i> Solicitar Avance de Dinero
                             </button>
                         </div>
                     </div>
@@ -371,30 +371,28 @@
                         </div>
                     </div>
 
-                    <!-- FORMULARIO DE SOLICITUD DE DINERO (SALDO O AVANCE) -->
+                    <!-- FORMULARIO DIRECTO: SOLICITAR AVANCE DE DINERO -->
                     <div class="collapse mt-3 mb-3" id="seccionSolicitar">
                         <div class="card p-3 border rounded-3 bg-light shadow-sm">
-                            <h5 class="fw-bold text-tema mb-2"><i class="fas fa-hand-holding-usd me-2"></i>Solicitar Dinero a la Banca</h5>
-                            <p class="small text-muted mb-3">Puedes solicitar que te transfieran tu saldo a favor o solicitar un avance para pago de premios.</p>
+                            <h5 class="fw-bold text-tema mb-2"><i class="fas fa-hand-holding-usd me-2"></i>Solicitar Avance de Dinero</h5>
+                            <p class="small text-muted mb-3">Indica el monto que necesitas para operatividad o pago de premios y envíalo a la administración.</p>
+                            
                             <form action="/solicitar-banca-directo" method="POST" class="row g-3">
                                 <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
-                                <div class="col-md-4">
-                                    <label class="form-label small fw-bold">Tipo de Solicitud:</label>
-                                    <select name="tipo_solicitud" class="form-select form-select-sm" required>
-                                        <option value="SOLICITUD_SALDO" {% if saldo_actual < 0 %}selected{% endif %}>Liquidación de Saldo a Favor</option>
-                                        <option value="AVANCE_PREMIOS" {% if saldo_actual >= 0 %}selected{% endif %}>Avance de Dinero (Premios / Caja)</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
+                                <input type="hidden" name="tipo_solicitud" value="AVANCE_PREMIOS">
+                                
+                                <div class="col-md-6">
                                     <label class="form-label small fw-bold">Fecha:</label>
                                     <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
                                 </div>
-                                <div class="col-md-4">
-                                    <label class="form-label small fw-bold">Monto a Solicitar (Bs.):</label>
-                                    <input type="number" step="0.01" name="monto" class="form-control form-control-sm fw-bold" placeholder="0.00" value="{% if saldo_actual < 0 %}{{ -saldo_actual }}{% endif %}" required>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold">¿Cuánto necesitas? (Bs.):</label>
+                                    <input type="number" step="0.01" name="monto" class="form-control form-control-sm fw-bold text-danger fs-6" placeholder="0.00" required>
                                 </div>
                                 <div class="col-12">
-                                    <button type="submit" class="btn btn-tema fw-bold w-100 shadow-sm rounded-pill">Enviar Solicitud a la Administración</button>
+                                    <button type="submit" class="btn btn-tema fw-bold w-100 shadow-sm rounded-pill py-2">
+                                        <i class="fas fa-paper-plane me-1"></i> Enviar Solicitud de Avance
+                                    </button>
                                 </div>
                             </form>
                         </div>
@@ -577,27 +575,34 @@
                 </div>
             </div>
 
-            <!-- 5. REGISTRAR ADELANTO / AVANCE -->
+            <!-- 5. SOLICITAR AVANCE (CAJITA DIRECTA) -->
             <div class="tab-pane fade {% if tab_activa == 'adelanto' %}show active{% endif %}" id="tab-adelanto" role="tabpanel">
-                <div class="card card-custom p-4 bg-white" style="max-width: 600px; margin: 0 auto;">
-                    <h5 class="fw-bold text-warning mb-2"><i class="fas fa-hand-holding-dollar me-2"></i>Registrar Adelanto de Dinero</h5>
-                    <p class="small text-muted mb-3">Registra si tomaste un adelanto o avance para caja/premios. Se computará de inmediato en tu cuenta.</p>
-                    
-                    <form action="/solicitar-adelanto" method="POST">
+                <div class="card card-custom p-4 bg-white shadow-sm" style="max-width: 520px; margin: 0 auto;">
+                    <div class="text-center mb-3">
+                        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fs-6 mb-2">
+                            <i class="fas fa-hand-holding-dollar me-1"></i> Caja y Premios
+                        </span>
+                        <h5 class="fw-bold text-dark m-0">Solicitar Avance a la Banca</h5>
+                        <small class="text-muted">Llegará de inmediato al panel de administración para ser transferido.</small>
+                    </div>
+
+                    <form action="/solicitar-banca-directo" method="POST">
                         <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
+                        <input type="hidden" name="tipo_solicitud" value="AVANCE_PREMIOS">
+                        
                         <div class="mb-3">
                             <label class="form-label small fw-bold">Fecha:</label>
-                            <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
+                            <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm text-center fw-bold" required>
                         </div>
+
                         <div class="mb-3">
-                            <label class="form-label small fw-bold">Monto del Adelanto (Bs.):</label>
-                            <input type="number" step="0.01" name="monto" class="form-control form-control-sm fw-bold fs-6 text-danger" placeholder="0.00" required>
+                            <label class="form-label small fw-bold">¿Cuánto necesitas? (Bs.):</label>
+                            <input type="number" step="0.01" name="monto" class="form-control form-control-sm fw-bold fs-5 text-center text-danger" placeholder="0.00" required autofocus>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold">Observación / Motivo:</label>
-                            <input type="text" name="observacion" class="form-control form-control-sm" placeholder="Ej: Adelanto para pago de premios mayores" required>
-                        </div>
-                        <button type="submit" class="btn btn-warning fw-bold w-100 rounded-pill shadow-sm py-2 text-dark">Registrar Adelanto</button>
+
+                        <button type="submit" class="btn btn-tema fw-bold w-100 rounded-pill shadow-sm py-2">
+                            <i class="fas fa-paper-plane me-1"></i> Enviar Solicitud a la Administración
+                        </button>
                     </form>
                 </div>
             </div>
