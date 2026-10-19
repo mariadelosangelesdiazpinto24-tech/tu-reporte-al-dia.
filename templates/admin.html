@@ -176,6 +176,9 @@
                 <button class="nav-link {% if tab_activa == 'ajustes' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-ajustes" type="button"><i class="fas fa-hand-holding-dollar me-1"></i> Caja y Ajustes 💵</button>
             </li>
             <li class="nav-item">
+                <button class="nav-link {% if tab_activa == 'conciliacion_admin' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-conciliacion-admin" type="button"><i class="fas fa-balance-scale me-1"></i> Cuadre Semanal 🍀</button>
+            </li>
+            <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'cashea' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-cashea" type="button"><i class="fas fa-cart-shopping me-1"></i> Data Cashea General</button>
             </li>
             <li class="nav-item">
@@ -702,6 +705,155 @@
                                 <button type="submit" class="btn btn-danger btn-sm w-100 fw-bold py-2"><i class="fas fa-paper-plane me-1"></i> Registrar Salida</button>
                             </form>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NUEVA PESTAÑA ADMIN: CUADRE SEMANAL / CONCILIACIÓN POR SISTEMA -->
+            <div class="tab-pane fade {% if tab_activa == 'conciliacion_admin' %}show active{% endif %}" id="tab-conciliacion-admin" role="tabpanel">
+                <div class="card card-custom p-4 bg-white mb-3 shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <div>
+                            <h5 class="fw-bold text-tema m-0"><i class="fas fa-balance-scale me-2"></i>Conciliación Semanal por Sistemas 🍀</h5>
+                            <small class="text-muted">Compara lo cobrado en reportes diarios contra el cierre semanal real de la hoja por taquilla.</small>
+                        </div>
+                    </div>
+
+                    <!-- BUSCADOR Y FILTRO DE TAQUILLA -->
+                    <form method="GET" action="/admin" class="row g-2 align-items-end mb-4 p-3 bg-light rounded-3 border">
+                        <input type="hidden" name="tab" value="conciliacion_admin">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-dark">Filtrar Taquilla:</label>
+                            <select name="agencia" class="form-select form-select-sm fw-bold" onchange="this.form.submit()">
+                                <option value="">-- Todas las Taquillas Consolidadas --</option>
+                                {% for ag in agencias %}
+                                    {% if ag.rol != 'BANQUERO' %}
+                                    <option value="{{ ag.agencia }}" {% if agencia_filtro == ag.agencia %}selected{% endif %}>{{ ag.agencia }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted">Desde:</label>
+                            <input type="date" name="desde_fecha" value="{{ desde_fecha }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted">Hasta:</label>
+                            <input type="date" name="hasta_fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold"><i class="fas fa-magnifying-glass me-1"></i> Filtrar</button>
+                        </div>
+                    </form>
+
+                    {% set c_res = conciliacion_admin_resumen if conciliacion_admin_resumen is defined and conciliacion_admin_resumen else {} %}
+
+                    <!-- TARJETAS DE TOTALES -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <div class="p-3 rounded-4 shadow-sm bg-light border-start border-4 border-primary">
+                                <small class="text-muted fw-bold d-block text-uppercase">Neto Cobrado en Diarios</small>
+                                <h4 class="fw-bold text-primary m-0 mt-1">Bs. {{ (c_res.get('total_reportado', 0)) | dinero }}</h4>
+                                <small class="text-muted" style="font-size: 11px;">Total cobrado a la fecha</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 rounded-4 shadow-sm bg-light border-start border-4 border-info">
+                                <small class="text-muted fw-bold d-block text-uppercase">Neto Real Semanal</small>
+                                <h4 class="fw-bold text-dark m-0 mt-1">Bs. {{ (c_res.get('total_sistema', 0)) | dinero }}</h4>
+                                <small class="text-muted" style="font-size: 11px;">Consolidado real definitivo</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            {% set dif_admin = c_res.get('diferencia', 0) %}
+                            <div class="p-3 rounded-4 shadow-sm bg-light border-start border-4 {% if dif_admin > 0 %}border-danger{% elif dif_admin < 0 %}border-warning{% else %}border-success{% endif %}">
+                                <small class="text-muted fw-bold d-block text-uppercase">Diferencia Neta a Liquidar</small>
+                                <h4 class="fw-bold m-0 mt-1 {% if dif_admin > 0 %}text-danger{% elif dif_admin < 0 %}text-warning{% else %}text-success{% endif %}">
+                                    Bs. {{ dif_admin | dinero }}
+                                </h4>
+                                <small class="fw-bold" style="font-size: 11px;">
+                                    {% if dif_admin > 0 %}
+                                        Por cobrar a favor de banca
+                                    {% elif dif_admin < 0 %}
+                                        Por pagar / abonar a taquilla
+                                    {% else %}
+                                        ¡Cuadrado exacto! ✨
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TABLA DETALLADA -->
+                    <div class="table-responsive mb-3">
+                        <table class="table table-bordered table-hover align-middle mb-0" style="font-size: 12.5px;">
+                            <thead class="table-dark text-center">
+                                <tr>
+                                    {% if not agencia_filtro %}
+                                    <th rowspan="2" class="align-middle">TAQUILLA</th>
+                                    {% endif %}
+                                    <th rowspan="2" class="align-middle" style="min-width: 130px;">SISTEMA</th>
+                                    <th colspan="3" class="bg-primary text-white border-bottom">COBRADO EN DIARIOS</th>
+                                    <th colspan="3" class="bg-secondary text-white border-bottom">CIERRE REAL SEMANAL</th>
+                                    <th colspan="2" class="bg-dark text-warning border-bottom">DIFERENCIAS</th>
+                                </tr>
+                                <tr>
+                                    <th>Venta</th>
+                                    <th>Premios</th>
+                                    <th>Neto Cobrado</th>
+                                    <th>Venta Real</th>
+                                    <th>Premios Real</th>
+                                    <th>Neto Real</th>
+                                    <th>Dif. Venta</th>
+                                    <th>Ajuste Neto</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if conciliacion_admin_detalle is defined and conciliacion_admin_detalle and conciliacion_admin_detalle | length > 0 %}
+                                    {% for row in conciliacion_admin_detalle %}
+                                    {% set r_dif_v = row.get('dif_venta', 0) %}
+                                    {% set r_dif_n = row.get('dif_neto', 0) %}
+                                    <tr class="{% if r_dif_n != 0 %}table-warning{% endif %}">
+                                        {% if not agencia_filtro %}
+                                        <td class="fw-bold text-tema">{{ row.get('agencia', '') }}</td>
+                                        {% endif %}
+                                        <td class="fw-bold">{{ row.get('sistema', '') }}</td>
+                                        <td class="text-end">Bs. {{ (row.get('venta_cobrada', 0)) | dinero }}</td>
+                                        <td class="text-end text-danger">Bs. {{ (row.get('premio_cobrado', 0)) | dinero }}</td>
+                                        <td class="text-end fw-bold text-primary">Bs. {{ (row.get('neto_cobrado', 0)) | dinero }}</td>
+                                        <td class="text-end">Bs. {{ (row.get('venta_real', 0)) | dinero }}</td>
+                                        <td class="text-end text-danger">Bs. {{ (row.get('premio_real', 0)) | dinero }}</td>
+                                        <td class="text-end fw-bold">Bs. {{ (row.get('neto_real', 0)) | dinero }}</td>
+                                        <td class="text-end fw-bold {% if r_dif_v > 0 %}text-danger{% elif r_dif_v < 0 %}text-primary{% else %}text-muted{% endif %}">
+                                            {% if r_dif_v > 0 %}+{% endif %}Bs. {{ r_dif_v | dinero }}
+                                        </td>
+                                        <td class="text-end fw-bold {% if r_dif_n > 0 %}text-danger{% elif r_dif_n < 0 %}text-success{% else %}text-muted{% endif %}">
+                                            {% if r_dif_n > 0 %}+{% endif %}Bs. {{ r_dif_n | dinero }}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                    <tr class="table-dark fw-bold text-end">
+                                        <td {% if not agencia_filtro %}colspan="2"{% endif %} class="text-center">TOTALES</td>
+                                        <td>Bs. {{ (c_res.get('total_venta_cobrada', 0)) | dinero }}</td>
+                                        <td class="text-danger">Bs. {{ (c_res.get('total_premio_cobrado', 0)) | dinero }}</td>
+                                        <td class="text-primary">Bs. {{ (c_res.get('total_reportado', 0)) | dinero }}</td>
+                                        <td>Bs. {{ (c_res.get('total_venta_real', 0)) | dinero }}</td>
+                                        <td class="text-danger">Bs. {{ (c_res.get('total_premio_real', 0)) | dinero }}</td>
+                                        <td>Bs. {{ (c_res.get('total_sistema', 0)) | dinero }}</td>
+                                        <td class="text-warning">Bs. {{ (c_res.get('total_venta_real', 0) - c_res.get('total_venta_cobrada', 0)) | dinero }}</td>
+                                        <td class="{% if c_res.get('diferencia', 0) > 0 %}text-danger{% elif c_res.get('diferencia', 0) < 0 %}text-success{% else %}text-white{% endif %}">
+                                            Bs. {{ c_res.get('diferencia', 0) | dinero }}
+                                        </td>
+                                    </tr>
+                                {% else %}
+                                    <tr>
+                                        <td colspan="{% if not agencia_filtro %}10{% else %}9{% endif %}" class="text-center text-muted py-3">
+                                            No hay registros de conciliación cargados para el período seleccionado.
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
