@@ -372,7 +372,6 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     conn = get_db()
     cursor = conn.cursor()
 
-    # 1. Buscar si hay un ajuste manual de saldo anterior fijado
     cursor.execute("""
         SELECT fecha, monto FROM pagos 
         WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'
@@ -384,7 +383,6 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     if ajuste_previo and ajuste_previo['fecha'] == fecha_hoy_contable:
         saldo_anterior = float(ajuste_previo['monto'] or 0.0)
     else:
-        # 2. Calcular fecha de ayer
         fecha_obj = datetime.strptime(fecha_hoy_contable, '%Y-%m-%d').date()
         fecha_ayer_str = (fecha_obj - timedelta(days=1)).strftime('%Y-%m-%d')
 
@@ -426,7 +424,6 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     if abs(saldo_anterior) < 0.05:
         saldo_anterior = 0.0
 
-    # 3. MOVIMIENTOS EN VIVO DEL DÍA ACTUAL
     cursor.execute("""
         SELECT detalle_html FROM reportes 
         WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s
@@ -583,6 +580,12 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             totales_auxiliares["abonos_banca"] += m_val
 
     ESTRUCTURA_BANQUEROS = obtener_estructura_banqueros_bd()
+
+    # Asegurar absorción de Cashea en NYS
+    for k in ESTRUCTURA_BANQUEROS.keys():
+        if "NYS" in k.upper():
+            ESTRUCTURA_BANQUEROS[k]["absorbe_cashea"] = True
+
     desglose_banqueros = {}
     total_ganancia_excedente = 0.0
     total_ganancia_participacion = 0.0
@@ -597,9 +600,11 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
         adelantos_b_val = float(row_ajustes_glob['sum_adelantos'] or 0.0) if row_ajustes_glob else 0.0
         pendientes_b_val = float(row_ajustes_glob['sum_pendientes'] or 0.0) if row_ajustes_glob else 0.0
 
+        cashea_a_descontar = totales_auxiliares["cashea"] if (cfg.get("absorbe_cashea") or "NYS" in b_nombre.upper()) else 0.0
+
         desglose_banqueros[b_nombre] = {
             "sistemas": [],
-            "cashea_descontado": totales_auxiliares["cashea"] if cfg["absorbe_cashea"] else 0.0,
+            "cashea_descontado": cashea_a_descontar,
             "adelantos_banquero": adelantos_b_val,
             "pendientes_banquero": pendientes_b_val,
             "total_a_pagar_banquero": 0.0,
@@ -669,9 +674,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             subtotal_banquero += total_despues_participacion
             desglose_banqueros[b_nombre]["total_mi_ganancia_banca"] += g_total
 
-        if cfg["absorbe_cashea"]:
-            subtotal_banquero -= totales_auxiliares["cashea"]
-
+        subtotal_banquero -= cashea_a_descontar
         subtotal_banquero = subtotal_banquero + adelantos_b_val + pendientes_b_val
 
         desglose_banqueros[b_nombre]["total_a_pagar_banquero"] = subtotal_banquero
@@ -1381,7 +1384,6 @@ def get_agencia(
     cursor.execute("SELECT id, fecha, monto, detalle_html FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
     reportes_agencia = [dict(row) for row in cursor.fetchall()]
 
-    # Cargar conciliación semanal guardada desde Colab
     cursor.execute("""
         SELECT * FROM conciliaciones_semanales 
         WHERE UPPER(TRIM(agencia)) = %s 
@@ -1528,9 +1530,6 @@ def post_saldar_deuda_taquilla(
 
     return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 
-# ==============================================================================
-# ENDPOINTS PESTAÑA AJUSTES (ADMIN)
-# ==============================================================================
 @app.post("/admin/ajustes/salida-dinero")
 async def post_ajustes_salida_dinero(
     agencia: str = Form(...),
@@ -2067,7 +2066,7 @@ def post_restablecer_ajuste_banquero_sistema(
     desde_fecha: Optional[str] = Form(None),
     hasta_fecha: Optional[str] = Form(None)
 ):
-    # Proteger para que Guaca y Calamar nunca se borren accidentalmente
+    # Proteger Guaca y Calamar contra restablecimientos accidentales
     if sistema.upper() in ["GUACA", "CALAMAR"]:
         url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
         return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
@@ -2270,7 +2269,6 @@ def get_admin(
                 dif_n = float(item.get("dif_neto", 0) or 0)
                 dif_v = float(item.get("dif_venta", 0) or 0)
 
-                # FILTRO EXACTO: Solo agregar si realmente hay una diferencia (descuadre)
                 if abs(dif_n) > 0.01 or abs(dif_v) > 0.01:
                     item_completo = dict(item)
                     item_completo["agencia"] = ag_name
