@@ -2228,7 +2228,7 @@ def get_admin(
                 negativos.append(datos_desglose_neg)
 
         # -------------------------------------------------------------
-        # CONSULTA CONCILIACIÓN SEMANAL PARA ADMIN (TODAS O FILTRADA)
+        # CONSULTA CONCILIACIÓN SEMANAL PARA ADMIN (SOLO DISCREPANCIAS)
         # -------------------------------------------------------------
         if agencia_filtro:
             cursor.execute("""
@@ -2262,18 +2262,22 @@ def get_admin(
                 items_dias = []
 
             for item in items_dias:
-                item_completo = dict(item)
-                item_completo["agencia"] = ag_name
-                conciliacion_admin_detalle.append(item_completo)
+                dif_n = float(item.get("dif_neto", 0) or 0)
+                dif_v = float(item.get("dif_venta", 0) or 0)
 
-                tot_vcob_admin += float(item.get("venta_cobrada", 0) or 0)
-                tot_pcob_admin += float(item.get("premio_cobrado", 0) or 0)
-                tot_vrea_admin += float(item.get("venta_real", 0) or 0)
-                tot_prea_admin += float(item.get("premio_real", 0) or 0)
+                # FILTRO EXACTO: Solo agregar si realmente hay una diferencia (descuadre)
+                if abs(dif_n) > 0.01 or abs(dif_v) > 0.01:
+                    item_completo = dict(item)
+                    item_completo["agencia"] = ag_name
+                    conciliacion_admin_detalle.append(item_completo)
 
-            tot_rep_admin += float(r_ca.get("total_reportado", 0) or 0)
-            tot_sis_admin += float(r_ca.get("total_sistema", 0) or 0)
-            tot_dif_admin += float(r_ca.get("diferencia", 0) or 0)
+                    tot_vcob_admin += float(item.get("venta_cobrada", 0) or 0)
+                    tot_pcob_admin += float(item.get("premio_cobrado", 0) or 0)
+                    tot_vrea_admin += float(item.get("venta_real", 0) or 0)
+                    tot_prea_admin += float(item.get("premio_real", 0) or 0)
+                    tot_rep_admin += float(item.get("neto_cobrado", 0) or 0)
+                    tot_sis_admin += float(item.get("neto_real", 0) or 0)
+                    tot_dif_admin += dif_n
 
         conciliacion_admin_resumen = {
             "total_venta_cobrada": tot_vcob_admin,
