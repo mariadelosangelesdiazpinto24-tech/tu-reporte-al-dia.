@@ -549,7 +549,7 @@
                 </div>
             </div>
 
-            <!-- NUEVA PESTAÑA: 5. CAJA Y AJUSTES MANUALES DIRECTOS -->
+            <!-- 5. CAJA Y AJUSTES MANUALES DIRECTOS -->
             <div class="tab-pane fade {% if tab_activa == 'ajustes' %}show active{% endif %}" id="tab-ajustes" role="tabpanel">
                 <div class="row g-3">
                     <!-- ENTRADA DE DINERO: REGISTRAR PAGO RECIBIDO -->
@@ -560,11 +560,13 @@
                             <form action="/admin/ajustes/registrar-pago-recibido" method="POST" enctype="multipart/form-data">
                                 <div class="mb-3">
                                     <label class="form-label small fw-bold">Taquilla / Agencia:</label>
-                                    <select name="agencia" class="form-select form-select-sm fw-bold" required>
-                                        <option value="">-- Elige una Taquilla --</option>
+                                    <select name="agencia" id="selectCajaEntradaAgencia" class="form-select form-select-sm fw-bold" required onchange="actualizarMontoEntradaAuto(this)">
+                                        <option value="" data-saldo="0">-- Elige una Taquilla --</option>
                                         {% for ag in agencias %}
                                             {% if ag.rol != 'BANQUERO' %}
-                                            <option value="{{ ag.agencia }}">{{ ag.agencia }}</option>
+                                            <option value="{{ ag.agencia }}" data-saldo="{{ ag.saldo_pendiente or 0 }}">
+                                                {{ ag.agencia }} (Pendiente: Bs. {{ (ag.saldo_pendiente or 0) | dinero }})
+                                            </option>
                                             {% endif %}
                                         {% endfor %}
                                     </select>
@@ -585,8 +587,11 @@
                                     </div>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label small fw-bold">Monto Recibido (Bs.):</label>
-                                    <input type="number" step="0.01" name="monto" class="form-control form-control-sm fw-bold fs-6 text-success" placeholder="0.00" required>
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <label class="form-label small fw-bold m-0">Monto Recibido (Bs.):</label>
+                                        <span id="infoSaldoEntrada" class="small fw-bold text-muted" style="font-size: 11px;"></span>
+                                    </div>
+                                    <input type="number" step="0.01" name="monto" id="inputMontoEntrada" class="form-control form-control-sm fw-bold fs-6 text-success" placeholder="0.00" required>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label small fw-bold">Detalle / Referencia:</label>
@@ -609,11 +614,13 @@
                             <form action="/admin/ajustes/salida-dinero" method="POST" enctype="multipart/form-data">
                                 <div class="mb-3">
                                     <label class="form-label small fw-bold">Taquilla / Agencia:</label>
-                                    <select name="agencia" class="form-select form-select-sm fw-bold" required>
-                                        <option value="">-- Elige una Taquilla --</option>
+                                    <select name="agencia" id="selectCajaSalidaAgencia" class="form-select form-select-sm fw-bold" required onchange="actualizarMontoSalidaAuto(this)">
+                                        <option value="" data-saldo="0">-- Elige una Taquilla --</option>
                                         {% for ag in agencias %}
                                             {% if ag.rol != 'BANQUERO' %}
-                                            <option value="{{ ag.agencia }}">{{ ag.agencia }}</option>
+                                            <option value="{{ ag.agencia }}" data-saldo="{{ ag.saldo_pendiente or 0 }}">
+                                                {{ ag.agencia }} (Pendiente: Bs. {{ (ag.saldo_pendiente or 0) | dinero }})
+                                            </option>
                                             {% endif %}
                                         {% endfor %}
                                     </select>
@@ -625,15 +632,18 @@
                                     </div>
                                     <div class="col-6">
                                         <label class="form-label small fw-bold">Tipo de Operación:</label>
-                                        <select name="tipo_salida" class="form-select form-select-sm" required>
+                                        <select name="tipo_salida" id="selectTipoSalida" class="form-select form-select-sm" required>
                                             <option value="LIQUIDACION">Liquidación de Saldo a Favor</option>
                                             <option value="ADELANTO">Adelanto / Avance de Dinero</option>
                                         </select>
                                     </div>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label small fw-bold">Monto Saliente (Bs.):</label>
-                                    <input type="number" step="0.01" name="monto" class="form-control form-control-sm fw-bold fs-6 text-danger" placeholder="0.00" required>
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <label class="form-label small fw-bold m-0">Monto Saliente (Bs.):</label>
+                                        <span id="infoSaldoSalida" class="small fw-bold text-muted" style="font-size: 11px;"></span>
+                                    </div>
+                                    <input type="number" step="0.01" name="monto" id="inputMontoSalida" class="form-control form-control-sm fw-bold fs-6 text-danger" placeholder="0.00" required>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label small fw-bold">Detalle / Motivo:</label>
@@ -1383,6 +1393,65 @@
             }
 
             actualizarResumenBalancesTaquillas();
+        }
+
+        // LÓGICA AUTOMÁTICA DE PRECARGA DE SALDO AL ELEGIR TAQUILLA
+        function actualizarMontoEntradaAuto(selectElem) {
+            var selectedOption = selectElem.options[selectElem.selectedIndex];
+            var saldo = parseFloat(selectedOption.getAttribute('data-saldo')) || 0;
+            var inputMonto = document.getElementById('inputMontoEntrada');
+            var infoSaldo = document.getElementById('infoSaldoEntrada');
+
+            if (saldo > 0.009) {
+                inputMonto.value = saldo.toFixed(2);
+                if (infoSaldo) {
+                    infoSaldo.innerText = "Deuda detectada: Bs. " + saldo.toLocaleString('es-VE', { minimumFractionDigits: 2 });
+                    infoSaldo.className = "small fw-bold text-success";
+                }
+            } else if (saldo < -0.009) {
+                inputMonto.value = "";
+                if (infoSaldo) {
+                    infoSaldo.innerText = "Tiene saldo a favor (-Bs. " + Math.abs(saldo).toLocaleString('es-VE', { minimumFractionDigits: 2 }) + ")";
+                    infoSaldo.className = "small fw-bold text-danger";
+                }
+            } else {
+                inputMonto.value = "";
+                if (infoSaldo) {
+                    infoSaldo.innerText = "Cuenta al día (0.00)";
+                    infoSaldo.className = "small fw-bold text-muted";
+                }
+            }
+        }
+
+        function actualizarMontoSalidaAuto(selectElem) {
+            var selectedOption = selectElem.options[selectElem.selectedIndex];
+            var saldo = parseFloat(selectedOption.getAttribute('data-saldo')) || 0;
+            var inputMonto = document.getElementById('inputMontoSalida');
+            var selectTipo = document.getElementById('selectTipoSalida');
+            var infoSaldo = document.getElementById('infoSaldoSalida');
+
+            if (saldo < -0.009) {
+                var saldoAbs = Math.abs(saldo);
+                inputMonto.value = saldoAbs.toFixed(2);
+                if (selectTipo) selectTipo.value = "LIQUIDACION";
+                if (infoSaldo) {
+                    infoSaldo.innerText = "Saldo a favor para liquidar: Bs. " + saldoAbs.toLocaleString('es-VE', { minimumFractionDigits: 2 });
+                    infoSaldo.className = "small fw-bold text-danger";
+                }
+            } else if (saldo > 0.009) {
+                inputMonto.value = "";
+                if (selectTipo) selectTipo.value = "ADELANTO";
+                if (infoSaldo) {
+                    infoSaldo.innerText = "Taquilla debe (Bs. " + saldo.toLocaleString('es-VE', { minimumFractionDigits: 2 }) + ")";
+                    infoSaldo.className = "small fw-bold text-warning";
+                }
+            } else {
+                inputMonto.value = "";
+                if (infoSaldo) {
+                    infoSaldo.innerText = "Cuenta al día (0.00)";
+                    infoSaldo.className = "small fw-bold text-muted";
+                }
+            }
         }
 
         document.addEventListener("DOMContentLoaded", function() {
