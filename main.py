@@ -1100,7 +1100,6 @@ def obtener_historico_semana(agencia: str, desde: str, hasta: str):
     conn = get_db()
     cursor = conn.cursor()
     
-    # Extraemos todos los reportes de la semana cerrada
     cursor.execute("""
         SELECT detalle_html FROM reportes 
         WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s
@@ -1392,21 +1391,21 @@ def get_agencia(
 
     if row_concil:
         try:
-            resumen_data = json.loads(row_concil.get("total_reportado") if isinstance(row_concil.get("total_reportado"), str) else "{}")
-        except Exception:
-            resumen_data = {}
-
-        try:
             detalle_conciliacion = json.loads(row_concil["detalle_dias"] or "[]")
         except Exception:
             detalle_conciliacion = []
 
+        tot_v_cob = sum(float(item.get("venta_cobrada", 0)) for item in detalle_conciliacion)
+        tot_p_cob = sum(float(item.get("premio_cobrado", 0)) for item in detalle_conciliacion)
+        tot_v_rea = sum(float(item.get("venta_real", 0)) for item in detalle_conciliacion)
+        tot_p_rea = sum(float(item.get("premio_real", 0)) for item in detalle_conciliacion)
+
         conciliacion_resumen = {
-            "total_venta_cobrada": float(resumen_data.get("total_venta_cobrada", 0.0) or 0.0),
-            "total_premio_cobrado": float(resumen_data.get("total_premio_cobrado", 0.0) or 0.0),
+            "total_venta_cobrada": tot_v_cob,
+            "total_premio_cobrado": tot_p_cob,
             "total_reportado": float(row_concil["total_reportado"] or 0.0),
-            "total_venta_real": float(resumen_data.get("total_venta_real", 0.0) or 0.0),
-            "total_premio_real": float(resumen_data.get("total_premio_real", 0.0) or 0.0),
+            "total_venta_real": tot_v_rea,
+            "total_premio_real": tot_p_rea,
             "total_sistema": float(row_concil["total_sistema"] or 0.0),
             "diferencia": float(row_concil["diferencia"] or 0.0)
         }
@@ -1536,7 +1535,7 @@ def post_saldar_deuda_taquilla(
 async def post_ajustes_salida_dinero(
     agencia: str = Form(...),
     fecha: str = Form(...),
-    tipo_salida: str = Form(...),  # 'LIQUIDACION' (pagar saldo a favor) o 'ADELANTO' (avance)
+    tipo_salida: str = Form(...),
     monto: float = Form(...),
     detalle: Optional[str] = Form(""),
     comprobante_file: Optional[UploadFile] = File(None)
@@ -2175,7 +2174,7 @@ def get_admin(
         hoy_vzla = obtener_fecha_venezuela()
         lunes_sem, domingo_sem = obtener_rango_semana_actual()
         
-        if tab in ['totalizador', 'desglose_banca'] and not desde_fecha and not hasta_fecha:
+        if tab in ['totalizador', 'desglose_banca', 'conciliacion_admin'] and not desde_fecha and not hasta_fecha:
             f_desde = lunes_sem
             f_hasta = domingo_sem
         else:
@@ -2228,6 +2227,64 @@ def get_admin(
                 datos_desglose_neg["monto"] = abs(balance_contable)
                 negativos.append(datos_desglose_neg)
 
+        # -------------------------------------------------------------
+        # CONSULTA CONCILIACIÓN SEMANAL PARA ADMIN (TODAS O FILTRADA)
+        # -------------------------------------------------------------
+        if agencia_filtro:
+            cursor.execute("""
+                SELECT * FROM conciliaciones_semanales 
+                WHERE UPPER(TRIM(agencia)) = %s 
+                ORDER BY id DESC LIMIT 1
+            """, (normalizar(agencia_filtro),))
+            rows_concil_admin = cursor.fetchall()
+        else:
+            cursor.execute("""
+                SELECT DISTINCT ON (UPPER(TRIM(agencia))) * 
+                FROM conciliaciones_semanales 
+                ORDER BY UPPER(TRIM(agencia)), id DESC
+            """)
+            rows_concil_admin = cursor.fetchall()
+
+        conciliacion_admin_detalle = []
+        tot_rep_admin = 0.0
+        tot_sis_admin = 0.0
+        tot_dif_admin = 0.0
+        tot_vcob_admin = 0.0
+        tot_pcob_admin = 0.0
+        tot_vrea_admin = 0.0
+        tot_prea_admin = 0.0
+
+        for r_ca in rows_concil_admin:
+            ag_name = r_ca.get("agencia", "")
+            try:
+                items_dias = json.loads(r_ca.get("detalle_dias") or "[]")
+            except Exception:
+                items_dias = []
+
+            for item in items_dias:
+                item_completo = dict(item)
+                item_completo["agencia"] = ag_name
+                conciliacion_admin_detalle.append(item_completo)
+
+                tot_vcob_admin += float(item.get("venta_cobrada", 0) or 0)
+                tot_pcob_admin += float(item.get("premio_cobrado", 0) or 0)
+                tot_vrea_admin += float(item.get("venta_real", 0) or 0)
+                tot_prea_admin += float(item.get("premio_real", 0) or 0)
+
+            tot_rep_admin += float(r_ca.get("total_reportado", 0) or 0)
+            tot_sis_admin += float(r_ca.get("total_sistema", 0) or 0)
+            tot_dif_admin += float(r_ca.get("diferencia", 0) or 0)
+
+        conciliacion_admin_resumen = {
+            "total_venta_cobrada": tot_vcob_admin,
+            "total_premio_cobrado": tot_pcob_admin,
+            "total_reportado": tot_rep_admin,
+            "total_venta_real": tot_vrea_admin,
+            "total_premio_real": tot_prea_admin,
+            "total_sistema": tot_sis_admin,
+            "diferencia": tot_dif_admin
+        }
+
         conn.close()
 
         (
@@ -2263,6 +2320,8 @@ def get_admin(
             "suma_cuadros_banqueros": suma_cuadros_banqueros,
             "solicitudes_pendientes": solicitudes_pendientes,
             "solicitudes_pendientes_count": solicitudes_pendientes_count,
+            "conciliacion_admin_resumen": conciliacion_admin_resumen,
+            "conciliacion_admin_detalle": conciliacion_admin_detalle,
             "desde_fecha": f_desde,
             "hasta_fecha": f_hasta,
             "agencia_filtro": agencia_filtro,
