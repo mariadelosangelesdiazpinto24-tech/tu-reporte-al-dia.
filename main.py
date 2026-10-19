@@ -299,6 +299,21 @@ def init_db():
         )
     ''')
 
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS conciliaciones_semanales (
+            id SERIAL PRIMARY KEY,
+            agencia TEXT,
+            desde_fecha TEXT,
+            hasta_fecha TEXT,
+            total_reportado DOUBLE PRECISION DEFAULT 0,
+            total_pagado DOUBLE PRECISION DEFAULT 0,
+            total_sistema DOUBLE PRECISION DEFAULT 0,
+            diferencia DOUBLE PRECISION DEFAULT 0,
+            detalle_dias TEXT,
+            UNIQUE(agencia, desde_fecha, hasta_fecha)
+        )
+    ''')
+
     agencias_base = [
         "MILA", "ANA MARIA", "NABEL", "VIP23", "DESTINO SUERTE", 
         "VALLEMIL", "ALEXA", "PALOMITA", "GEGE", "LILI LA LOBA", 
@@ -1026,6 +1041,43 @@ async def guardar_reporte_colab(request: Request):
 
     return {"status": "ok", "mensaje": "Reporte actualizado con éxito"}
 
+@app.post("/api/guardar-conciliacion-colab")
+async def guardar_conciliacion_colab(request: Request):
+    data = await request.form()
+    agencia_raw = data.get("agencia", "")
+    agencia = normalizar(agencia_raw)
+    desde_fecha = data.get("desde_fecha", "")
+    hasta_fecha = data.get("hasta_fecha", "")
+    resumen_raw = data.get("resumen", "{}")
+    detalle_raw = data.get("detalle", "[]")
+
+    try:
+        data_resumen = json.loads(resumen_raw)
+    except Exception:
+        data_resumen = {}
+
+    total_reportado = float(data_resumen.get("total_reportado", 0.0) or 0.0)
+    total_pagado = float(data_resumen.get("total_pagado", 0.0) or 0.0)
+    total_sistema = float(data_resumen.get("total_sistema", 0.0) or 0.0)
+    diferencia = float(data_resumen.get("diferencia", 0.0) or 0.0)
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO conciliaciones_semanales (agencia, desde_fecha, hasta_fecha, total_reportado, total_pagado, total_sistema, diferencia, detalle_dias)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (agencia, desde_fecha, hasta_fecha)
+        DO UPDATE SET total_reportado = EXCLUDED.total_reportado,
+                      total_pagado = EXCLUDED.total_pagado,
+                      total_sistema = EXCLUDED.total_sistema,
+                      diferencia = EXCLUDED.diferencia,
+                      detalle_dias = EXCLUDED.detalle_dias
+    """, (agencia, desde_fecha, hasta_fecha, total_reportado, total_pagado, total_sistema, diferencia, detalle_raw))
+    conn.commit()
+    conn.close()
+
+    return {"status": "ok", "mensaje": f"Conciliación guardada para {agencia}"}
+
 @app.get("/", response_class=HTMLResponse)
 @app.get("/login", response_class=HTMLResponse)
 def get_login(request: Request):
@@ -1266,6 +1318,34 @@ def get_agencia(
     cursor.execute("SELECT id, fecha, monto, detalle_html FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
     reportes_agencia = [dict(row) for row in cursor.fetchall()]
 
+    # Cargar conciliación semanal guardada desde Colab
+    cursor.execute("""
+        SELECT * FROM conciliaciones_semanales 
+        WHERE UPPER(TRIM(agencia)) = %s 
+        ORDER BY id DESC LIMIT 1
+    """, (agencia_norm,))
+    row_concil = cursor.fetchone()
+
+    if row_concil:
+        conciliacion_resumen = {
+            "total_reportado": float(row_concil["total_reportado"] or 0.0),
+            "total_pagado": float(row_concil["total_pagado"] or 0.0),
+            "total_sistema": float(row_concil["total_sistema"] or 0.0),
+            "diferencia": float(row_concil["diferencia"] or 0.0)
+        }
+        try:
+            detalle_conciliacion = json.loads(row_concil["detalle_dias"] or "[]")
+        except Exception:
+            detalle_conciliacion = []
+    else:
+        conciliacion_resumen = {
+            "total_reportado": 0.0,
+            "total_pagado": 0.0,
+            "total_sistema": 0.0,
+            "diferencia": 0.0
+        }
+        detalle_conciliacion = []
+
     conn.close()
     
     return templates.TemplateResponse(request=request, name="agencia.html", context={
@@ -1287,6 +1367,8 @@ def get_agencia(
         "totales_auditoria": totales_auditoria,
         "auditoria_cashea_monto": auditoria_cashea_monto,
         "facturas_cashea_auditoria": facturas_cashea_auditoria,
+        "conciliacion_resumen": conciliacion_resumen,
+        "detalle_conciliacion": detalle_conciliacion,
         "desde_fecha": f_desde,
         "hasta_fecha": f_hasta,
         "tab_activa": tab or "pendiente"
@@ -1878,7 +1960,7 @@ def post_actualizar_regla_banquero(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/guardar-ajuste-banquero-sistema")
-def post_guardar_ajuste_banquero_sistema(
+def post_guardar_ajuste_banquero-sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     fecha: str = Form(...),
@@ -2121,4 +2203,3 @@ def get_admin(
 @app.get("/templates/logo.png")
 def get_logo():
     return FileResponse("templates/logo.png", media_type="image/png")
-    
