@@ -237,6 +237,15 @@
                                         Bs. {{ (ag.saldo_pendiente or 0) | dinero }}
                                     </td>
                                     <td class="text-center">
+                                        <!-- Botón de Sincronización Directa de Saldo hacia la Taquilla -->
+                                        <form action="/admin/sincronizar-taquilla" method="POST" class="d-inline" title="Recalcular y sincronizar saldo real con la taquilla">
+                                            <input type="hidden" name="agencia" value="{{ ag.agencia }}">
+                                            <input type="hidden" name="redirect_to" value="taquillas">
+                                            <button type="submit" class="btn btn-outline-info btn-sm py-0 me-1">
+                                                <i class="fas fa-arrows-rotate"></i>
+                                            </button>
+                                        </form>
+
                                         <button type="button" class="btn btn-outline-warning btn-sm py-0 me-1" title="Ajustar Saldo Anterior" 
                                                 data-bs-toggle="modal" 
                                                 data-bs-target="#modalAjustarSaldoAnterior" 
@@ -426,7 +435,7 @@
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover align-middle mb-0 bg-white" id="tablaPositivos">
                                         <thead class="table-light">
-                                            <tr><th>AGENCIA</th><th class="text-end">DEUDA</th><th class="text-center" style="width: 85px;">ACCIONES</th></tr>
+                                            <tr><th>AGENCIA</th><th class="text-end">DEUDA</th><th class="text-center" style="width: 105px;">ACCIONES</th></tr>
                                         </thead>
                                         <tbody>
                                             {% for pos in positivos %}
@@ -440,6 +449,7 @@
                                                 <td class="text-end fw-bold text-success col-monto-cobrar">Bs. {{ pos.monto | dinero }}</td>
                                                 <td class="text-center">
                                                     <div class="d-flex gap-1 justify-content-center">
+                                                        <!-- Saldar a 0.00 -->
                                                         <form action="/admin/saldar-deuda-taquilla" method="POST" onsubmit="return confirm('¿Marcar la cuenta de {{ pos.agencia }} como totalmente saldada?');">
                                                             <input type="hidden" name="agencia" value="{{ pos.agencia }}">
                                                             <input type="hidden" name="monto_restante" value="{{ pos.monto }}">
@@ -448,6 +458,17 @@
                                                                 <i class="fas fa-check"></i>
                                                             </button>
                                                         </form>
+                                                        
+                                                        <!-- Sincronizar hacia Taquilla -->
+                                                        <form action="/admin/sincronizar-taquilla" method="POST" title="Recalcular y sincronizar con la taquilla">
+                                                            <input type="hidden" name="agencia" value="{{ pos.agencia }}">
+                                                            <input type="hidden" name="redirect_to" value="balances">
+                                                            <button type="submit" class="btn btn-outline-info btn-sm py-0 px-2">
+                                                                <i class="fas fa-arrows-rotate"></i>
+                                                            </button>
+                                                        </form>
+
+                                                        <!-- Copiar Desglose con Fecha Actual -->
                                                         <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" title="Copiar Desglose" 
                                                                 onclick="copiarDesgloseIndividual('{{ pos.agencia }}', '{{ pos.saldo_anterior or 0 }}', '{{ pos.reporte_neto or 0 }}', '{{ pos.cashea or 0 }}', '{{ pos.adelantos or 0 }}', '{{ pos.liquidaciones or 0 }}', '{{ pos.abonos or 0 }}', '{{ pos.monto }}')">
                                                             <i class="fas fa-copy"></i>
@@ -471,7 +492,7 @@
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover align-middle mb-0 bg-white" id="tablaNegativos">
                                         <thead class="table-light">
-                                            <tr><th>AGENCIA</th><th class="text-end">MONTO</th><th class="text-center" style="width: 85px;">ACCIONES</th></tr>
+                                            <tr><th>AGENCIA</th><th class="text-end">MONTO</th><th class="text-center" style="width: 105px;">ACCIONES</th></tr>
                                         </thead>
                                         <tbody>
                                             {% for neg in negativos %}
@@ -485,6 +506,7 @@
                                                 <td class="text-end fw-bold text-danger col-monto-pagar">Bs. {{ neg.monto | dinero }}</td>
                                                 <td class="text-center">
                                                     <div class="d-flex gap-1 justify-content-center">
+                                                        <!-- Liquidar Saldo a Favor a 0.00 -->
                                                         <form action="/admin/saldar-deuda-taquilla" method="POST" onsubmit="return confirm('¿Liquidar completamente y llevar a 0.00 la cuenta de {{ neg.agencia }}?');">
                                                             <input type="hidden" name="agencia" value="{{ neg.agencia }}">
                                                             <input type="hidden" name="monto_restante" value="{{ -neg.monto }}">
@@ -493,6 +515,17 @@
                                                                 <i class="fas fa-check"></i>
                                                             </button>
                                                         </form>
+                                                        
+                                                        <!-- Sincronizar hacia Taquilla -->
+                                                        <form action="/admin/sincronizar-taquilla" method="POST" title="Recalcular y sincronizar con la taquilla">
+                                                            <input type="hidden" name="agencia" value="{{ neg.agencia }}">
+                                                            <input type="hidden" name="redirect_to" value="balances">
+                                                            <button type="submit" class="btn btn-outline-info btn-sm py-0 px-2">
+                                                                <i class="fas fa-arrows-rotate"></i>
+                                                            </button>
+                                                        </form>
+
+                                                        <!-- Copiar Desglose con Fecha Actual -->
                                                         <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" title="Copiar Desglose" 
                                                                 onclick="copiarDesgloseIndividual('{{ neg.agencia }}', '{{ neg.saldo_anterior or 0 }}', '{{ neg.reporte_neto or 0 }}', '{{ neg.cashea or 0 }}', '{{ neg.adelantos or 0 }}', '{{ neg.liquidaciones or 0 }}', '{{ neg.abonos or 0 }}', '{{ -neg.monto }}')">
                                                             <i class="fas fa-copy"></i>
@@ -1622,7 +1655,7 @@
 
             var totalFinal = (totBackendNum !== 0) ? totBackendNum : (antNum + repNum - casNum - aboNum + liqNum + adeNum);
 
-            // Obtener fecha actual en formato DD/MM/AAAA
+            // Obtener fecha actual en formato DD/MM/AAAA del momento exacto del copiado
             var hoy = new Date();
             var dia = String(hoy.getDate()).padStart(2, '0');
             var mes = String(hoy.getMonth() + 1).padStart(2, '0');
