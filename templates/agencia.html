@@ -230,37 +230,37 @@
         <!-- PESTAÑAS -->
         <ul class="nav nav-tabs mb-4" id="agenciaTabs" role="tablist">
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'pendiente' or not tab_activa or tab_activa == 'reportes' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-pendiente" type="button" onclick="setTab('pendiente')">
+                <button class="nav-link {% if tab_activa == 'pendiente' or not tab_activa or tab_activa == 'reportes' %}active{% endif %}" id="btn-tab-pendiente" data-bs-toggle="tab" data-bs-target="#tab-pendiente" type="button" onclick="setTab('pendiente')">
                     <i class="fas fa-clock me-1"></i> Pendientes / Pagos
                 </button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'cashea' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-cashea" type="button" onclick="setTab('cashea')">
+                <button class="nav-link {% if tab_activa == 'cashea' %}active{% endif %}" id="btn-tab-cashea" data-bs-toggle="tab" data-bs-target="#tab-cashea" type="button" onclick="setTab('cashea')">
                     <i class="fas fa-shopping-cart me-1"></i> Cashea
                 </button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'auditoria' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-auditoria" type="button" onclick="setTab('auditoria')">
+                <button class="nav-link {% if tab_activa == 'auditoria' %}active{% endif %}" id="btn-tab-auditoria" data-bs-toggle="tab" data-bs-target="#tab-auditoria" type="button" onclick="setTab('auditoria')">
                     <i class="fas fa-chart-bar me-1"></i> Auditoría Consolidada
                 </button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'transacciones' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-transacciones" type="button" onclick="setTab('transacciones')">
+                <button class="nav-link {% if tab_activa == 'transacciones' %}active{% endif %}" id="btn-tab-transacciones" data-bs-toggle="tab" data-bs-target="#tab-transacciones" type="button" onclick="setTab('transacciones')">
                     <i class="fas fa-exchange-alt me-1"></i> Transacciones
                 </button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'adelanto' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-adelanto" type="button" onclick="setTab('adelanto')">
+                <button class="nav-link {% if tab_activa == 'adelanto' %}active{% endif %}" id="btn-tab-adelanto" data-bs-toggle="tab" data-bs-target="#tab-adelanto" type="button" onclick="setTab('adelanto')">
                     <i class="fas fa-hand-holding-dollar me-1"></i> Solicitar Avance
                 </button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'modificaciones' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-modificaciones" type="button" onclick="setTab('modificaciones')">
+                <button class="nav-link {% if tab_activa == 'modificaciones' %}active{% endif %}" id="btn-tab-modificaciones" data-bs-toggle="tab" data-bs-target="#tab-modificaciones" type="button" onclick="setTab('modificaciones')">
                     <i class="fas fa-edit me-1"></i> Modificaciones
                 </button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'cuenta' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-cuenta" type="button" onclick="setTab('cuenta')">
+                <button class="nav-link {% if tab_activa == 'cuenta' %}active{% endif %}" id="btn-tab-cuenta" data-bs-toggle="tab" data-bs-target="#tab-cuenta" type="button" onclick="setTab('cuenta')">
                     <i class="fas fa-user-lock me-1"></i> Mi Cuenta
                 </button>
             </li>
@@ -326,21 +326,21 @@
                         </div>
                     </div>
 
-                    <div class="row g-3 mb-2">
+                    <div class="row g-3">
                         <div class="col-md-6">
                             <button class="btn btn-success btn-lg w-100 fw-bold shadow-sm rounded-pill py-3" data-bs-toggle="collapse" data-bs-target="#seccionPagar">
                                 <i class="fas fa-credit-card me-2 accent-amarillo"></i> Registrar Pago o Abono a la Banca
                             </button>
                         </div>
                         <div class="col-md-6">
-                            <button class="btn btn-tema btn-lg w-100 fw-bold shadow-sm rounded-pill py-3" data-bs-toggle="collapse" data-bs-target="#seccionSolicitar">
+                            <button class="btn btn-tema btn-lg w-100 fw-bold shadow-sm rounded-pill py-3" type="button" onclick="irASolicitarAvance()">
                                 <i class="fas fa-hand-holding-dollar me-2 accent-amarillo"></i> Solicitar Avance de Dinero
                             </button>
                         </div>
                     </div>
 
                     <!-- FORMULARIO DE PAGO -->
-                    <div class="collapse mt-3 mb-3" id="seccionPagar">
+                    <div class="collapse mt-3" id="seccionPagar">
                         <div class="card p-3 border rounded-3 bg-light shadow-sm">
                             <h5 class="fw-bold text-success mb-2"><i class="fas fa-check-square me-2"></i>Reportar Pago a la Banca:</h5>
                             <p class="small text-muted mb-3">Introduce los datos del pago móvil o transferencia realizada.</p>
@@ -369,49 +369,6 @@
                                 <button type="submit" class="btn btn-success fw-bold w-100 mt-3 shadow-sm rounded-pill">Confirmar y Enviar Comprobante</button>
                             </form>
                         </div>
-                    </div>
-
-                    <!-- FORMULARIO DIRECTO: SOLICITAR AVANCE DE DINERO -->
-                    <div class="collapse mt-3 mb-3" id="seccionSolicitar">
-                        <div class="card p-3 border rounded-3 bg-light shadow-sm">
-                            <h5 class="fw-bold text-tema mb-2"><i class="fas fa-hand-holding-usd me-2"></i>Solicitar Avance de Dinero</h5>
-                            <p class="small text-muted mb-3">Indica el monto que necesitas para operatividad o pago de premios y envíalo a la administración.</p>
-                            
-                            <form action="/solicitar-banca-directo" method="POST" class="row g-3">
-                                <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
-                                <input type="hidden" name="tipo_solicitud" value="AVANCE_PREMIOS">
-                                
-                                <div class="col-md-6">
-                                    <label class="form-label small fw-bold">Fecha:</label>
-                                    <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label small fw-bold">¿Cuánto necesitas? (Bs.):</label>
-                                    <input type="number" step="0.01" name="monto" class="form-control form-control-sm fw-bold text-danger fs-6" placeholder="0.00" required>
-                                </div>
-                                <div class="col-12">
-                                    <button type="submit" class="btn btn-tema fw-bold w-100 shadow-sm rounded-pill py-2">
-                                        <i class="fas fa-paper-plane me-1"></i> Enviar Solicitud de Avance
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-
-                    <!-- REPORTE DETALLADO DEL DÍA (TABLA DE SISTEMAS Y TOTALES) -->
-                    <div class="mt-4">
-                        {% for r in reportes %}
-                            {% if r.detalle_html %}
-                                <div class="mb-4">
-                                    {{ r.detalle_html | safe }}
-                                </div>
-                            {% endif %}
-                        {% else %}
-                            <div class="alert alert-light text-center text-muted border py-4">
-                                <i class="fas fa-receipt fa-2x mb-2 d-block text-secondary"></i>
-                                No hay reportes registrados para este período.
-                            </div>
-                        {% endfor %}
                     </div>
 
                 </div>
@@ -575,7 +532,7 @@
                 </div>
             </div>
 
-            <!-- 5. SOLICITAR AVANCE (CAJITA DIRECTA) -->
+            <!-- 5. SOLICITAR AVANCE (SIN SELECCIONAR FECHA) -->
             <div class="tab-pane fade {% if tab_activa == 'adelanto' %}show active{% endif %}" id="tab-adelanto" role="tabpanel">
                 <div class="card card-custom p-4 bg-white shadow-sm" style="max-width: 520px; margin: 0 auto;">
                     <div class="text-center mb-3">
@@ -589,18 +546,14 @@
                     <form action="/solicitar-banca-directo" method="POST">
                         <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
                         <input type="hidden" name="tipo_solicitud" value="AVANCE_PREMIOS">
-                        
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold">Fecha:</label>
-                            <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm text-center fw-bold" required>
+                        <input type="hidden" name="fecha" value="{{ hasta_fecha }}">
+
+                        <div class="mb-4">
+                            <label class="form-label small fw-bold text-muted">¿Cuánto necesitas? (Bs.):</label>
+                            <input type="number" step="0.01" name="monto" class="form-control form-control-lg fw-bold fs-4 text-center text-danger" placeholder="0.00" required autofocus>
                         </div>
 
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold">¿Cuánto necesitas? (Bs.):</label>
-                            <input type="number" step="0.01" name="monto" class="form-control form-control-sm fw-bold fs-5 text-center text-danger" placeholder="0.00" required autofocus>
-                        </div>
-
-                        <button type="submit" class="btn btn-tema fw-bold w-100 rounded-pill shadow-sm py-2">
+                        <button type="submit" class="btn btn-tema fw-bold w-100 rounded-pill shadow-sm py-3">
                             <i class="fas fa-paper-plane me-1"></i> Enviar Solicitud a la Administración
                         </button>
                     </form>
@@ -672,6 +625,15 @@
             var campo = document.getElementById('campo_tab_activa');
             if (campo) {
                 campo.value = tabName;
+            }
+        }
+
+        function irASolicitarAvance() {
+            var tabBtn = document.getElementById('btn-tab-adelanto');
+            if (tabBtn) {
+                var tab = new bootstrap.Tab(tabBtn);
+                tab.show();
+                setTab('adelanto');
             }
         }
 
