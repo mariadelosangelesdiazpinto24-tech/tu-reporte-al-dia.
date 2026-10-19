@@ -201,10 +201,11 @@
                         <i class="fas fa-edit me-2"></i>Modificar Sistema de Día Anterior 🌴
                     </h5>
                     <p class="text-muted small mb-4">
-                        Modifica cualquier venta o premio pasado de una agencia. El sistema actualizará el reporte y sincronizará de inmediato el <strong>saldo restante</strong> en la taquilla y en el admin.
+                        Modifica cualquier venta o premio de una agencia en una fecha determinada. El sistema recalculará la fila de ese sistema, los totales y el saldo restante automáticamente.
                     </p>
                     
-                    <form action="/admin/modificar-sistema-dia-anterior" method="POST" class="p-3 bg-light rounded-4 border">
+                    <form action="/actualizar-reporte-sistema" method="POST" class="p-3 bg-light rounded-4 border">
+                        <input type="hidden" name="origen" value="admin">
                         <div class="row g-3 mb-3">
                             <div class="col-md-3">
                                 <label class="form-label small fw-bold text-dark">Agencia / Taquilla:</label>
@@ -225,19 +226,9 @@
                                 <label class="form-label small fw-bold text-dark">Sistema:</label>
                                 <select name="sistema" class="form-select form-select-sm fw-bold" required>
                                     <option value="">-- Elige Sistema --</option>
-                                    <option value="LA IMAGINARIA">LA IMAGINARIA</option>
-                                    <option value="MAXPLAY">MAXPLAY</option>
-                                    <option value="LUCKY">LUCKY</option>
-                                    <option value="MATRIX">MATRIX</option>
-                                    <option value="POZO">POZO</option>
-                                    <option value="POSNET">POSNET</option>
-                                    <option value="WINBIG">WINBIG</option>
-                                    <option value="GATO">GATO</option>
-                                    <option value="LOTIPOS">LOTIPOS</option>
-                                    <option value="SRQ">SRQ</option>
-                                    <option value="BETSOL">BETSOL</option>
-                                    <option value="PREMIER">PREMIER</option>
-                                    <option value="PARLEY">PARLEY</option>
+                                    {% for s in sistemas %}
+                                    <option value="{{ s }}">{{ s }}</option>
+                                    {% endfor %}
                                 </select>
                             </div>
                             <div class="col-md-2">
@@ -250,7 +241,7 @@
                             </div>
                         </div>
                         <button type="submit" class="btn btn-tema w-100 fw-bold py-2 rounded-3 shadow-sm">
-                            <i class="fas fa-save me-1"></i> Guardar Modificación y Sincronizar Saldo
+                            <i class="fas fa-save me-1"></i> Guardar Modificación
                         </button>
                     </form>
                 </div>
