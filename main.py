@@ -1042,17 +1042,17 @@ async def guardar_reporte_colab(request: Request):
     return {"status": "ok", "mensaje": "Reporte actualizado con éxito"}
 
 @app.post("/api/guardar-conciliacion-colab")
-async def guardar_conciliacion_colab(request: Request):
-    data = await request.form()
-    agencia_raw = data.get("agencia", "")
-    agencia = normalizar(agencia_raw)
-    desde_fecha = data.get("desde_fecha", "")
-    hasta_fecha = data.get("hasta_fecha", "")
-    resumen_raw = data.get("resumen", "{}")
-    detalle_raw = data.get("detalle", "[]")
+def guardar_conciliacion_colab(
+    agencia: str = Form(...),
+    desde_fecha: str = Form(...),
+    hasta_fecha: str = Form(...),
+    resumen: str = Form("{}"),
+    detalle: str = Form("[]")
+):
+    agencia_norm = normalizar(agencia)
 
     try:
-        data_resumen = json.loads(resumen_raw)
+        data_resumen = json.loads(resumen)
     except Exception:
         data_resumen = {}
 
@@ -1063,20 +1063,36 @@ async def guardar_conciliacion_colab(request: Request):
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO conciliaciones_semanales (agencia, desde_fecha, hasta_fecha, total_reportado, total_pagado, total_sistema, diferencia, detalle_dias)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (agencia, desde_fecha, hasta_fecha)
-        DO UPDATE SET total_reportado = EXCLUDED.total_reportado,
-                      total_pagado = EXCLUDED.total_pagado,
-                      total_sistema = EXCLUDED.total_sistema,
-                      diferencia = EXCLUDED.diferencia,
-                      detalle_dias = EXCLUDED.detalle_dias
-    """, (agencia, desde_fecha, hasta_fecha, total_reportado, total_pagado, total_sistema, diferencia, detalle_raw))
+
+    is_postgres = bool(os.environ.get("DATABASE_URL"))
+
+    if is_postgres:
+        cursor.execute("""
+            INSERT INTO conciliaciones_semanales (agencia, desde_fecha, hasta_fecha, total_reportado, total_pagado, total_sistema, diferencia, detalle_dias)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (agencia, desde_fecha, hasta_fecha)
+            DO UPDATE SET total_reportado = EXCLUDED.total_reportado,
+                          total_pagado = EXCLUDED.total_pagado,
+                          total_sistema = EXCLUDED.total_sistema,
+                          diferencia = EXCLUDED.diferencia,
+                          detalle_dias = EXCLUDED.detalle_dias
+        """, (agencia_norm, desde_fecha, hasta_fecha, total_reportado, total_pagado, total_sistema, diferencia, detalle))
+    else:
+        cursor.execute("""
+            INSERT INTO conciliaciones_semanales (agencia, desde_fecha, hasta_fecha, total_reportado, total_pagado, total_sistema, diferencia, detalle_dias)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (agencia, desde_fecha, hasta_fecha)
+            DO UPDATE SET total_reportado = excluded.total_reportado,
+                          total_pagado = excluded.total_pagado,
+                          total_sistema = excluded.total_sistema,
+                          diferencia = excluded.diferencia,
+                          detalle_dias = excluded.detalle_dias
+        """, (agencia_norm, desde_fecha, hasta_fecha, total_reportado, total_pagado, total_sistema, diferencia, detalle))
+
     conn.commit()
     conn.close()
 
-    return {"status": "ok", "mensaje": f"Conciliación guardada para {agencia}"}
+    return {"status": "ok", "mensaje": f"Conciliación guardada para {agencia_norm}"}
 
 @app.get("/api/obtener-historico-semana")
 def obtener_historico_semana(agencia: str, desde: str, hasta: str):
@@ -1084,24 +1100,47 @@ def obtener_historico_semana(agencia: str, desde: str, hasta: str):
     conn = get_db()
     cursor = conn.cursor()
     
-    # Reportes diarios registrados
+    # Extraemos todos los reportes de la semana cerrada
     cursor.execute("""
-        SELECT fecha, monto FROM reportes 
+        SELECT detalle_html FROM reportes 
         WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s
     """, (ag_norm, desde, hasta))
-    reps = {r['fecha']: float(r['monto'] or 0.0) for r in cursor.fetchall()}
-    
-    # Pagos/Abonos recibidos
-    cursor.execute("""
-        SELECT fecha, SUM(monto) as total_pago FROM pagos 
-        WHERE UPPER(TRIM(agencia)) = %s AND tipo IN ('PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA')
-          AND estado = 'APROBADO' AND fecha >= %s AND fecha <= %s
-        GROUP BY fecha
-    """, (ag_norm, desde, hasta))
-    pagos = {p['fecha']: float(p['total_pago'] or 0.0) for p in cursor.fetchall()}
-    
+    reps = cursor.fetchall()
     conn.close()
-    return {"reportes": reps, "pagos": pagos}
+
+    sistemas_cobrados = {}
+    
+    for rep in reps:
+        html = rep['detalle_html'] or ""
+        html_limpio = html.split('<!-- BLOQUES_EXTRAS -->')[0]
+        tablas = re.findall(r'<table[^>]*>(.*?)<\/table>', html_limpio, re.DOTALL | re.IGNORECASE)
+        for t in tablas:
+            filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', t, re.DOTALL | re.IGNORECASE)
+            for f in filas:
+                cols = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', f, re.DOTALL | re.IGNORECASE)
+                if len(cols) >= 5:
+                    sys_raw = re.sub(r'<[^>]+>', '', cols[0]).strip()
+                    if not sys_raw or "SISTEMA" in sys_raw.upper() or "TOTALES" in sys_raw.upper():
+                        continue
+                    
+                    sys_name = normalizar_sistema(sys_raw)
+                    try:
+                        v = float(re.sub(r'[^\d.-]', '', cols[1]))
+                        c = float(re.sub(r'[^\d.-]', '', cols[2]))
+                        p = float(re.sub(r'[^\d.-]', '', cols[3]))
+                        neto = float(re.sub(r'[^\d.-]', '', cols[4]))
+                    except Exception:
+                        v, c, p, neto = 0.0, 0.0, 0.0, 0.0
+
+                    if sys_name not in sistemas_cobrados:
+                        sistemas_cobrados[sys_name] = {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
+                    
+                    sistemas_cobrados[sys_name]["venta"] += v
+                    sistemas_cobrados[sys_name]["comision"] += c
+                    sistemas_cobrados[sys_name]["premio"] += p
+                    sistemas_cobrados[sys_name]["neto"] += neto
+
+    return {"sistemas": sistemas_cobrados}
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/login", response_class=HTMLResponse)
@@ -1352,20 +1391,32 @@ def get_agencia(
     row_concil = cursor.fetchone()
 
     if row_concil:
-        conciliacion_resumen = {
-            "total_reportado": float(row_concil["total_reportado"] or 0.0),
-            "total_pagado": float(row_concil["total_pagado"] or 0.0),
-            "total_sistema": float(row_concil["total_sistema"] or 0.0),
-            "diferencia": float(row_concil["diferencia"] or 0.0)
-        }
+        try:
+            resumen_data = json.loads(row_concil.get("total_reportado") if isinstance(row_concil.get("total_reportado"), str) else "{}")
+        except Exception:
+            resumen_data = {}
+
         try:
             detalle_conciliacion = json.loads(row_concil["detalle_dias"] or "[]")
         except Exception:
             detalle_conciliacion = []
+
+        conciliacion_resumen = {
+            "total_venta_cobrada": float(resumen_data.get("total_venta_cobrada", 0.0) or 0.0),
+            "total_premio_cobrado": float(resumen_data.get("total_premio_cobrado", 0.0) or 0.0),
+            "total_reportado": float(row_concil["total_reportado"] or 0.0),
+            "total_venta_real": float(resumen_data.get("total_venta_real", 0.0) or 0.0),
+            "total_premio_real": float(resumen_data.get("total_premio_real", 0.0) or 0.0),
+            "total_sistema": float(row_concil["total_sistema"] or 0.0),
+            "diferencia": float(row_concil["diferencia"] or 0.0)
+        }
     else:
         conciliacion_resumen = {
+            "total_venta_cobrada": 0.0,
+            "total_premio_cobrado": 0.0,
             "total_reportado": 0.0,
-            "total_pagado": 0.0,
+            "total_venta_real": 0.0,
+            "total_premio_real": 0.0,
             "total_sistema": 0.0,
             "diferencia": 0.0
         }
