@@ -2067,6 +2067,11 @@ def post_restablecer_ajuste_banquero_sistema(
     desde_fecha: Optional[str] = Form(None),
     hasta_fecha: Optional[str] = Form(None)
 ):
+    # Proteger para que Guaca y Calamar nunca se borren accidentalmente
+    if sistema.upper() in ["GUACA", "CALAMAR"]:
+        url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
+        return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
+
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
