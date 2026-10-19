@@ -513,27 +513,28 @@
                         <div class="col-md-4">
                             <div class="p-3 rounded-4 shadow-sm bg-light border-start border-4 border-primary">
                                 <small class="text-muted fw-bold d-block text-uppercase">Neto Cobrado en Diarios</small>
-                                <h4 class="fw-bold text-primary m-0 mt-1">Bs. {{ (res.total_reportado | default(0)) | dinero }}</h4>
+                                <h4 class="fw-bold text-primary m-0 mt-1">Bs. {{ (res.get('total_reportado', 0)) | dinero }}</h4>
                                 <small class="text-muted" style="font-size: 11px;">Suma de netos de lunes a domingo</small>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="p-3 rounded-4 shadow-sm bg-light border-start border-4 border-info">
                                 <small class="text-muted fw-bold d-block text-uppercase">Neto Real Semanal</small>
-                                <h4 class="fw-bold text-dark m-0 mt-1">Bs. {{ (res.total_sistema | default(0)) | dinero }}</h4>
+                                <h4 class="fw-bold text-dark m-0 mt-1">Bs. {{ (res.get('total_sistema', 0)) | dinero }}</h4>
                                 <small class="text-muted" style="font-size: 11px;">Consolidado real definitivo</small>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div class="p-3 rounded-4 shadow-sm bg-light border-start border-4 {% if (res.diferencia | default(0)) > 0 %}border-danger{% elif (res.diferencia | default(0)) < 0 %}border-warning{% else %}border-success{% endif %}">
+                            {% set dif_neta = res.get('diferencia', 0) %}
+                            <div class="p-3 rounded-4 shadow-sm bg-light border-start border-4 {% if dif_neta > 0 %}border-danger{% elif dif_neta < 0 %}border-warning{% else %}border-success{% endif %}">
                                 <small class="text-muted fw-bold d-block text-uppercase">Diferencia Neta a Ajustar</small>
-                                <h4 class="fw-bold m-0 mt-1 {% if (res.diferencia | default(0)) > 0 %}text-danger{% elif (res.diferencia | default(0)) < 0 %}text-warning{% else %}text-success{% endif %}">
-                                    Bs. {{ (res.diferencia | default(0)) | dinero }}
+                                <h4 class="fw-bold m-0 mt-1 {% if dif_neta > 0 %}text-danger{% elif dif_neta < 0 %}text-warning{% else %}text-success{% endif %}">
+                                    Bs. {{ dif_neta | dinero }}
                                 </h4>
                                 <small class="fw-bold" style="font-size: 11px;">
-                                    {% if (res.diferencia | default(0)) > 0 %}
+                                    {% if dif_neta > 0 %}
                                         Taquilla debe cancelar ajuste a favor de banca
-                                    {% elif (res.diferencia | default(0)) < 0 %}
+                                    {% elif dif_neta < 0 %}
                                         Banca debe acreditar a taquilla
                                     {% else %}
                                         ¡Cuadre exacto sin diferencias! ✨
@@ -567,33 +568,35 @@
                             <tbody>
                                 {% if detalle_conciliacion is defined and detalle_conciliacion and detalle_conciliacion | length > 0 %}
                                     {% for s in detalle_conciliacion %}
-                                    <tr class="{% if s.dif_neto != 0 %}table-warning{% endif %}">
-                                        <td class="fw-bold">{{ s.sistema }}</td>
-                                        <td class="text-end">Bs. {{ (s.venta_cobrada | default(0)) | dinero }}</td>
-                                        <td class="text-end text-danger">Bs. {{ (s.premio_cobrado | default(0)) | dinero }}</td>
-                                        <td class="text-end fw-bold text-primary">Bs. {{ (s.neto_cobrado | default(0)) | dinero }}</td>
-                                        <td class="text-end">Bs. {{ (s.venta_real | default(0)) | dinero }}</td>
-                                        <td class="text-end text-danger">Bs. {{ (s.premio_real | default(0)) | dinero }}</td>
-                                        <td class="text-end fw-bold">Bs. {{ (s.neto_real | default(0)) | dinero }}</td>
-                                        <td class="text-end fw-bold {% if s.dif_venta > 0 %}text-danger{% elif s.dif_venta < 0 %}text-primary{% else %}text-muted{% endif %}">
-                                            {% if s.dif_venta > 0 %}+{% endif %}Bs. {{ (s.dif_venta | default(0)) | dinero }}
+                                    {% set s_dif_v = s.get('dif_venta', 0) %}
+                                    {% set s_dif_n = s.get('dif_neto', 0) %}
+                                    <tr class="{% if s_dif_n != 0 %}table-warning{% endif %}">
+                                        <td class="fw-bold">{{ s.get('sistema', s.get('dia_nombre', '')) }}</td>
+                                        <td class="text-end">Bs. {{ s.get('venta_cobrada', s.get('reportado_diario', 0)) | dinero }}</td>
+                                        <td class="text-end text-danger">Bs. {{ s.get('premio_cobrado', 0) | dinero }}</td>
+                                        <td class="text-end fw-bold text-primary">Bs. {{ s.get('neto_cobrado', s.get('reportado_diario', 0)) | dinero }}</td>
+                                        <td class="text-end">Bs. {{ s.get('venta_real', s.get('sistema_real', 0)) | dinero }}</td>
+                                        <td class="text-end text-danger">Bs. {{ s.get('premio_real', 0) | dinero }}</td>
+                                        <td class="text-end fw-bold">Bs. {{ s.get('neto_real', s.get('sistema_real', 0)) | dinero }}</td>
+                                        <td class="text-end fw-bold {% if s_dif_v > 0 %}text-danger{% elif s_dif_v < 0 %}text-primary{% else %}text-muted{% endif %}">
+                                            {% if s_dif_v > 0 %}+{% endif %}Bs. {{ s_dif_v | dinero }}
                                         </td>
-                                        <td class="text-end fw-bold {% if s.dif_neto > 0 %}text-danger{% elif s.dif_neto < 0 %}text-success{% else %}text-muted{% endif %}">
-                                            {% if s.dif_neto > 0 %}+{% endif %}Bs. {{ (s.dif_neto | default(0)) | dinero }}
+                                        <td class="text-end fw-bold {% if s_dif_n > 0 %}text-danger{% elif s_dif_n < 0 %}text-success{% else %}text-muted{% endif %}">
+                                            {% if s_dif_n > 0 %}+{% endif %}Bs. {{ s_dif_n | dinero }}
                                         </td>
                                     </tr>
                                     {% endfor %}
                                     <tr class="table-dark fw-bold text-end">
                                         <td class="text-center">TOTALES</td>
-                                        <td>Bs. {{ (res.total_venta_cobrada | default(0)) | dinero }}</td>
-                                        <td class="text-danger">Bs. {{ (res.total_premio_cobrado | default(0)) | dinero }}</td>
-                                        <td class="text-primary">Bs. {{ (res.total_reportado | default(0)) | dinero }}</td>
-                                        <td>Bs. {{ (res.total_venta_real | default(0)) | dinero }}</td>
-                                        <td class="text-danger">Bs. {{ (res.total_premio_real | default(0)) | dinero }}</td>
-                                        <td>Bs. {{ (res.total_sistema | default(0)) | dinero }}</td>
-                                        <td class="text-warning">Bs. {{ ((res.total_venta_real | default(0)) - (res.total_venta_cobrada | default(0))) | dinero }}</td>
-                                        <td class="{% if (res.diferencia | default(0)) > 0 %}text-danger{% elif (res.diferencia | default(0)) < 0 %}text-success{% else %}text-white{% endif %}">
-                                            Bs. {{ (res.diferencia | default(0)) | dinero }}
+                                        <td>Bs. {{ res.get('total_venta_cobrada', 0) | dinero }}</td>
+                                        <td class="text-danger">Bs. {{ res.get('total_premio_cobrado', 0) | dinero }}</td>
+                                        <td class="text-primary">Bs. {{ res.get('total_reportado', 0) | dinero }}</td>
+                                        <td>Bs. {{ res.get('total_venta_real', 0) | dinero }}</td>
+                                        <td class="text-danger">Bs. {{ res.get('total_premio_real', 0) | dinero }}</td>
+                                        <td>Bs. {{ res.get('total_sistema', 0) | dinero }}</td>
+                                        <td class="text-warning">Bs. {{ (res.get('total_venta_real', 0) - res.get('total_venta_cobrada', 0)) | dinero }}</td>
+                                        <td class="{% if res.get('diferencia', 0) > 0 %}text-danger{% elif res.get('diferencia', 0) < 0 %}text-success{% else %}text-white{% endif %}">
+                                            Bs. {{ res.get('diferencia', 0) | dinero }}
                                         </td>
                                     </tr>
                                 {% else %}
