@@ -1078,6 +1078,31 @@ async def guardar_conciliacion_colab(request: Request):
 
     return {"status": "ok", "mensaje": f"Conciliación guardada para {agencia}"}
 
+@app.get("/api/obtener-historico-semana")
+def obtener_historico_semana(agencia: str, desde: str, hasta: str):
+    ag_norm = normalizar(agencia)
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Reportes diarios registrados
+    cursor.execute("""
+        SELECT fecha, monto FROM reportes 
+        WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s
+    """, (ag_norm, desde, hasta))
+    reps = {r['fecha']: float(r['monto'] or 0.0) for r in cursor.fetchall()}
+    
+    # Pagos/Abonos recibidos
+    cursor.execute("""
+        SELECT fecha, SUM(monto) as total_pago FROM pagos 
+        WHERE UPPER(TRIM(agencia)) = %s AND tipo IN ('PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA')
+          AND estado = 'APROBADO' AND fecha >= %s AND fecha <= %s
+        GROUP BY fecha
+    """, (ag_norm, desde, hasta))
+    pagos = {p['fecha']: float(p['total_pago'] or 0.0) for p in cursor.fetchall()}
+    
+    conn.close()
+    return {"reportes": reps, "pagos": pagos}
+
 @app.get("/", response_class=HTMLResponse)
 @app.get("/login", response_class=HTMLResponse)
 def get_login(request: Request):
