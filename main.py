@@ -29,12 +29,11 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # CONFIGURACIÓN ONESIGNAL PUSH NOTIFICATIONS
 # ==============================================================================
 ONESIGNAL_APP_ID = "88b4cb90-08ed-4ef3-8852-c45316493190"
-ONESIGNAL_REST_KEY = os.environ.get("ONESIGNAL_REST_KEY", "os_v2_app_xxxxxxxxxxxxxxxxxxxxxxxx") # Pega tu Rest API Key aquí si no usas variables de Render
+ONESIGNAL_REST_KEY = os.environ.get("ONESIGNAL_REST_KEY", "os_v2_app_xxxxxxxxxxxxxxxxxxxxxxxx")
 
 def disparar_notificacion(agencia_destino: str, titulo: str, mensaje: str):
     url = "https://onesignal.com/api/v1/notifications"
     
-    # Si la variable de entorno o la clave están configuradas
     api_key = ONESIGNAL_REST_KEY.strip()
     if not api_key or "xxxxxxxx" in api_key:
         print("⚠️ AVISO: ONESIGNAL_REST_KEY no está configurada. Agrega la clave en Render > Environment Variables.")
@@ -74,7 +73,6 @@ def disparar_notificacion(agencia_destino: str, titulo: str, mensaje: str):
 
 @app.get("/OneSignalSDKWorker.js")
 def onesignal_worker():
-    # Sirve el worker directamente para evitar rechazos de seguridad del navegador
     contenido_worker = 'importScripts("https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js");'
     return Response(content=contenido_worker, media_type="application/javascript", headers={"Service-Worker-Allowed": "/"})
 
@@ -84,6 +82,7 @@ def get_manifest():
     if os.path.exists(ruta_manifest):
         return FileResponse(ruta_manifest, media_type="application/manifest+json")
     return FileResponse("manifest.json", media_type="application/manifest+json")
+
 # ==============================================================================
 # CONFIGURACIÓN GENERAL Y HORARIA
 # ==============================================================================
@@ -118,12 +117,9 @@ SISTEMAS_OFICIALES = [
 ]
 
 ALIAS_AGENCIAS = {
-    # Mapeo unificado para JC PEREZ (todos apuntan a "JC PEREZ")
     "JCPEREZ": "JC PEREZ",
     "JC PEREZ": "JC PEREZ",
     "JC_PEREZ": "JC PEREZ",
-    
-    # Resto de agencias y alias
     "RUTA MILLONARIA": "ANA MARIA",
     "LA SUERTE DE JANN": "NABEL",
     "LADD LA CONEJITA": "MILA",
@@ -370,7 +366,6 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     """, (ag_norm, fecha_hoy_contable))
     ajuste_previo = cursor.fetchone()
 
-    # Si hay un ajuste fijado para hoy o antes, arranca desde esa base
     if ajuste_previo and ajuste_previo['fecha'] == fecha_hoy_contable:
         saldo_anterior = float(ajuste_previo['monto'] or 0.0)
     else:
@@ -378,7 +373,6 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
         fecha_obj = datetime.strptime(fecha_hoy_contable, '%Y-%m-%d').date()
         fecha_ayer_str = (fecha_obj - timedelta(days=1)).strftime('%Y-%m-%d')
 
-        # Buscar el reporte de ayer directamente
         cursor.execute("""
             SELECT monto, detalle_html FROM reportes 
             WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s
@@ -1015,7 +1009,6 @@ async def guardar_reporte_colab(request: Request):
 
     recalcular_y_actualizar_reporte(agencia, fecha)
 
-    # --- NOTIFICACIÓN AUTOMÁTICA DE REPORTE A LA TAQUILLA ---
     cuenta_act = obtener_cuenta_agencia_corte(agencia, fecha)
     saldo_taquilla = cuenta_act["saldo_final"]
     if saldo_taquilla > 0:
@@ -1370,7 +1363,6 @@ def post_saldar_deuda_taquilla(
                 (agencia_norm, fecha_operacion, monto_val, f"Liquidación Saldo #{fecha_operacion}", "Liquidación completa de saldo a favor")
             )
 
-        cursor.execute("UPDATE reportes SET monto = 0.0 WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha_operacion))
         conn.commit()
         conn.close()
 
@@ -1421,7 +1413,6 @@ def post_solicitar_banca_directo(agencia: str = Form(...), fecha: str = Form(...
     conn.commit()
     conn.close()
     
-    # Notificación enviada al Admin
     disparar_notificacion("ADMIN", "📩 Solicitud de Dinero Recibida", f"La taquilla {agencia_norm} solicitó Bs. {monto_abs:,.2f} para liquidar saldo.")
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -1456,7 +1447,6 @@ async def post_reportar(
     conn.commit()
     conn.close()
 
-    # Notificación enviada al Admin
     disparar_notificacion("ADMIN", "💰 Pago Reportado", f"{agencia_norm} ha reportado un pago de Bs. {monto:,.2f} con comprobante.")
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -1615,7 +1605,7 @@ async def post_procesar_solicitud_dinero(
         monto_original = float(solicitud['monto'] or 0.0)
         monto_pagar = monto_original if accion == "COMPLETO" else float(monto_abono or 0.0)
         agencia_norm = normalizar(agencia)
-        fecha_actual = obtener_fecha_venezuela()
+        fecha_operacion = fecha or obtener_fecha_venezuela()
 
         nombre_guardado = f"Liquidación Saldo #{solicitud_id}"
         if comprobante_file and comprobante_file.filename:
@@ -1636,7 +1626,7 @@ async def post_procesar_solicitud_dinero(
         cursor.execute(
             """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) 
                VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
-            (agencia_norm, fecha_actual, monto_pagar, f"Liquidación {accion} ({fecha_actual})", nombre_guardado)
+            (agencia_norm, fecha_operacion, monto_pagar, f"Liquidación {accion} ({fecha_operacion})", nombre_guardado)
         )
 
         mensaje_com = f"Se te ha transferido Bs. {monto_pagar:,.2f} ({accion}) para saldar tu cuenta."
@@ -1648,7 +1638,7 @@ async def post_procesar_solicitud_dinero(
         conn.commit()
         conn.close()
 
-        recalcular_y_actualizar_reporte(agencia_norm, fecha_actual)
+        recalcular_y_actualizar_reporte(agencia_norm, fecha_operacion)
         disparar_notificacion(agencia_norm, "💸 Liquidación Procesada", mensaje_com)
         return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -1703,6 +1693,7 @@ async def post_liquidar_saldo_negativo(
     comprobante_file: Optional[UploadFile] = File(None)
 ):
     agencia_norm = normalizar(agencia)
+    fecha_operacion = fecha or obtener_fecha_venezuela()
     monto_pago = abs(monto)
     comprobante_valor = "Liquidación Directa Admin"
 
@@ -1724,7 +1715,7 @@ async def post_liquidar_saldo_negativo(
     cursor.execute(
         """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
            VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
-        (agencia_norm, fecha, monto_pago, "Liquidación Saldo a Favor", comprobante_valor)
+        (agencia_norm, fecha_operacion, monto_pago, "Liquidación Saldo a Favor", comprobante_valor)
     )
 
     mensaje = f"✅ Tu saldo a favor de Bs. {monto_pago:,.2f} ha sido LIQUIDADO."
@@ -1739,7 +1730,7 @@ async def post_liquidar_saldo_negativo(
     conn.commit()
     conn.close()
 
-    recalcular_y_actualizar_reporte(agencia_norm, fecha)
+    recalcular_y_actualizar_reporte(agencia_norm, fecha_operacion)
     disparar_notificacion(agencia_norm, "💸 Saldo Liquidado", mensaje)
     return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 
