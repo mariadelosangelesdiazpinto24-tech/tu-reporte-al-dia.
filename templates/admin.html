@@ -448,12 +448,9 @@
                                                                 <i class="fas fa-check"></i>
                                                             </button>
                                                         </form>
-                                                        <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" title="Ajustar Saldo Anterior" 
-                                                                data-bs-toggle="modal" 
-                                                                data-bs-target="#modalAjustarSaldoAnterior" 
-                                                                data-agencia="{{ pos.agencia }}" 
-                                                                data-saldo="{{ pos.saldo_anterior or pos.monto }}">
-                                                            <i class="fas fa-pen"></i>
+                                                        <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" title="Copiar Desglose" 
+                                                                onclick="copiarDesgloseIndividual('{{ pos.agencia }}', '{{ pos.saldo_anterior or 0 }}', '{{ pos.reporte_neto or 0 }}', '{{ pos.cashea or 0 }}', '{{ pos.adelantos or 0 }}', '{{ pos.liquidaciones or 0 }}', '{{ pos.abonos or 0 }}', '{{ pos.monto }}')">
+                                                            <i class="fas fa-copy"></i>
                                                         </button>
                                                     </div>
                                                 </td>
@@ -496,12 +493,9 @@
                                                                 <i class="fas fa-check"></i>
                                                             </button>
                                                         </form>
-                                                        <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" title="Ajustar Saldo Anterior" 
-                                                                data-bs-toggle="modal" 
-                                                                data-bs-target="#modalAjustarSaldoAnterior" 
-                                                                data-agencia="{{ neg.agencia }}" 
-                                                                data-saldo="{{ neg.saldo_anterior or (-neg.monto) }}">
-                                                            <i class="fas fa-pen"></i>
+                                                        <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" title="Copiar Desglose" 
+                                                                onclick="copiarDesgloseIndividual('{{ neg.agencia }}', '{{ neg.saldo_anterior or 0 }}', '{{ neg.reporte_neto or 0 }}', '{{ neg.cashea or 0 }}', '{{ neg.adelantos or 0 }}', '{{ neg.liquidaciones or 0 }}', '{{ neg.abonos or 0 }}', '{{ -neg.monto }}')">
+                                                            <i class="fas fa-copy"></i>
                                                         </button>
                                                     </div>
                                                 </td>
@@ -1615,6 +1609,55 @@
             
             var modal = new bootstrap.Modal(document.getElementById('modalDesgloseAgencia'));
             modal.show();
+        }
+
+        function copiarDesgloseIndividual(agencia, saldoAnterior, reportes, cashea, adelantos, liquidaciones, abonos, totalBackend) {
+            var antNum = parseMonto(saldoAnterior);
+            var repNum = parseMonto(reportes);
+            var casNum = parseMonto(cashea);
+            var adeNum = parseMonto(adelantos);
+            var liqNum = parseMonto(liquidaciones);
+            var aboNum = parseMonto(abonos);
+            var totBackendNum = parseMonto(totalBackend);
+
+            var totalFinal = (totBackendNum !== 0) ? totBackendNum : (antNum + repNum - casNum - aboNum + liqNum + adeNum);
+
+            var texto = "🍀 *LOS ÁNGELES DEL DINERO* 🍀\n";
+            texto += "📊 *ESTADO DE CUENTA - " + agencia.toUpperCase() + "*\n";
+            texto += "📅 Período: {{ desde_fecha }} al {{ hasta_fecha }}\n";
+            texto += "----------------------------------------\n";
+            texto += "⏳ *Saldo Anterior:* " + formatoBs(antNum) + "\n";
+            texto += "📈 *(+) Reporte del Día:* " + formatoBs(repNum) + "\n";
+
+            if (casNum > 0) {
+                texto += "🛒 *(-) Facturas Cashea:* " + formatoBs(casNum) + "\n";
+            }
+            if (aboNum > 0) {
+                texto += "🏦 *(-) Abonos / Pagos:* " + formatoBs(aboNum) + "\n";
+            }
+            if (liqNum > 0) {
+                texto += "💸 *(+) Liquidaciones Recibidas:* " + formatoBs(liqNum) + "\n";
+            }
+            if (adeNum > 0) {
+                texto += "🤝 *(+) Adelantos Recibidos:* " + formatoBs(adeNum) + "\n";
+            }
+
+            texto += "----------------------------------------\n";
+            if (totalFinal > 0) {
+                texto += "🔴 *TOTAL PENDIENTE (DEBE):* " + formatoBs(totalFinal) + "\n";
+            } else if (totalFinal < 0) {
+                texto += "🟢 *TOTAL A SU FAVOR:* " + formatoBs(Math.abs(totalFinal)) + "\n";
+            } else {
+                texto += "✅ *CUENTA AL DÍA:* Bs. 0,00\n";
+            }
+            texto += "----------------------------------------\n";
+            texto += "✨ _¡Gracias por tu compromiso y bendiciones en las ventas!_ ✨";
+
+            navigator.clipboard.writeText(texto).then(function() {
+                alert("¡Desglose de " + agencia + " copiado al portapapeles listo para enviar!");
+            }).catch(function(err) {
+                alert("Error al copiar: " + err);
+            });
         }
 
         function copiarReporteGlobal() {
