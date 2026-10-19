@@ -581,7 +581,6 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
 
     ESTRUCTURA_BANQUEROS = obtener_estructura_banqueros_bd()
 
-    # Asegurar absorción de Cashea en NYS
     for k in ESTRUCTURA_BANQUEROS.keys():
         if "NYS" in k.upper():
             ESTRUCTURA_BANQUEROS[k]["absorbe_cashea"] = True
@@ -674,9 +673,13 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             subtotal_banquero += total_despues_participacion
             desglose_banqueros[b_nombre]["total_mi_ganancia_banca"] += g_total
 
-        # Descontar Cashea y aplicar ajustes de adelantos y pendientes de la banca
+        # MATEMÁTICA EXACTA:
+        # Se descuenta Cashea
         subtotal_banquero -= cashea_a_descontar
-        subtotal_banquero = subtotal_banquero - adelantos_b_val + pendientes_b_val
+        # Se resta el adelanto (si el banquero te dio plata, amortiza la cuenta)
+        subtotal_banquero -= adelantos_b_val
+        # Se suman los pendientes atrasados (si el banquero debía plata a tu favor, aumenta lo que debe)
+        subtotal_banquero += pendientes_b_val
 
         desglose_banqueros[b_nombre]["total_a_pagar_banquero"] = subtotal_banquero
         desglose_banqueros[b_nombre]["total"] = subtotal_banquero
@@ -929,7 +932,6 @@ def post_guardar_ajustes_banquero_global(
     conn = get_db()
     cursor = conn.cursor()
 
-    # 1. Guardar en la tabla de configuración global del banquero
     cursor.execute(
         """INSERT INTO ajustes_globales_banqueros (banquero, fecha, adelantos, pendientes)
            VALUES (%s, %s, %s, %s)
@@ -938,24 +940,23 @@ def post_guardar_ajustes_banquero_global(
         (b_norm, fecha, adelantos, pendientes)
     )
 
-    # 2. Registrar en la tabla de pagos/transacciones para auditoría
     cursor.execute(
         "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo IN ('ADELANTO_BANQUERO', 'PENDIENTE_BANQUERO')",
         (b_norm, fecha)
     )
 
-    if adelantos > 0:
+    if adelantos != 0:
         cursor.execute(
             """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
                VALUES (%s, %s, %s, %s, %s, 'ADELANTO_BANQUERO', 'APROBADO')""",
-            (b_norm, fecha, adelantos, f"Adelanto recibido de {b_norm}", f"Adelanto de dinero entregado por banquero ({fecha})")
+            (b_norm, fecha, abs(adelantos), f"Adelanto de dinero entregado por {b_norm}", f"Adelanto registrado para el cuadre ({fecha})")
         )
 
-    if pendientes > 0:
+    if pendientes != 0:
         cursor.execute(
             """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
                VALUES (%s, %s, %s, %s, %s, 'PENDIENTE_BANQUERO', 'APROBADO')""",
-            (b_norm, fecha, pendientes, f"Saldo pendiente atrasado de {b_norm}", f"Saldo pendiente acumulado a cobrar ({fecha})")
+            (b_norm, fecha, abs(pendientes), f"Saldo pendiente atrasado de {b_norm}", f"Pendiente de liquidación anterior ({fecha})")
         )
 
     conn.commit()
@@ -2181,7 +2182,7 @@ def get_admin(
             elif tipo_transaccion == 'ENVIADOS':
                 query_pagos += " AND tipo IN ('LIQUIDACION')"
             elif tipo_transaccion == 'ADELANTOS':
-                query_pagos += " AND tipo = 'ADELANTO', 'ADELANTO_BANQUERO'"
+                query_pagos += " AND tipo IN ('ADELANTO', 'ADELANTO_BANQUERO')"
             elif tipo_transaccion == 'MODIFICACIONES':
                 query_pagos += " AND tipo = 'MODIFICACION'"
             elif tipo_transaccion == 'SOLICITUDES':
