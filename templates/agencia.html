@@ -244,7 +244,7 @@
                     <i class="fas fa-chart-bar me-1"></i> Auditoría Consolidada
                 </button>
             </li>
-            <!-- PESTAÑA: CUADRE SEMANAL / CONCILIACIÓN -->
+            <!-- PESTAÑA: CUADRE SEMANAL / CONCILIACIÓN POR SISTEMAS -->
             <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'conciliacion' %}active{% endif %}" id="btn-tab-conciliacion" data-bs-toggle="tab" data-bs-target="#tab-conciliacion" type="button" onclick="setTab('conciliacion')">
                     <i class="fas fa-balance-scale me-1"></i> Cuadre Semanal 🍀
@@ -492,124 +492,121 @@
                 </div>
             </div>
 
-            <!-- NUEVA PESTAÑA: CUADRE SEMANAL / CONCILIACIÓN -->
+            <!-- NUEVA PESTAÑA: CUADRE SEMANAL / CONCILIACIÓN POR SISTEMAS -->
             <div class="tab-pane fade {% if tab_activa == 'conciliacion' %}show active{% endif %}" id="tab-conciliacion" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-4">
                     
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div>
-                            <h5 class="fw-bold text-tema m-0"><i class="fas fa-balance-scale me-2"></i>Conciliación y Cuadre de Período 🍀</h5>
-                            <small class="text-muted">Comparativa entre reportes diarios pasados y la venta real consolidada por sistema.</small>
+                            <h5 class="fw-bold text-tema m-0"><i class="fas fa-balance-scale me-2"></i>Conciliación Semanal por Sistemas 🍀</h5>
+                            <small class="text-muted">Comparativa entre lo cobrado en reportes diarios y el cierre semanal definitivo del sistema.</small>
                         </div>
                         <span class="badge bg-light text-dark border px-3 py-2 rounded-pill">
-                            <i class="far fa-calendar-alt text-tema me-1"></i> {{ desde_fecha or 'Inicio' }} al {{ hasta_fecha or 'Fin' }}
+                            <i class="far fa-calendar-alt text-tema me-1"></i> Período Cerrado
                         </span>
                     </div>
 
                     {% set res = conciliacion_resumen if conciliacion_resumen is defined and conciliacion_resumen else {} %}
 
-                    <!-- 1. RESUMEN EN TARJETAS -->
+                    <!-- RESUMEN GENERAL DIRECTO -->
                     <div class="row g-3 mb-4">
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <div class="p-3 rounded-4 shadow-sm bg-light border-start border-4 border-primary">
-                                <small class="text-muted fw-bold d-block text-uppercase">Reportado Diario</small>
+                                <small class="text-muted fw-bold d-block text-uppercase">Neto Cobrado en Diarios</small>
                                 <h4 class="fw-bold text-primary m-0 mt-1">Bs. {{ (res.total_reportado | default(0)) | dinero }}</h4>
-                                <small class="text-muted" style="font-size: 11px;">Suma de cortes diarios</small>
+                                <small class="text-muted" style="font-size: 11px;">Suma de netos de lunes a domingo</small>
                             </div>
                         </div>
-                        <div class="col-md-3">
-                            <div class="p-3 rounded-4 shadow-sm bg-light border-start border-4 border-success">
-                                <small class="text-muted fw-bold d-block text-uppercase">Pagos / Abonos</small>
-                                <h4 class="fw-bold text-success m-0 mt-1">Bs. {{ (res.total_pagado | default(0)) | dinero }}</h4>
-                                <small class="text-muted" style="font-size: 11px;">Transferido a banca</small>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <div class="p-3 rounded-4 shadow-sm bg-light border-start border-4 border-info">
-                                <small class="text-muted fw-bold d-block text-uppercase">Venta Real Sistema</small>
+                                <small class="text-muted fw-bold d-block text-uppercase">Neto Real Semanal</small>
                                 <h4 class="fw-bold text-dark m-0 mt-1">Bs. {{ (res.total_sistema | default(0)) | dinero }}</h4>
-                                <small class="text-muted" style="font-size: 11px;">Cierre final auditoría</small>
+                                <small class="text-muted" style="font-size: 11px;">Consolidado real definitivo</small>
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <div class="p-3 rounded-4 shadow-sm bg-light border-start border-4 {% if (res.diferencia | default(0)) > 0 %}border-danger{% elif (res.diferencia | default(0)) < 0 %}border-warning{% else %}border-success{% endif %}">
-                                <small class="text-muted fw-bold d-block text-uppercase">Diferencia Neta</small>
+                                <small class="text-muted fw-bold d-block text-uppercase">Diferencia Neta a Ajustar</small>
                                 <h4 class="fw-bold m-0 mt-1 {% if (res.diferencia | default(0)) > 0 %}text-danger{% elif (res.diferencia | default(0)) < 0 %}text-warning{% else %}text-success{% endif %}">
                                     Bs. {{ (res.diferencia | default(0)) | dinero }}
                                 </h4>
                                 <small class="fw-bold" style="font-size: 11px;">
                                     {% if (res.diferencia | default(0)) > 0 %}
-                                        Taquilla debe ajustar a favor de banca
+                                        Taquilla debe cancelar ajuste a favor de banca
                                     {% elif (res.diferencia | default(0)) < 0 %}
                                         Banca debe acreditar a taquilla
                                     {% else %}
-                                        ¡Cuadre perfecto! ✨
+                                        ¡Cuadre exacto sin diferencias! ✨
                                     {% endif %}
                                 </small>
                             </div>
                         </div>
                     </div>
 
-                    <!-- 2. CUADRO COMPARATIVO DÍA POR DÍA -->
-                    <h6 class="fw-bold text-dark mb-2"><i class="fas fa-table text-tema me-1"></i> Detalle Comparativo Día a Día</h6>
-                    <div class="table-responsive mb-4">
-                        <table class="table table-bordered table-hover align-middle mb-0" style="font-size: 13px;">
+                    <!-- TABLA COMPARATIVA DETALLADA POR SISTEMAS -->
+                    <div class="table-responsive mb-3">
+                        <table class="table table-bordered table-hover align-middle mb-0" style="font-size: 12.5px;">
                             <thead class="table-dark text-center">
                                 <tr>
-                                    <th>Fecha</th>
-                                    <th>Día</th>
-                                    <th>Reportado Diario (Bs.)</th>
-                                    <th>Cierre Real Sistema (Bs.)</th>
-                                    <th>Diferencia (Bs.)</th>
-                                    <th>Pagos Recibidos (Bs.)</th>
-                                    <th>Estado / Observación</th>
+                                    <th rowspan="2" class="align-middle" style="min-width: 130px;">SISTEMA</th>
+                                    <th colspan="3" class="bg-primary text-white border-bottom">COBRADO EN DIARIOS</th>
+                                    <th colspan="3" class="bg-secondary text-white border-bottom">CIERRE REAL SEMANAL</th>
+                                    <th colspan="2" class="bg-dark text-warning border-bottom">DIFERENCIAS</th>
+                                </tr>
+                                <tr>
+                                    <th>Venta</th>
+                                    <th>Premios</th>
+                                    <th>Neto Cobrado</th>
+                                    <th>Venta Real</th>
+                                    <th>Premios Real</th>
+                                    <th>Neto Real</th>
+                                    <th>Dif. Venta</th>
+                                    <th>Ajuste Neto</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% if detalle_conciliacion is defined and detalle_conciliacion and detalle_conciliacion | length > 0 %}
-                                    {% for d in detalle_conciliacion %}
-                                    <tr class="{% if d.diferencia != 0 %}table-warning{% endif %}">
-                                        <td class="text-center fw-bold">{{ d.fecha }}</td>
-                                        <td class="text-center">{{ d.dia_nombre }}</td>
-                                        <td class="text-end text-primary fw-bold">Bs. {{ (d.reportado_diario | default(0)) | dinero }}</td>
-                                        <td class="text-end fw-bold">Bs. {{ (d.sistema_real | default(0)) | dinero }}</td>
-                                        <td class="text-end fw-bold {% if d.diferencia > 0 %}text-danger{% elif d.diferencia < 0 %}text-success{% else %}text-muted{% endif %}">
-                                            {% if d.diferencia > 0 %}+{% endif %}Bs. {{ (d.diferencia | default(0)) | dinero }}
+                                    {% for s in detalle_conciliacion %}
+                                    <tr class="{% if s.dif_neto != 0 %}table-warning{% endif %}">
+                                        <td class="fw-bold">{{ s.sistema }}</td>
+                                        <td class="text-end">Bs. {{ (s.venta_cobrada | default(0)) | dinero }}</td>
+                                        <td class="text-end text-danger">Bs. {{ (s.premio_cobrado | default(0)) | dinero }}</td>
+                                        <td class="text-end fw-bold text-primary">Bs. {{ (s.neto_cobrado | default(0)) | dinero }}</td>
+                                        <td class="text-end">Bs. {{ (s.venta_real | default(0)) | dinero }}</td>
+                                        <td class="text-end text-danger">Bs. {{ (s.premio_real | default(0)) | dinero }}</td>
+                                        <td class="text-end fw-bold">Bs. {{ (s.neto_real | default(0)) | dinero }}</td>
+                                        <td class="text-end fw-bold {% if s.dif_venta > 0 %}text-danger{% elif s.dif_venta < 0 %}text-primary{% else %}text-muted{% endif %}">
+                                            {% if s.dif_venta > 0 %}+{% endif %}Bs. {{ (s.dif_venta | default(0)) | dinero }}
                                         </td>
-                                        <td class="text-end text-success fw-bold">Bs. {{ (d.pagos_dia | default(0)) | dinero }}</td>
-                                        <td class="text-center">
-                                            {% if d.diferencia == 0 %}
-                                                <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Cuadrado</span>
-                                            {% elif d.diferencia > 0 %}
-                                                <span class="badge bg-danger"><i class="fas fa-clock me-1"></i>Venta tardía post-cierre</span>
-                                            {% else %}
-                                                <span class="badge bg-info text-dark"><i class="fas fa-award me-1"></i>Premios tardíos / Ajuste</span>
-                                            {% endif %}
+                                        <td class="text-end fw-bold {% if s.dif_neto > 0 %}text-danger{% elif s.dif_neto < 0 %}text-success{% else %}text-muted{% endif %}">
+                                            {% if s.dif_neto > 0 %}+{% endif %}Bs. {{ (s.dif_neto | default(0)) | dinero }}
                                         </td>
                                     </tr>
                                     {% endfor %}
-                                    <tr class="table-secondary fw-bold text-end">
-                                        <td colspan="2" class="text-center">TOTALES DEL PERÍODO</td>
+                                    <tr class="table-dark fw-bold text-end">
+                                        <td class="text-center">TOTALES</td>
+                                        <td>Bs. {{ (res.total_venta_cobrada | default(0)) | dinero }}</td>
+                                        <td class="text-danger">Bs. {{ (res.total_premio_cobrado | default(0)) | dinero }}</td>
                                         <td class="text-primary">Bs. {{ (res.total_reportado | default(0)) | dinero }}</td>
-                                        <td class="text-dark">Bs. {{ (res.total_sistema | default(0)) | dinero }}</td>
-                                        <td class="{% if (res.diferencia | default(0)) > 0 %}text-danger{% elif (res.diferencia | default(0)) < 0 %}text-success{% else %}text-dark{% endif %}">
+                                        <td>Bs. {{ (res.total_venta_real | default(0)) | dinero }}</td>
+                                        <td class="text-danger">Bs. {{ (res.total_premio_real | default(0)) | dinero }}</td>
+                                        <td>Bs. {{ (res.total_sistema | default(0)) | dinero }}</td>
+                                        <td class="text-warning">Bs. {{ ((res.total_venta_real | default(0)) - (res.total_venta_cobrada | default(0))) | dinero }}</td>
+                                        <td class="{% if (res.diferencia | default(0)) > 0 %}text-danger{% elif (res.diferencia | default(0)) < 0 %}text-success{% else %}text-white{% endif %}">
                                             Bs. {{ (res.diferencia | default(0)) | dinero }}
                                         </td>
-                                        <td class="text-success">Bs. {{ (res.total_pagado | default(0)) | dinero }}</td>
-                                        <td class="text-center">-</td>
                                     </tr>
                                 {% else %}
                                     <tr>
-                                        <td colspan="7" class="text-center text-muted py-3">No hay datos para conciliar en este rango de fechas.</td>
+                                        <td colspan="9" class="text-center text-muted py-3">No hay datos para conciliar en este rango de fechas.</td>
                                     </tr>
                                 {% endif %}
                             </tbody>
                         </table>
                     </div>
 
-                    <!-- 3. MENSAJE ACLARATORIO PARA LA TAQUILLA -->
                     <div class="alert alert-light border shadow-sm p-3 m-0 rounded-3" style="font-size: 12.5px;">
-                        <i class="fas fa-info-circle text-tema me-1"></i> <strong>Nota de Administración:</strong> El reporte diario de las 10:00 pm es un corte operativo. Si algún sistema procesó ventas o premios después de esa hora, la diferencia se refleja automáticamente en esta conciliación semanal para su ajuste sin necesidad de alterar los reportes diarios ya emitidos.
+                        <i class="fas fa-info-circle text-tema me-1"></i> <strong>Explicación:</strong> Si un sistema procesó tickets o premios pasadas las 10:00 pm, la diferencia se refleja en la columna <strong>Ajuste Neto</strong> sin tocar los reportes pasados. Si el monto es positivo, corresponde cancelarlo a la banca; si es negativo, la banca lo acredita a la taquilla.
                     </div>
 
                 </div>
