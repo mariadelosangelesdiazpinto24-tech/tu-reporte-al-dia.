@@ -357,7 +357,9 @@
                                 <option value="PAGO_BANCA">PAGOS RECIBIDOS (ADMIN)</option>
                                 <option value="AJUSTE_BANCA">AJUSTES DE BANCA</option>
                                 <option value="LIQUIDACION">LIQUIDACIONES ENVIADAS</option>
-                                <option value="ADELANTO">ADELANTOS</option>
+                                <option value="ADELANTO">ADELANTOS TAQUILLA</option>
+                                <option value="ADELANTO_BANQUERO">ADELANTOS BANQUERO</option>
+                                <option value="PENDIENTE_BANQUERO">PENDIENTES BANQUERO</option>
                                 <option value="SOLICITUD_BANCA">SOLICITUDES</option>
                             </select>
                         </div>
@@ -424,7 +426,7 @@
                                     <td>{{ p.fecha }}</td>
                                     <td class="fw-bold">{{ p.agencia }}</td>
                                     <td><span class="badge bg-secondary">{{ p.tipo }}</span></td>
-                                    <td class="fw-bold {% if p.tipo in ['ADELANTO', 'LIQUIDACION'] %}text-danger{% else %}text-success{% endif %}">Bs. {{ p.monto | dinero }}</td>
+                                    <td class="fw-bold {% if p.tipo in ['ADELANTO', 'LIQUIDACION', 'ADELANTO_BANQUERO'] %}text-danger{% else %}text-success{% endif %}">Bs. {{ p.monto | dinero }}</td>
                                     <td>
                                         {{ p.factura }}<br>
                                         {% if p.comprobante %}
@@ -1125,6 +1127,7 @@
                                 </div>
                             </div>
 
+                            <!-- FORMULARIO DE AJUSTES GLOBALES POR BANQUERO (ADELANTOS / PENDIENTES) -->
                             <form action="/admin/guardar-ajustes-banquero-global" method="POST" class="row g-2 align-items-center mb-3 p-2 bg-light rounded border">
                                 <input type="hidden" name="banquero" value="{{ b_nom }}">
                                 <input type="hidden" name="fecha" value="{{ hasta_fecha }}">
@@ -1209,7 +1212,7 @@
                                         </tr>
                                         {% endfor %}
 
-                                        <!-- DEDUCCIÓN CASHEA ESTÁTICA GARANTIZADA -->
+                                        <!-- FILA ESTÁTICA DEDUCCIÓN CASHEA -->
                                         {% if 'NYS' in b_nom.upper() and b_info.cashea_descontado > 0 %}
                                         <tr class="table-warning fw-bold fila-cashea-extra">
                                             <td colspan="6" class="text-danger">
@@ -1217,6 +1220,32 @@
                                             </td>
                                             <td class="text-end text-danger col-monto-cashea-deducido">
                                                 - Bs. {{ b_info.cashea_descontado | dinero }}
+                                            </td>
+                                            <td></td>
+                                        </tr>
+                                        {% endif %}
+
+                                        <!-- FILA ESTÁTICA PENDIENTES DEL BANQUERO -->
+                                        {% if b_info.pendientes_banquero and b_info.pendientes_banquero > 0 %}
+                                        <tr class="table-info fw-bold fila-pendientes-extra">
+                                            <td colspan="6" class="text-primary">
+                                                <i class="fas fa-history me-1"></i> (+) Saldo Pendiente Atrasado del Banquero:
+                                            </td>
+                                            <td class="text-end text-primary col-monto-pendientes-deducido">
+                                                + Bs. {{ b_info.pendientes_banquero | dinero }}
+                                            </td>
+                                            <td></td>
+                                        </tr>
+                                        {% endif %}
+
+                                        <!-- FILA ESTÁTICA ADELANTOS DEL BANQUERO -->
+                                        {% if b_info.adelantos_banquero and b_info.adelantos_banquero > 0 %}
+                                        <tr class="table-danger fw-bold fila-adelantos-extra">
+                                            <td colspan="6" class="text-danger">
+                                                <i class="fas fa-hand-holding-dollar me-1"></i> (-) Adelantos Entregados por el Banquero:
+                                            </td>
+                                            <td class="text-end text-danger col-monto-adelantos-deducido">
+                                                - Bs. {{ b_info.adelantos_banquero | dinero }}
                                             </td>
                                             <td></td>
                                         </tr>
@@ -1545,7 +1574,7 @@
                 var banqueroNombre = (b.getAttribute("data-banquero") || "").toUpperCase();
                 var tabla = b.querySelector(".tabla-banquero-calculo");
                 var badge = b.querySelector(".badge-total-banquero");
-                var filas = tabla.querySelectorAll("tbody tr:not(.fila-cashea-extra)");
+                var filas = tabla.querySelectorAll("tbody tr:not(.fila-cashea-extra):not(.fila-pendientes-extra):not(.fila-adelantos-extra)");
                 
                 var totVenta = 0, totPremio = 0, totComision = 0, totNeto = 0, totPart = 0, totFinal = 0;
 
@@ -1585,6 +1614,7 @@
                     totFinal += finalRow;
                 });
 
+                // 1. DEDUCCIÓN CASHEA (NYS)
                 var casheaDeducido = 0;
                 if (banqueroNombre.includes("NYS")) {
                     casheaDeducido = totalCasheaGeneral > 0 ? totalCasheaGeneral : parseMonto(document.getElementById("tfootTotalCashea") ? document.getElementById("tfootTotalCashea").innerText : 0);
@@ -1608,7 +1638,55 @@
                     }
                 }
 
-                var totFinalBanquero = totFinal - casheaDeducido;
+                // 2. AJUSTES DE ADELANTOS Y PENDIENTES
+                var inputAdelantos = b.querySelector("input[name='adelantos']");
+                var inputPendientes = b.querySelector("input[name='pendientes']");
+                var valAdelanto = inputAdelantos ? (parseFloat(inputAdelantos.value) || 0) : 0;
+                var valPendiente = inputPendientes ? (parseFloat(inputPendientes.value) || 0) : 0;
+
+                var tfootRefGeneral = tabla.querySelector("tfoot");
+
+                // Fila Pendientes
+                var filaPend = tabla.querySelector(".fila-pendientes-extra");
+                if (valPendiente > 0) {
+                    if (!filaPend) {
+                        filaPend = document.createElement("tr");
+                        filaPend.className = "table-info fw-bold fila-pendientes-extra";
+                        filaPend.innerHTML = `
+                            <td colspan="6" class="text-primary"><i class="fas fa-history me-1"></i> (+) Saldo Pendiente Atrasado del Banquero:</td>
+                            <td class="text-end text-primary col-monto-pendientes-deducido">+ ${formatoBs(valPendiente)}</td>
+                            <td></td>
+                        `;
+                        tfootRefGeneral.parentNode.insertBefore(filaPend, tfootRefGeneral);
+                    } else {
+                        var cPend = filaPend.querySelector(".col-monto-pendientes-deducido") || filaPend.cells[1];
+                        cPend.innerText = "+ " + formatoBs(valPendiente);
+                    }
+                } else if (filaPend) {
+                    filaPend.remove();
+                }
+
+                // Fila Adelantos
+                var filaAdel = tabla.querySelector(".fila-adelantos-extra");
+                if (valAdelanto > 0) {
+                    if (!filaAdel) {
+                        filaAdel = document.createElement("tr");
+                        filaAdel.className = "table-danger fw-bold fila-adelantos-extra";
+                        filaAdel.innerHTML = `
+                            <td colspan="6" class="text-danger"><i class="fas fa-hand-holding-dollar me-1"></i> (-) Adelantos Entregados por el Banquero:</td>
+                            <td class="text-end text-danger col-monto-adelantos-deducido">- ${formatoBs(valAdelanto)}</td>
+                            <td></td>
+                        `;
+                        tfootRefGeneral.parentNode.insertBefore(filaAdel, tfootRefGeneral);
+                    } else {
+                        var cAdel = filaAdel.querySelector(".col-monto-adelantos-deducido") || filaAdel.cells[1];
+                        cAdel.innerText = "- " + formatoBs(valAdelanto);
+                    }
+                } else if (filaAdel) {
+                    filaAdel.remove();
+                }
+
+                var totFinalBanquero = totFinal - casheaDeducido - valAdelanto + valPendiente;
 
                 tabla.querySelector(".foot-venta").innerText = formatoBs(totVenta);
                 tabla.querySelector(".foot-premio").innerText = formatoBs(totPremio);
@@ -1797,7 +1875,7 @@
             texto += "Período: {{ desde_fecha }} al {{ hasta_fecha }}\n";
             texto += "----------------------------------------\n\n";
 
-            var filas = tabla.querySelectorAll("tbody tr:not(.fila-cashea-extra)");
+            var filas = tabla.querySelectorAll("tbody tr:not(.fila-cashea-extra):not(.fila-pendientes-extra):not(.fila-adelantos-extra)");
             filas.forEach(function(tr) {
                 var c = tr.querySelectorAll("td");
                 if (c.length >= 7) {
@@ -1816,6 +1894,20 @@
                 var cExtra = filaExtra.querySelectorAll("td");
                 texto += "🛒 DEDUCCIÓN CASHEA:\n";
                 texto += "   • Monto Absorbido: " + cExtra[1].innerText.trim() + "\n\n";
+            }
+
+            var filaPend = tabla.querySelector(".fila-pendientes-extra");
+            if (filaPend) {
+                var cPend = filaPend.querySelectorAll("td");
+                texto += "⏳ SALDOS PENDIENTES ATRASADOS:\n";
+                texto += "   • Monto: " + cPend[1].innerText.trim() + "\n\n";
+            }
+
+            var filaAdel = tabla.querySelector(".fila-adelantos-extra");
+            if (filaAdel) {
+                var cAdel = filaAdel.querySelectorAll("td");
+                texto += "💵 ADELANTOS DEL BANQUERO:\n";
+                texto += "   • Monto: " + cAdel[1].innerText.trim() + "\n\n";
             }
 
             var tfoot = tabla.querySelector("tfoot tr");
