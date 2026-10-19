@@ -156,6 +156,9 @@
                 <button class="nav-link {% if tab_activa == 'taquillas' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-taquillas" type="button"><i class="fas fa-store me-1"></i> Taquillas Creadas 📱</button>
             </li>
             <li class="nav-item">
+                <button class="nav-link {% if tab_activa == 'modificaciones' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-modificaciones" type="button"><i class="fas fa-pen-to-square me-1"></i> Modificaciones 📝</button>
+            </li>
+            <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'comunicados' or tab_activa == 'notificaciones' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-comunicados" type="button"><i class="fas fa-bullhorn me-1"></i> Notificaciones 📢</button>
             </li>
             <li class="nav-item">
@@ -190,6 +193,68 @@
         </ul>
 
         <div class="tab-content" id="adminTabsContent">
+
+            <!-- PESTAÑA: MODIFICACIONES DIRECTAS -->
+            <div class="tab-pane fade {% if tab_activa == 'modificaciones' %}show active{% endif %}" id="tab-modificaciones" role="tabpanel">
+                <div class="card card-custom p-4 bg-white mb-3 shadow-sm">
+                    <h5 class="fw-bold text-tema mb-2">
+                        <i class="fas fa-edit me-2"></i>Modificar Sistema de Día Anterior 🌴
+                    </h5>
+                    <p class="text-muted small mb-4">
+                        Modifica cualquier venta o premio pasado de una agencia. El sistema actualizará el reporte y sincronizará de inmediato el <strong>saldo restante</strong> en la taquilla y en el admin.
+                    </p>
+                    
+                    <form action="/admin/modificar-sistema-dia-anterior" method="POST" class="p-3 bg-light rounded-4 border">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-dark">Agencia / Taquilla:</label>
+                                <select name="agencia" class="form-select form-select-sm fw-bold" required>
+                                    <option value="">-- Elige una Taquilla --</option>
+                                    {% for ag in agencias %}
+                                        {% if ag.rol != 'BANQUERO' %}
+                                        <option value="{{ ag.agencia }}">{{ ag.agencia }}</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-dark">Fecha del Reporte:</label>
+                                <input type="date" name="fecha" class="form-control form-control-sm" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-bold text-dark">Sistema:</label>
+                                <select name="sistema" class="form-select form-select-sm fw-bold" required>
+                                    <option value="">-- Elige Sistema --</option>
+                                    <option value="LA IMAGINARIA">LA IMAGINARIA</option>
+                                    <option value="MAXPLAY">MAXPLAY</option>
+                                    <option value="LUCKY">LUCKY</option>
+                                    <option value="MATRIX">MATRIX</option>
+                                    <option value="POZO">POZO</option>
+                                    <option value="POSNET">POSNET</option>
+                                    <option value="WINBIG">WINBIG</option>
+                                    <option value="GATO">GATO</option>
+                                    <option value="LOTIPOS">LOTIPOS</option>
+                                    <option value="SRQ">SRQ</option>
+                                    <option value="BETSOL">BETSOL</option>
+                                    <option value="PREMIER">PREMIER</option>
+                                    <option value="PARLEY">PARLEY</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-bold text-dark">Nueva Venta (Bs.):</label>
+                                <input type="number" step="0.01" name="venta" class="form-control form-control-sm fw-bold text-success" placeholder="0.00" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-bold text-dark">Nuevo Premio (Bs.):</label>
+                                <input type="number" step="0.01" name="premio" class="form-control form-control-sm fw-bold text-danger" placeholder="0.00" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-tema w-100 fw-bold py-2 rounded-3 shadow-sm">
+                            <i class="fas fa-save me-1"></i> Guardar Modificación y Sincronizar Saldo
+                        </button>
+                    </form>
+                </div>
+            </div>
 
             <!-- 1. TAQUILLAS CREADAS -->
             <div class="tab-pane fade {% if tab_activa == 'taquillas' %}show active{% endif %}" id="tab-taquillas" role="tabpanel">
@@ -237,15 +302,6 @@
                                         Bs. {{ (ag.saldo_pendiente or 0) | dinero }}
                                     </td>
                                     <td class="text-center">
-                                        <!-- Botón de Sincronización Directa de Saldo hacia la Taquilla -->
-                                        <form action="/admin/sincronizar-taquilla" method="POST" class="d-inline" title="Recalcular y sincronizar saldo real con la taquilla">
-                                            <input type="hidden" name="agencia" value="{{ ag.agencia }}">
-                                            <input type="hidden" name="redirect_to" value="taquillas">
-                                            <button type="submit" class="btn btn-outline-info btn-sm py-0 me-1">
-                                                <i class="fas fa-arrows-rotate"></i>
-                                            </button>
-                                        </form>
-
                                         <button type="button" class="btn btn-outline-warning btn-sm py-0 me-1" title="Ajustar Saldo Anterior" 
                                                 data-bs-toggle="modal" 
                                                 data-bs-target="#modalAjustarSaldoAnterior" 
@@ -435,7 +491,7 @@
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover align-middle mb-0 bg-white" id="tablaPositivos">
                                         <thead class="table-light">
-                                            <tr><th>AGENCIA</th><th class="text-end">DEUDA</th><th class="text-center" style="width: 105px;">ACCIONES</th></tr>
+                                            <tr><th>AGENCIA</th><th class="text-end">DEUDA</th><th class="text-center" style="width: 85px;">ACCIONES</th></tr>
                                         </thead>
                                         <tbody>
                                             {% for pos in positivos %}
@@ -449,7 +505,6 @@
                                                 <td class="text-end fw-bold text-success col-monto-cobrar">Bs. {{ pos.monto | dinero }}</td>
                                                 <td class="text-center">
                                                     <div class="d-flex gap-1 justify-content-center">
-                                                        <!-- Saldar a 0.00 -->
                                                         <form action="/admin/saldar-deuda-taquilla" method="POST" onsubmit="return confirm('¿Marcar la cuenta de {{ pos.agencia }} como totalmente saldada?');">
                                                             <input type="hidden" name="agencia" value="{{ pos.agencia }}">
                                                             <input type="hidden" name="monto_restante" value="{{ pos.monto }}">
@@ -458,17 +513,6 @@
                                                                 <i class="fas fa-check"></i>
                                                             </button>
                                                         </form>
-                                                        
-                                                        <!-- Sincronizar hacia Taquilla -->
-                                                        <form action="/admin/sincronizar-taquilla" method="POST" title="Recalcular y sincronizar con la taquilla">
-                                                            <input type="hidden" name="agencia" value="{{ pos.agencia }}">
-                                                            <input type="hidden" name="redirect_to" value="balances">
-                                                            <button type="submit" class="btn btn-outline-info btn-sm py-0 px-2">
-                                                                <i class="fas fa-arrows-rotate"></i>
-                                                            </button>
-                                                        </form>
-
-                                                        <!-- Copiar Desglose con Fecha Actual -->
                                                         <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" title="Copiar Desglose" 
                                                                 onclick="copiarDesgloseIndividual('{{ pos.agencia }}', '{{ pos.saldo_anterior or 0 }}', '{{ pos.reporte_neto or 0 }}', '{{ pos.cashea or 0 }}', '{{ pos.adelantos or 0 }}', '{{ pos.liquidaciones or 0 }}', '{{ pos.abonos or 0 }}', '{{ pos.monto }}')">
                                                             <i class="fas fa-copy"></i>
@@ -492,7 +536,7 @@
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover align-middle mb-0 bg-white" id="tablaNegativos">
                                         <thead class="table-light">
-                                            <tr><th>AGENCIA</th><th class="text-end">MONTO</th><th class="text-center" style="width: 105px;">ACCIONES</th></tr>
+                                            <tr><th>AGENCIA</th><th class="text-end">MONTO</th><th class="text-center" style="width: 85px;">ACCIONES</th></tr>
                                         </thead>
                                         <tbody>
                                             {% for neg in negativos %}
@@ -506,7 +550,6 @@
                                                 <td class="text-end fw-bold text-danger col-monto-pagar">Bs. {{ neg.monto | dinero }}</td>
                                                 <td class="text-center">
                                                     <div class="d-flex gap-1 justify-content-center">
-                                                        <!-- Liquidar Saldo a Favor a 0.00 -->
                                                         <form action="/admin/saldar-deuda-taquilla" method="POST" onsubmit="return confirm('¿Liquidar completamente y llevar a 0.00 la cuenta de {{ neg.agencia }}?');">
                                                             <input type="hidden" name="agencia" value="{{ neg.agencia }}">
                                                             <input type="hidden" name="monto_restante" value="{{ -neg.monto }}">
@@ -515,17 +558,6 @@
                                                                 <i class="fas fa-check"></i>
                                                             </button>
                                                         </form>
-                                                        
-                                                        <!-- Sincronizar hacia Taquilla -->
-                                                        <form action="/admin/sincronizar-taquilla" method="POST" title="Recalcular y sincronizar con la taquilla">
-                                                            <input type="hidden" name="agencia" value="{{ neg.agencia }}">
-                                                            <input type="hidden" name="redirect_to" value="balances">
-                                                            <button type="submit" class="btn btn-outline-info btn-sm py-0 px-2">
-                                                                <i class="fas fa-arrows-rotate"></i>
-                                                            </button>
-                                                        </form>
-
-                                                        <!-- Copiar Desglose con Fecha Actual -->
                                                         <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" title="Copiar Desglose" 
                                                                 onclick="copiarDesgloseIndividual('{{ neg.agencia }}', '{{ neg.saldo_anterior or 0 }}', '{{ neg.reporte_neto or 0 }}', '{{ neg.cashea or 0 }}', '{{ neg.adelantos or 0 }}', '{{ neg.liquidaciones or 0 }}', '{{ neg.abonos or 0 }}', '{{ -neg.monto }}')">
                                                             <i class="fas fa-copy"></i>
@@ -1418,7 +1450,6 @@
             actualizarResumenBalancesTaquillas();
         }
 
-        // LÓGICA AUTOMÁTICA DE PRECARGA DE SALDO AL ELEGIR TAQUILLA
         function actualizarMontoEntradaAuto(selectElem) {
             var selectedOption = selectElem.options[selectElem.selectedIndex];
             var saldo = parseFloat(selectedOption.getAttribute('data-saldo')) || 0;
@@ -1655,7 +1686,6 @@
 
             var totalFinal = (totBackendNum !== 0) ? totBackendNum : (antNum + repNum - casNum - aboNum + liqNum + adeNum);
 
-            // Obtener fecha actual en formato DD/MM/AAAA del momento exacto del copiado
             var hoy = new Date();
             var dia = String(hoy.getDate()).padStart(2, '0');
             var mes = String(hoy.getMonth() + 1).padStart(2, '0');
