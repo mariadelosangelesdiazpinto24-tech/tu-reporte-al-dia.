@@ -953,7 +953,7 @@
                                                             onclick="abrirModalAjusteBanquero('{{ b_nom }}', '{{ sys.sistema }}', '{{ sys.venta or 0 }}', '{{ sys.premios or 0 }}', '{{ sys.comision_banquero or 0 }}')">
                                                         <i class="fas fa-pen-to-square"></i>
                                                     </button>
-                                                    {% if sys.ajustado_manual %}
+                                                    {% if sys.ajustado_manual and sys.sistema.upper() not in ['GUACA', 'CALAMAR'] %}
                                                     <form action="/admin/restablecer-ajuste-banquero-sistema" method="POST" class="d-inline" onsubmit="return confirm('¿Restablecer a los valores calculados por sistema?');">
                                                         <input type="hidden" name="banquero" value="{{ b_nom }}">
                                                         <input type="hidden" name="sistema" value="{{ sys.sistema }}">
@@ -1241,6 +1241,7 @@
                 });
 
                 var casheaDeducido = 0;
+                // Coincidencia exacta con cualquier variación del nombre NYS
                 if (banqueroNombre.includes("NYS") && totalCasheaGeneral > 0) {
                     casheaDeducido = totalCasheaGeneral;
                     var tfootRef = tabla.querySelector("tfoot");
@@ -1252,8 +1253,11 @@
                         filaCashea.innerHTML = `
                             <td colspan="6" class="text-danger"><i class="fas fa-cart-shopping me-1"></i> (-) Facturas Cashea Absorbidas:</td>
                             <td class="text-end text-danger">- ${formatoBs(casheaDeducido)}</td>
+                            <td></td>
                         `;
                         tfootRef.parentNode.insertBefore(filaCashea, tfootRef);
+                    } else {
+                        filaCashea.cells[1].innerText = "- " + formatoBs(casheaDeducido);
                     }
                 }
 
