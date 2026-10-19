@@ -734,7 +734,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
             adelantos_rows_html += f'''
             <tr style="font-size: 13px; background: rgba(255,255,255,0.02); color: var(--tech-text, #ffffff);">
                 <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{comp_display}</td>
+                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['factura']} {comp_display}</td>
                 <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1)); text-align: right; color: var(--tech-primary, #ff007f); font-weight: bold;">Bs. {monto_p:,.2f}</td>
             </tr>'''
         elif tipo_p == 'LIQUIDACION':
@@ -1371,6 +1371,95 @@ def post_saldar_deuda_taquilla(
 
     return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
 
+# ==============================================================================
+# ENDPOINTS PESTAÑA AJUSTES (ADMIN)
+# ==============================================================================
+@app.post("/admin/ajustes/liquidar-saldo")
+async def post_ajustes_liquidar_saldo(
+    agencia: str = Form(...),
+    fecha: str = Form(...),
+    monto: float = Form(...),
+    comprobante_file: Optional[UploadFile] = File(None)
+):
+    agencia_norm = normalizar(agencia)
+    fecha_operacion = fecha or obtener_fecha_venezuela()
+    monto_pago = abs(float(monto))
+    comprobante_valor = "Liquidación desde Ajustes Admin"
+
+    if comprobante_file and comprobante_file.filename:
+        contenido = await comprobante_file.read()
+        nombre_archivo = f"liquidacion_ajustes_{agencia_norm}_{datetime.now(TZ_VENEZUELA).strftime('%Y%m%d_%H%M%S')}_{comprobante_file.filename}"
+        ruta_guardar = os.path.join("uploads", nombre_archivo)
+        with open(ruta_guardar, "wb") as buffer:
+            buffer.write(contenido)
+
+        comprobante_valor = nombre_archivo
+        if len(contenido) < 1500000:
+            mime = comprobante_file.content_type or "image/jpeg"
+            comprobante_valor = f"data:{mime};base64,{base64.b64encode(contenido).decode('utf-8')}"
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+           VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
+        (agencia_norm, fecha_operacion, monto_pago, f"Liquidación Saldo a Favor ({fecha_operacion})", comprobante_valor)
+    )
+
+    mensaje = f"✅ Tu saldo a favor de Bs. {monto_pago:,.2f} ha sido transferido/liquidado por la administración."
+    try:
+        cursor.execute(
+            "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
+            (mensaje, agencia_norm)
+        )
+    except Exception:
+        cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje,))
+
+    conn.commit()
+    conn.close()
+
+    recalcular_y_actualizar_reporte(agencia_norm, fecha_operacion)
+    disparar_notificacion(agencia_norm, "💸 Saldo Liquidado", mensaje)
+    return RedirectResponse(url="/admin?tab=ajustes&msg=liquidado_exitoso", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/ajustes/registrar-avance")
+def post_ajustes_registrar_avance(
+    agencia: str = Form(...),
+    fecha: str = Form(...),
+    monto: float = Form(...),
+    detalle: str = Form(...)
+):
+    agencia_norm = normalizar(agencia)
+    fecha_operacion = fecha or obtener_fecha_venezuela()
+    monto_avance = abs(float(monto))
+    detalle_limpio = detalle.strip() if detalle else "Avance de dinero entregado por administración"
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+           VALUES (%s, %s, %s, %s, %s, 'ADELANTO', 'APROBADO')""",
+        (agencia_norm, fecha_operacion, monto_avance, detalle_limpio, f"Avance: {detalle_limpio}")
+    )
+
+    mensaje = f"💵 Se ha registrado un avance de dinero por Bs. {monto_avance:,.2f} a tu cuenta."
+    try:
+        cursor.execute(
+            "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
+            (mensaje, agencia_norm)
+        )
+    except Exception:
+        cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje,))
+
+    conn.commit()
+    conn.close()
+
+    recalcular_y_actualizar_reporte(agencia_norm, fecha_operacion)
+    disparar_notificacion(agencia_norm, "💵 Avance de Dinero", mensaje)
+    return RedirectResponse(url="/admin?tab=ajustes&msg=avance_exitoso", status_code=status.HTTP_303_SEE_OTHER)
+
 @app.post("/agencia/cambiar-clave")
 def post_cambiar_clave(agencia: str = Form(...), nueva_clave: str = Form(...), confirm_clave: str = Form(...)):
     agencia_norm = normalizar(agencia)
@@ -1400,21 +1489,36 @@ def post_marcar_leido(comunicado_id: int = Form(...), agencia: str = Form(...)):
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/solicitar-banca-directo")
-def post_solicitar_banca_directo(agencia: str = Form(...), fecha: str = Form(...), monto: float = Form(...)):
+def post_solicitar_banca_directo(
+    agencia: str = Form(...), 
+    fecha: str = Form(...), 
+    monto: float = Form(...),
+    tipo_solicitud: Optional[str] = Form("SOLICITUD_SALDO")
+):
     agencia_norm = normalizar(agencia)
     monto_abs = abs(monto)
     conn = get_db()
     cursor = conn.cursor()
+
+    if tipo_solicitud == "AVANCE_PREMIOS":
+        factura_texto = f"Solicitud Avance de Dinero ({fecha})"
+        comp_texto = f"Avance solicitado por taquilla para premios/operatividad: Bs. {monto_abs:,.2f}"
+        msg_admin = f"La taquilla {agencia_norm} solicitó un avance de dinero de Bs. {monto_abs:,.2f}."
+    else:
+        factura_texto = f"Solicitud Saldo del {fecha}"
+        comp_texto = f"Solicitud de dinero: Bs. {monto_abs:,.2f}"
+        msg_admin = f"La taquilla {agencia_norm} solicitó Bs. {monto_abs:,.2f} para liquidar saldo."
+
     cursor.execute(
         """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
            VALUES (%s, %s, %s, %s, %s, 'SOLICITUD_BANCA', 'PENDIENTE')""",
-        (agencia_norm, fecha, monto_abs, f"Solicitud Saldo del {fecha}", f"Solicitud de dinero: Bs. {monto_abs:,.2f}")
+        (agencia_norm, fecha, monto_abs, factura_texto, comp_texto)
     )
     conn.commit()
     conn.close()
     
-    disparar_notificacion("ADMIN", "📩 Solicitud de Dinero Recibida", f"La taquilla {agencia_norm} solicitó Bs. {monto_abs:,.2f} para liquidar saldo.")
-    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+    disparar_notificacion("ADMIN", "📩 Solicitud de Dinero Recibida", msg_admin)
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=pendiente", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/reportar")
 async def post_reportar(
