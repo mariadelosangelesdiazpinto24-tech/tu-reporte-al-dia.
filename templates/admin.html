@@ -1622,9 +1622,16 @@
 
             var totalFinal = (totBackendNum !== 0) ? totBackendNum : (antNum + repNum - casNum - aboNum + liqNum + adeNum);
 
+            // Obtener fecha actual en formato DD/MM/AAAA
+            var hoy = new Date();
+            var dia = String(hoy.getDate()).padStart(2, '0');
+            var mes = String(hoy.getMonth() + 1).padStart(2, '0');
+            var anio = hoy.getFullYear();
+            var fechaHoy = dia + "/" + mes + "/" + anio;
+
             var texto = "🍀 *LOS ÁNGELES DEL DINERO* 🍀\n";
             texto += "📊 *ESTADO DE CUENTA - " + agencia.toUpperCase() + "*\n";
-            texto += "📅 Período: {{ desde_fecha }} al {{ hasta_fecha }}\n";
+            texto += "📅 *Saldo pendiente hasta el día " + fechaHoy + ":*\n";
             texto += "----------------------------------------\n";
             texto += "⏳ *Saldo Anterior:* " + formatoBs(antNum) + "\n";
             texto += "📈 *(+) Reporte del Día:* " + formatoBs(repNum) + "\n";
