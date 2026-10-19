@@ -170,6 +170,9 @@
                 <button class="nav-link {% if tab_activa == 'balances' or not tab_activa %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-balances" type="button"><i class="fas fa-scale-balanced me-1"></i> Balances Globales (+ / -)</button>
             </li>
             <li class="nav-item">
+                <button class="nav-link {% if tab_activa == 'ajustes' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-ajustes" type="button"><i class="fas fa-hand-holding-dollar me-1"></i> Caja y Ajustes 💵</button>
+            </li>
+            <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'cashea' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-cashea" type="button"><i class="fas fa-cart-shopping me-1"></i> Data Cashea General</button>
             </li>
             <li class="nav-item">
@@ -292,6 +295,7 @@
                             <select id="filtroTipoTransaccion" class="form-select form-select-sm" style="min-width: 170px;" onchange="filtrarTransacciones()">
                                 <option value="TODOS">Todos los tipos</option>
                                 <option value="PAGO_TAQUILLA">PAGOS RECIBIDOS (TAQUILLAS)</option>
+                                <option value="PAGO_BANCA">PAGOS RECIBIDOS (ADMIN)</option>
                                 <option value="AJUSTE_BANCA">AJUSTES DE BANCA</option>
                                 <option value="LIQUIDACION">LIQUIDACIONES ENVIADAS</option>
                                 <option value="ADELANTO">ADELANTOS</option>
@@ -422,7 +426,7 @@
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover align-middle mb-0 bg-white" id="tablaPositivos">
                                         <thead class="table-light">
-                                            <tr><th>AGENCIA</th><th class="text-end">DEUDA</th><th class="text-center" style="width: 50px;">AJUSTE</th></tr>
+                                            <tr><th>AGENCIA</th><th class="text-end">DEUDA</th><th class="text-center" style="width: 85px;">ACCIONES</th></tr>
                                         </thead>
                                         <tbody>
                                             {% for pos in positivos %}
@@ -435,13 +439,23 @@
                                                 </td>
                                                 <td class="text-end fw-bold text-success col-monto-cobrar">Bs. {{ pos.monto | dinero }}</td>
                                                 <td class="text-center">
-                                                    <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" title="Ajustar Saldo Anterior" 
-                                                            data-bs-toggle="modal" 
-                                                            data-bs-target="#modalAjustarSaldoAnterior" 
-                                                            data-agencia="{{ pos.agencia }}" 
-                                                            data-saldo="{{ pos.saldo_anterior or pos.monto }}">
-                                                        <i class="fas fa-pen"></i>
-                                                    </button>
+                                                    <div class="d-flex gap-1 justify-content-center">
+                                                        <form action="/admin/saldar-deuda-taquilla" method="POST" onsubmit="return confirm('¿Marcar la cuenta de {{ pos.agencia }} como totalmente saldada?');">
+                                                            <input type="hidden" name="agencia" value="{{ pos.agencia }}">
+                                                            <input type="hidden" name="monto_restante" value="{{ pos.monto }}">
+                                                            <input type="hidden" name="fecha" value="{{ pos.fecha }}">
+                                                            <button type="submit" class="btn btn-outline-success btn-sm py-0 px-2" title="Saldar Cuenta a 0.00">
+                                                                <i class="fas fa-check"></i>
+                                                            </button>
+                                                        </form>
+                                                        <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" title="Ajustar Saldo Anterior" 
+                                                                data-bs-toggle="modal" 
+                                                                data-bs-target="#modalAjustarSaldoAnterior" 
+                                                                data-agencia="{{ pos.agencia }}" 
+                                                                data-saldo="{{ pos.saldo_anterior or pos.monto }}">
+                                                            <i class="fas fa-pen"></i>
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                             {% else %}
@@ -460,7 +474,7 @@
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover align-middle mb-0 bg-white" id="tablaNegativos">
                                         <thead class="table-light">
-                                            <tr><th>AGENCIA</th><th class="text-end">MONTO</th><th class="text-center" style="width: 50px;">AJUSTE</th></tr>
+                                            <tr><th>AGENCIA</th><th class="text-end">MONTO</th><th class="text-center" style="width: 85px;">ACCIONES</th></tr>
                                         </thead>
                                         <tbody>
                                             {% for neg in negativos %}
@@ -473,13 +487,23 @@
                                                 </td>
                                                 <td class="text-end fw-bold text-danger col-monto-pagar">Bs. {{ neg.monto | dinero }}</td>
                                                 <td class="text-center">
-                                                    <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" title="Ajustar Saldo Anterior" 
-                                                            data-bs-toggle="modal" 
-                                                            data-bs-target="#modalAjustarSaldoAnterior" 
-                                                            data-agencia="{{ neg.agencia }}" 
-                                                            data-saldo="{{ neg.saldo_anterior or (-neg.monto) }}">
-                                                        <i class="fas fa-pen"></i>
-                                                    </button>
+                                                    <div class="d-flex gap-1 justify-content-center">
+                                                        <form action="/admin/saldar-deuda-taquilla" method="POST" onsubmit="return confirm('¿Liquidar completamente y llevar a 0.00 la cuenta de {{ neg.agencia }}?');">
+                                                            <input type="hidden" name="agencia" value="{{ neg.agencia }}">
+                                                            <input type="hidden" name="monto_restante" value="{{ -neg.monto }}">
+                                                            <input type="hidden" name="fecha" value="{{ neg.fecha }}">
+                                                            <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2" title="Liquidar Todo Saldo a Favor">
+                                                                <i class="fas fa-check"></i>
+                                                            </button>
+                                                        </form>
+                                                        <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" title="Ajustar Saldo Anterior" 
+                                                                data-bs-toggle="modal" 
+                                                                data-bs-target="#modalAjustarSaldoAnterior" 
+                                                                data-agencia="{{ neg.agencia }}" 
+                                                                data-saldo="{{ neg.saldo_anterior or (-neg.monto) }}">
+                                                            <i class="fas fa-pen"></i>
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                             {% else %}
@@ -520,6 +544,107 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NUEVA PESTAÑA: 5. CAJA Y AJUSTES MANUALES DIRECTOS -->
+            <div class="tab-pane fade {% if tab_activa == 'ajustes' %}show active{% endif %}" id="tab-ajustes" role="tabpanel">
+                <div class="row g-3">
+                    <!-- ENTRADA DE DINERO: REGISTRAR PAGO RECIBIDO -->
+                    <div class="col-md-6">
+                        <div class="card card-custom p-4 bg-white h-100 shadow-sm">
+                            <h5 class="fw-bold text-success mb-2"><i class="fas fa-arrow-down me-2"></i>Registrar Pago Recibido (Abono)</h5>
+                            <p class="text-muted small mb-3">Registra pagos en efectivo o transferencias que te entregue una taquilla. Disminuye de inmediato su deuda.</p>
+                            <form action="/admin/ajustes/registrar-pago-recibido" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">Taquilla / Agencia:</label>
+                                    <select name="agencia" class="form-select form-select-sm fw-bold" required>
+                                        <option value="">-- Elige una Taquilla --</option>
+                                        {% for ag in agencias %}
+                                            {% if ag.rol != 'BANQUERO' %}
+                                            <option value="{{ ag.agencia }}">{{ ag.agencia }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label small fw-bold">Fecha:</label>
+                                        <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small fw-bold">Método de Pago:</label>
+                                        <select name="metodo_pago" class="form-select form-select-sm">
+                                            <option value="Efectivo">Efectivo</option>
+                                            <option value="Pago Móvil">Pago Móvil</option>
+                                            <option value="Transferencia">Transferencia</option>
+                                            <option value="Divisas">Divisas</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">Monto Recibido (Bs.):</label>
+                                    <input type="number" step="0.01" name="monto" class="form-control form-control-sm fw-bold fs-6 text-success" placeholder="0.00" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">Detalle / Referencia:</label>
+                                    <input type="text" name="detalle" class="form-control form-control-sm" placeholder="Ej: Pago móvil 4 últimos números o entregado en mano">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">Comprobante / Capture (Opcional):</label>
+                                    <input type="file" name="comprobante_file" class="form-control form-control-sm">
+                                </div>
+                                <button type="submit" class="btn btn-success btn-sm w-100 fw-bold py-2"><i class="fas fa-check-circle me-1"></i> Acreditar Abono</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- SALIDA DE DINERO: LIQUIDACIÓN O ADELANTO -->
+                    <div class="col-md-6">
+                        <div class="card card-custom p-4 bg-white h-100 shadow-sm">
+                            <h5 class="fw-bold text-danger mb-2"><i class="fas fa-arrow-up me-2"></i>Registrar Salida de Dinero</h5>
+                            <p class="text-muted small mb-3">Paga saldo a favor o adelanta efectivo para premios/operatividad.</p>
+                            <form action="/admin/ajustes/salida-dinero" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">Taquilla / Agencia:</label>
+                                    <select name="agencia" class="form-select form-select-sm fw-bold" required>
+                                        <option value="">-- Elige una Taquilla --</option>
+                                        {% for ag in agencias %}
+                                            {% if ag.rol != 'BANQUERO' %}
+                                            <option value="{{ ag.agencia }}">{{ ag.agencia }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label small fw-bold">Fecha:</label>
+                                        <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small fw-bold">Tipo de Operación:</label>
+                                        <select name="tipo_salida" class="form-select form-select-sm" required>
+                                            <option value="LIQUIDACION">Liquidación de Saldo a Favor</option>
+                                            <option value="ADELANTO">Adelanto / Avance de Dinero</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">Monto Saliente (Bs.):</label>
+                                    <input type="number" step="0.01" name="monto" class="form-control form-control-sm fw-bold fs-6 text-danger" placeholder="0.00" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">Detalle / Motivo:</label>
+                                    <input type="text" name="detalle" class="form-control form-control-sm" placeholder="Ej: Transferido para saldar saldo a su favor">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">Comprobante / Capture (Opcional):</label>
+                                    <input type="file" name="comprobante_file" class="form-control form-control-sm">
+                                </div>
+                                <button type="submit" class="btn btn-danger btn-sm w-100 fw-bold py-2"><i class="fas fa-paper-plane me-1"></i> Registrar Salida</button>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -617,7 +742,7 @@
                 </div>
             </div>
 
-            <!-- 5. DATA CASHEA -->
+            <!-- 6. DATA CASHEA -->
             <div class="tab-pane fade {% if tab_activa == 'cashea' %}show active{% endif %}" id="tab-cashea" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
@@ -674,7 +799,7 @@
                 </div>
             </div>
 
-            <!-- 6. CONSOLIDADO SISTEMAS -->
+            <!-- 7. CONSOLIDADO SISTEMAS -->
             <div class="tab-pane fade {% if tab_activa == 'consolidado' %}show active{% endif %}" id="tab-consolidado" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
@@ -756,7 +881,7 @@
                 </div>
             </div>
 
-            <!-- 7. AUDITORÍA -->
+            <!-- 8. AUDITORÍA -->
             <div class="tab-pane fade {% if tab_activa == 'auditoria' %}show active{% endif %}" id="tab-auditoria" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end mb-3">
@@ -811,7 +936,7 @@
                 </div>
             </div>
 
-            <!-- 8. TOTALIZADOR -->
+            <!-- 9. TOTALIZADOR -->
             <div class="tab-pane fade {% if tab_activa == 'totalizador' %}show active{% endif %}" id="tab-totalizador" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end">
@@ -866,7 +991,7 @@
                 </div>
             </div>
 
-            <!-- 9. DESGLOSE BANCA -->
+            <!-- 10. DESGLOSE BANCA -->
             <div class="tab-pane fade {% if tab_activa == 'desglose_banca' %}show active{% endif %}" id="tab-desglose-banca" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <form method="GET" action="/admin" class="row g-2 align-items-end">
@@ -904,6 +1029,33 @@
                                     </button>
                                 </div>
                             </div>
+
+                            <!-- FORMULARIO DE AJUSTES GLOBALES POR BANQUERO (ADELANTOS / PENDIENTES) -->
+                            <form action="/admin/guardar-ajustes-banquero-global" method="POST" class="row g-2 align-items-center mb-3 p-2 bg-light rounded border">
+                                <input type="hidden" name="banquero" value="{{ b_nom }}">
+                                <input type="hidden" name="fecha" value="{{ hasta_fecha }}">
+                                <input type="hidden" name="desde_fecha" value="{{ desde_fecha }}">
+                                <input type="hidden" name="hasta_fecha" value="{{ hasta_fecha }}">
+                                <div class="col-auto">
+                                    <span class="small fw-bold text-muted"><i class="fas fa-sliders me-1"></i>Ajustes Manuales:</span>
+                                </div>
+                                <div class="col-auto">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">Adelantos</span>
+                                        <input type="number" step="0.01" name="adelantos" value="{{ b_info.adelantos_banquero or 0 }}" class="form-control form-control-sm" style="width: 110px;">
+                                    </div>
+                                </div>
+                                <div class="col-auto">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">Pendientes</span>
+                                        <input type="number" step="0.01" name="pendientes" value="{{ b_info.pendientes_banquero or 0 }}" class="form-control form-control-sm" style="width: 110px;">
+                                    </div>
+                                </div>
+                                <div class="col-auto">
+                                    <button type="submit" class="btn btn-secondary btn-sm py-1 fw-bold">Guardar</button>
+                                </div>
+                            </form>
+
                             <div class="table-responsive">
                                 <table class="table table-sm table-bordered bg-white align-middle mb-0 tabla-banquero-calculo" id="tabla_b_{{ loop.index }}" style="font-size: 11.5px;">
                                     <thead class="table-light">
