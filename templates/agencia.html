@@ -7,11 +7,11 @@
     
     <!-- Configuración PWA e Iconos Oficiales -->
     <link rel="manifest" href="/manifest.json">
-    <link rel="icon" type="image/png" href="/static/logo.png">
-    <link rel="apple-touch-icon" href="/static/logo.png">
+    <link rel="icon" type="image/png" href="/templates/logo.png">
+    <link rel="apple-touch-icon" href="/templates/logo.png">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- OneSignal Web Push SDK -->
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
@@ -101,7 +101,7 @@
             background: var(--color-hover) !important; 
             color: #ffffff !important; 
             transform: translateY(-1px);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15); 
         }
 
         .nav-tabs { 
@@ -163,12 +163,14 @@
         <!-- HEADER -->
         <div class="card bg-tema shadow-sm border-0 mb-4" style="border-radius: 15px;">
             <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <div>
-                    <h3 class="fw-bold m-0 text-white">
-                        <i class="fas fa-store me-2 accent-amarillo"></i>{{ nombre_agencia }} 
-                        <span class="ms-1">🍀🌴🌺</span>
-                    </h3>
-                    <small class="text-white-50">Panel de Operaciones Financieras</small>
+                <div class="d-flex align-items-center">
+                    <img src="/templates/logo.png" alt="Logo" style="width: 44px; height: 44px; object-fit: contain; border-radius: 10px; margin-right: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.25);">
+                    <div>
+                        <h3 class="fw-bold m-0 text-white">
+                            {{ nombre_agencia }} <span class="ms-1">🍀🌴🌺</span>
+                        </h3>
+                        <small class="text-white-50">Panel de Operaciones Financieras</small>
+                    </div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <button type="button" class="btn btn-warning btn-sm fw-bold rounded-pill px-3 shadow-sm text-dark border-0" onclick="activarNotificacionesManual()">
@@ -245,6 +247,11 @@
             <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'transacciones' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-transacciones" type="button" onclick="setTab('transacciones')">
                     <i class="fas fa-exchange-alt me-1"></i> Transacciones
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link {% if tab_activa == 'adelanto' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-adelanto" type="button" onclick="setTab('adelanto')">
+                    <i class="fas fa-hand-holding-dollar me-1"></i> Adelantos / Avance
                 </button>
             </li>
             <li class="nav-item">
@@ -326,8 +333,8 @@
                             </button>
                         </div>
                         <div class="col-md-6">
-                            <button class="btn btn-tema btn-lg w-100 fw-bold shadow-sm rounded-pill py-3" data-bs-toggle="collapse" data-bs-target="#seccionSolicitar" {% if saldo_actual >= 0 %}disabled title="Solo disponible si tienes saldo a favor"{% endif %}>
-                                <i class="fas fa-university me-2 accent-amarillo"></i> Solicitar Saldo a Favor a la Banca
+                            <button class="btn btn-tema btn-lg w-100 fw-bold shadow-sm rounded-pill py-3" data-bs-toggle="collapse" data-bs-target="#seccionSolicitar">
+                                <i class="fas fa-university me-2 accent-amarillo"></i> Solicitar Dinero a la Banca
                             </button>
                         </div>
                     </div>
@@ -364,19 +371,27 @@
                         </div>
                     </div>
 
-                    <!-- FORMULARIO DE SOLICITUD DE SALDO A FAVOR -->
+                    <!-- FORMULARIO DE SOLICITUD DE DINERO (SALDO O AVANCE) -->
                     <div class="collapse mt-3 mb-3" id="seccionSolicitar">
                         <div class="card p-3 border rounded-3 bg-light shadow-sm">
-                            <h5 class="fw-bold text-tema mb-2"><i class="fas fa-hand-holding-usd me-2"></i>Solicitar Saldo a Favor</h5>
+                            <h5 class="fw-bold text-tema mb-2"><i class="fas fa-hand-holding-usd me-2"></i>Solicitar Dinero a la Banca</h5>
+                            <p class="small text-muted mb-3">Puedes solicitar que te transfieran tu saldo a favor o solicitar un avance para pago de premios.</p>
                             <form action="/solicitar-banca-directo" method="POST" class="row g-3">
                                 <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
-                                <div class="col-md-6">
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-bold">Tipo de Solicitud:</label>
+                                    <select name="tipo_solicitud" class="form-select form-select-sm" required>
+                                        <option value="SOLICITUD_SALDO" {% if saldo_actual < 0 %}selected{% endif %}>Liquidación de Saldo a Favor</option>
+                                        <option value="AVANCE_PREMIOS" {% if saldo_actual >= 0 %}selected{% endif %}>Avance de Dinero (Premios / Caja)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
                                     <label class="form-label small fw-bold">Fecha:</label>
                                     <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-4">
                                     <label class="form-label small fw-bold">Monto a Solicitar (Bs.):</label>
-                                    <input type="number" step="0.01" name="monto" class="form-control form-control-sm" placeholder="0.00" value="{% if saldo_actual < 0 %}{{ -saldo_actual }}{% endif %}" required>
+                                    <input type="number" step="0.01" name="monto" class="form-control form-control-sm fw-bold" placeholder="0.00" value="{% if saldo_actual < 0 %}{{ -saldo_actual }}{% endif %}" required>
                                 </div>
                                 <div class="col-12">
                                     <button type="submit" class="btn btn-tema fw-bold w-100 shadow-sm rounded-pill">Enviar Solicitud a la Administración</button>
@@ -562,15 +577,41 @@
                 </div>
             </div>
 
-            <!-- 5. MODIFICACIONES -->
+            <!-- 5. REGISTRAR ADELANTO / AVANCE -->
+            <div class="tab-pane fade {% if tab_activa == 'adelanto' %}show active{% endif %}" id="tab-adelanto" role="tabpanel">
+                <div class="card card-custom p-4 bg-white" style="max-width: 600px; margin: 0 auto;">
+                    <h5 class="fw-bold text-warning mb-2"><i class="fas fa-hand-holding-dollar me-2"></i>Registrar Adelanto de Dinero</h5>
+                    <p class="small text-muted mb-3">Registra si tomaste un adelanto o avance para caja/premios. Se computará de inmediato en tu cuenta.</p>
+                    
+                    <form action="/solicitar-adelanto" method="POST">
+                        <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Fecha:</label>
+                            <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Monto del Adelanto (Bs.):</label>
+                            <input type="number" step="0.01" name="monto" class="form-control form-control-sm fw-bold fs-6 text-danger" placeholder="0.00" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Observación / Motivo:</label>
+                            <input type="text" name="observacion" class="form-control form-control-sm" placeholder="Ej: Adelanto para pago de premios mayores" required>
+                        </div>
+                        <button type="submit" class="btn btn-warning fw-bold w-100 rounded-pill shadow-sm py-2 text-dark">Registrar Adelanto</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 6. MODIFICACIONES -->
             <div class="tab-pane fade {% if tab_activa == 'modificaciones' %}show active{% endif %}" id="tab-modificaciones" role="tabpanel">
                 <div class="card card-custom p-4 bg-white">
                     <h5 class="fw-bold text-tema mb-3"><i class="fas fa-edit me-1"></i> Modificar Sistema de Día Anterior 🌴</h5>
                     <form action="/actualizar-reporte-sistema" method="POST" class="row g-3">
                         <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
+                        <input type="hidden" name="origen" value="agencia">
                         <div class="col-md-3">
                             <label class="form-label small fw-bold">Fecha del Reporte:</label>
-                            <input type="date" name="fecha" class="form-control form-control-sm" required>
+                            <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label small fw-bold">Sistema:</label>
@@ -595,11 +636,13 @@
                 </div>
             </div>
 
-            <!-- 6. MI CUENTA -->
+            <!-- 7. MI CUENTA -->
             <div class="tab-pane fade {% if tab_activa == 'cuenta' %}show active{% endif %}" id="tab-cuenta" role="tabpanel">
                 <div class="card card-custom p-4 bg-white" style="max-width: 500px; margin: 0 auto;">
                     <h5 class="fw-bold text-tema mb-3"><i class="fas fa-key me-1"></i> Cambiar Contraseña 🌺</h5>
                     
+                    <div id="alertaCuenta"></div>
+
                     <form action="/agencia/cambiar-clave" method="POST">
                         <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
                         <div class="mb-3">
@@ -626,6 +669,21 @@
                 campo.value = tabName;
             }
         }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            var urlParams = new URLSearchParams(window.location.search);
+            var error = urlParams.get('error');
+            var success = urlParams.get('success');
+            var alerta = document.getElementById('alertaCuenta');
+
+            if (alerta) {
+                if (error === 'claves_no_coinciden') {
+                    alerta.innerHTML = '<div class="alert alert-danger py-2 small mb-3">Las contraseñas no coinciden. Inténtalo de nuevo.</div>';
+                } else if (success === 'clave_actualizada') {
+                    alerta.innerHTML = '<div class="alert alert-success py-2 small mb-3">¡Contraseña actualizada con éxito!</div>';
+                }
+            }
+        });
     </script>
 </body>
 </html>
