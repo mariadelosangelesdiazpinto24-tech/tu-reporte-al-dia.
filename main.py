@@ -2121,3 +2121,4 @@ def get_admin(
 @app.get("/templates/logo.png")
 def get_logo():
     return FileResponse("templates/logo.png", media_type="image/png")
+    
