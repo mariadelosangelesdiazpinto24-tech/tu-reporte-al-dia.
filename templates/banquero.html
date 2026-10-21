@@ -121,9 +121,14 @@
                                 Total a Liquidar: Bs. {{ cuadro.total_a_pagar | dinero }}
                             </span>
                         </div>
-                        <button class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold shadow-sm" onclick="copiarMiLiquidacion()">
-                            <i class="fas fa-copy me-1"></i> Copiar Liquidación
-                        </button>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-warning btn-sm rounded-pill px-3 fw-bold shadow-sm text-dark" data-bs-toggle="modal" data-bs-target="#modalAjustesBanquero">
+                                <i class="fas fa-sliders me-1"></i> Adelantos / Atrasos
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold shadow-sm" onclick="copiarMiLiquidacion()">
+                                <i class="fas fa-copy me-1"></i> Copiar Liquidación
+                            </button>
+                        </div>
                     </div>
 
                     <div class="table-responsive">
@@ -137,12 +142,11 @@
                                     <th class="text-end">Total (V - P - C)</th>
                                     <th class="text-end">Participación</th>
                                     <th class="text-end fw-bold">Total Sistema</th>
+                                    <th class="text-center" style="width: 70px;">Editar</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% set subtotal_sistemas = namespace(valor=0.0) %}
                                 {% for s in cuadro.sistemas %}
-                                {% set subtotal_sistemas.valor = subtotal_sistemas.valor + (s.total_final or 0) %}
                                 <tr>
                                     <td class="fw-bold">{{ s.sistema }}</td>
                                     <td class="text-end">Bs. {{ s.venta | dinero }}</td>
@@ -153,9 +157,15 @@
                                         Bs. {{ s.participacion | dinero }}
                                     </td>
                                     <td class="text-end fw-bold">Bs. {{ s.total_final | dinero }}</td>
+                                    <td class="text-center">
+                                        <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" title="Editar Valores de este Sistema"
+                                                onclick="abrirModalEditarSistema('{{ s.sistema }}', '{{ s.venta or 0 }}', '{{ s.premios or 0 }}', '{{ s.comision or 0 }}')">
+                                            <i class="fas fa-pen-to-square"></i>
+                                        </button>
+                                    </td>
                                 </tr>
                                 {% else %}
-                                <tr><td colspan="7" class="text-center text-muted py-3">No hay movimientos registrados en este período.</td></tr>
+                                <tr><td colspan="8" class="text-center text-muted py-3">No hay movimientos registrados en este período.</td></tr>
                                 {% endfor %}
 
                                 <!-- DEDUCCIÓN CASHEA -->
@@ -163,16 +173,18 @@
                                 <tr class="table-warning fw-bold">
                                     <td colspan="6" class="text-danger"><i class="fas fa-shopping-cart me-1"></i> (-) Facturas Cashea Absorbidas:</td>
                                     <td class="text-end text-danger">- Bs. {{ cuadro.cashea_descontado | dinero }}</td>
+                                    <td></td>
                                 </tr>
                                 {% endif %}
 
-                                <!-- PENDIENTES DEL BANQUERO -->
+                                <!-- PENDIENTES / ATRASOS DEL BANQUERO -->
                                 {% if cuadro.pendientes_banquero != 0 %}
                                 <tr class="table-info fw-bold">
-                                    <td colspan="6" class="text-primary"><i class="fas fa-history me-1"></i> Saldo Pendiente Anterior:</td>
+                                    <td colspan="6" class="text-primary"><i class="fas fa-history me-1"></i> Saldo Pendiente Anterior (Atraso):</td>
                                     <td class="text-end text-primary">
                                         {% if cuadro.pendientes_banquero > 0 %}+{% endif %}Bs. {{ cuadro.pendientes_banquero | dinero }}
                                     </td>
+                                    <td></td>
                                 </tr>
                                 {% endif %}
 
@@ -181,6 +193,7 @@
                                 <tr class="table-danger fw-bold">
                                     <td colspan="6" class="text-danger"><i class="fas fa-hand-holding-dollar me-1"></i> (-) Adelantos Entregados:</td>
                                     <td class="text-end text-danger">- Bs. {{ (cuadro.adelantos_banquero | abs) | dinero }}</td>
+                                    <td></td>
                                 </tr>
                                 {% endif %}
                             </tbody>
@@ -188,6 +201,7 @@
                                 <tr>
                                     <td colspan="6" class="text-end text-uppercase">TOTAL FINAL A LIQUIDAR:</td>
                                     <td class="text-end fs-6 text-warning">Bs. {{ cuadro.total_a_pagar | dinero }}</td>
+                                    <td></td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -203,9 +217,14 @@
                             <h4 class="fw-bold text-danger m-0"><i class="fas fa-shield-halved me-2"></i>Lista Negra Pública y Verificada</h4>
                             <small class="text-muted">Registro colectivo inmutable en tiempo real. Consulta cédulas, números y evidencias de estafadores.</small>
                         </div>
-                        <button type="button" class="btn btn-danger fw-bold rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoEstafadorBanquero">
-                            <i class="fas fa-user-plus me-1"></i> Reportar Estafador
-                        </button>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-dark fw-bold rounded-pill px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCrearTaquillaLN">
+                                <i class="fas fa-user-shield me-1"></i> Crear Taquilla para Lista Negra
+                            </button>
+                            <button type="button" class="btn btn-danger fw-bold rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoEstafadorBanquero">
+                                <i class="fas fa-user-plus me-1"></i> Reportar Estafador
+                            </button>
+                        </div>
                     </div>
 
                     <!-- BUSCADOR EN TIEMPO REAL -->
@@ -241,7 +260,126 @@
         </div>
     </div>
 
-    <!-- MODAL REGISTRAR ESTAFADOR -->
+    <!-- MODAL 1: REGISTRAR ADELANTOS / ATRASOS DE LA COMERCIALIZADORA -->
+    <div class="modal fade" id="modalAjustesBanquero" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-warning text-dark py-2">
+                    <h6 class="modal-title fw-bold"><i class="fas fa-sliders me-1"></i> Ajustar Adelantos y Atrasos</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form action="/banquero/guardar-ajustes-cuenta" method="POST">
+                    <input type="hidden" name="banquero" value="{{ nombre_comercializadora }}">
+                    <input type="hidden" name="usuario" value="{{ usuario }}">
+                    <input type="hidden" name="fecha" value="{{ hasta_fecha }}">
+                    <input type="hidden" name="desde_fecha" value="{{ desde_fecha }}">
+                    <input type="hidden" name="hasta_fecha" value="{{ hasta_fecha }}">
+
+                    <div class="modal-body p-3">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Adelanto (Dinero entregado a la banca):</label>
+                            <input type="number" step="0.01" name="adelantos" value="{{ cuadro.adelantos_banquero or 0 }}" class="form-control form-control-sm fw-bold text-danger" required>
+                            <small class="text-muted">Si entregaste dinero por adelantado, se descontará del saldo final.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Atrasos / Saldo Pendiente Anterior:</label>
+                            <input type="number" step="0.01" name="pendientes" value="{{ cuadro.pendientes_banquero or 0 }}" class="form-control form-control-sm fw-bold text-primary" required>
+                            <small class="text-muted">Saldo deudor acumulado que se suma a la cuenta actual.</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light py-2">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-warning btn-sm fw-bold px-3">Guardar Ajustes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: EDITAR REPORTE DE UN SISTEMA (BIDIRECCIONAL) -->
+    <div class="modal fade" id="modalEditarSistemaBanquero" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-primary text-white py-2">
+                    <h6 class="modal-title fw-bold" id="tituloModalEditSistema"><i class="fas fa-pen-to-square me-1"></i> Modificar Sistema</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form action="/banquero/guardar-ajuste-sistema" method="POST">
+                    <input type="hidden" name="banquero" value="{{ nombre_comercializadora }}">
+                    <input type="hidden" name="usuario" value="{{ usuario }}">
+                    <input type="hidden" name="sistema" id="inputEditSistemaNombre">
+                    <input type="hidden" name="fecha" value="{{ hasta_fecha }}">
+                    <input type="hidden" name="desde_fecha" value="{{ desde_fecha }}">
+                    <input type="hidden" name="hasta_fecha" value="{{ hasta_fecha }}">
+
+                    <div class="modal-body p-3">
+                        <div class="alert alert-light border small py-2 mb-3">
+                            Sistema: <strong id="lblEditSistemaNombre" class="text-primary"></strong><br>
+                            Fecha: <strong class="text-dark">{{ hasta_fecha }}</strong>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Venta (Bs.):</label>
+                            <input type="number" step="0.01" name="venta" id="inputEditVenta" class="form-control form-control-sm fw-bold text-success" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Premios (Bs.):</label>
+                            <input type="number" step="0.01" name="premios" id="inputEditPremio" class="form-control form-control-sm fw-bold text-danger" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Comisión (Bs.):</label>
+                            <input type="number" step="0.01" name="comision" id="inputEditComision" class="form-control form-control-sm fw-bold text-primary" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light py-2">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary btn-sm fw-bold px-3">Guardar Modificación</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: CREAR TAQUILLA PARA LISTA NEGRA -->
+    <div class="modal fade" id="modalCrearTaquillaLN" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-dark text-white py-2">
+                    <h6 class="modal-title fw-bold"><i class="fas fa-user-shield me-1"></i> Habilitar Taquilla para Lista Negra</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formCrearTaquillaLN">
+                    <input type="hidden" name="creado_por" value="{{ nombre_comercializadora }}">
+                    <div class="modal-body p-3">
+                        <div class="alert alert-info py-2 small mb-3 border-0">
+                            <i class="fas fa-info-circle me-1"></i> Esta taquilla solo podrá entrar para consultar y reportar estafadores. No tendrá acceso a tus balances ni a los números de la comercializadora.
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Nombre Real del Responsable:</label>
+                            <input type="text" name="nombre_real" class="form-control form-control-sm" placeholder="Ej: Maria Gonzalez" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Cédula de Identidad:</label>
+                            <input type="text" name="cedula" class="form-control form-control-sm" placeholder="V-12345678" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Nombre de la Agencia (Usuario para iniciar sesión):</label>
+                            <input type="text" name="agencia" class="form-control form-control-sm" placeholder="Ej: AGENCIA LA FORTUNA" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Contraseña de acceso:</label>
+                            <input type="text" name="clave" class="form-control form-control-sm" value="123456" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light py-2">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary btn-sm fw-bold px-3" id="btnCrearTaquillaSubmit">Crear Taquilla</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 4: REPORTAR ESTAFADOR -->
     <div class="modal fade" id="modalNuevoEstafadorBanquero" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow">
@@ -301,7 +439,7 @@
         </div>
     </div>
 
-    <!-- MODAL VER EVIDENCIAS -->
+    <!-- MODAL 5: VER EVIDENCIAS -->
     <div class="modal fade" id="modalVerEvidenciasBanquero" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content border-0 shadow">
@@ -318,6 +456,17 @@
     <script>
         function formatoBs(val) {
             return "Bs. " + Number(val).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function abrirModalEditarSistema(sistema, venta, premios, comision) {
+            document.getElementById('inputEditSistemaNombre').value = sistema;
+            document.getElementById('lblEditSistemaNombre').innerText = sistema;
+            document.getElementById('inputEditVenta').value = parseFloat(venta) || 0;
+            document.getElementById('inputEditPremio').value = parseFloat(premios) || 0;
+            document.getElementById('inputEditComision').value = parseFloat(comision) || 0;
+
+            var modal = new bootstrap.Modal(document.getElementById('modalEditarSistemaBanquero'));
+            modal.show();
         }
 
         function copiarMiLiquidacion() {
@@ -358,7 +507,7 @@
             });
         }
 
-        // LISTA NEGRA BANQUERO
+        // MOTOR LISTA NEGRA BANQUERO
         function cargarListaNegraBanquero(query = "") {
             var url = "/api/lista-negra";
             if (query && query.trim() !== "") {
@@ -445,6 +594,7 @@
         }
 
         document.addEventListener("DOMContentLoaded", function() {
+            // Guardar Estafador
             var formEstafador = document.getElementById("formRegistrarEstafadorBanquero");
             if (formEstafador) {
                 formEstafador.addEventListener("submit", function(e) {
@@ -471,6 +621,36 @@
                         btn.disabled = false;
                         btn.innerHTML = 'Publicar Registro';
                         alert("Error al guardar: " + err);
+                    });
+                });
+            }
+
+            // Crear Taquilla para Lista Negra
+            var formTaquillaLN = document.getElementById("formCrearTaquillaLN");
+            if (formTaquillaLN) {
+                formTaquillaLN.addEventListener("submit", function(e) {
+                    e.preventDefault();
+                    var btn = document.getElementById("btnCrearTaquillaSubmit");
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Creando...';
+
+                    fetch("/api/banquero/crear-taquilla-listanegra", {
+                        method: "POST",
+                        body: new FormData(formTaquillaLN)
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        btn.disabled = false;
+                        btn.innerHTML = 'Crear Taquilla';
+                        var modalEl = document.getElementById('modalCrearTaquillaLN');
+                        bootstrap.Modal.getInstance(modalEl).hide();
+                        formTaquillaLN.reset();
+                        alert(data.mensaje);
+                    })
+                    .catch(err => {
+                        btn.disabled = false;
+                        btn.innerHTML = 'Crear Taquilla';
+                        alert("Error al crear taquilla: " + err);
                     });
                 });
             }
