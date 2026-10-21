@@ -10,7 +10,7 @@ import shutil
 import traceback
 import base64
 from zoneinfo import ZoneInfo
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, timedelta
 from fastapi import FastAPI, Request, Form, UploadFile, File, status
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, Response
@@ -311,6 +311,21 @@ def init_db():
             diferencia DOUBLE PRECISION DEFAULT 0,
             detalle_dias TEXT,
             UNIQUE(agencia, desde_fecha, hasta_fecha)
+        )
+    ''')
+
+    # TABLA PERMANENTE DE LISTA NEGRA
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS lista_negra (
+            id SERIAL PRIMARY KEY,
+            nombre TEXT NOT NULL,
+            cedula TEXT,
+            telefonos TEXT,
+            rol_estafador TEXT,
+            descripcion TEXT,
+            evidencias TEXT,
+            reportado_por TEXT,
+            fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
 
@@ -1167,6 +1182,82 @@ def obtener_historico_semana(agencia: str, desde: str, hasta: str):
 
     return {"sistemas": sistemas_cobrados}
 
+# ==============================================================================
+# ENDPOINTS LISTA NEGRA (TIEMPO REAL, EVIDENCIAS INMUTABLES Y BÚSQUEDA)
+# ==============================================================================
+@app.get("/api/lista-negra")
+def api_obtener_lista_negra(q: Optional[str] = None):
+    conn = get_db()
+    cursor = conn.cursor()
+    if q and q.strip():
+        termino = f"%{q.strip().upper()}%"
+        cursor.execute("""
+            SELECT * FROM lista_negra 
+            WHERE UPPER(cedula) LIKE %s 
+               OR UPPER(telefonos) LIKE %s 
+               OR UPPER(nombre) LIKE %s 
+            ORDER BY id DESC
+        """, (termino, termino, termino))
+    else:
+        cursor.execute("SELECT * FROM lista_negra ORDER BY id DESC")
+    
+    filas = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    
+    for f in filas:
+        if f.get('fecha_registro'):
+            f['fecha_str'] = str(f['fecha_registro'])[:16]
+    return filas
+
+@app.post("/api/lista-negra/guardar")
+async def api_guardar_lista_negra(
+    nombre: str = Form(...),
+    cedula: Optional[str] = Form(""),
+    telefonos: str = Form(...),
+    rol_estafador: str = Form(...),
+    descripcion: str = Form(...),
+    agencia_reporta: str = Form(...),
+    evidencias_files: List[UploadFile] = File(default=[])
+):
+    evidencias_urls = []
+    
+    for file in evidencias_files:
+        if file.filename:
+            contenido = await file.read()
+            ext = file.filename.split('.')[-1]
+            nom_arch = f"evidencia_{datetime.now(TZ_VENEZUELA).strftime('%Y%m%d_%H%M%S')}_{file.filename.replace(' ', '_')}"
+            ruta = os.path.join("uploads", nom_arch)
+            with open(ruta, "wb") as f:
+                f.write(contenido)
+            evidencias_urls.append(f"/uploads/{nom_arch}")
+
+    evidencias_json = json.dumps(evidencias_urls)
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO lista_negra (nombre, cedula, telefonos, rol_estafador, descripcion, evidencias, reportado_por)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """, (
+        nombre.strip().upper(),
+        cedula.strip().upper() if cedula else "N/A",
+        telefonos.strip(),
+        rol_estafador.strip().upper(),
+        descripcion.strip(),
+        evidencias_json,
+        normalizar(agencia_reporta)
+    ))
+    conn.commit()
+    conn.close()
+
+    disparar_notificacion(
+        "TODAS",
+        "🚨 NUEVO REPORTE EN LISTA NEGRA",
+        f"Se ha boletinado a: {nombre.upper()} ({rol_estafador}) - C.I: {cedula or 'N/A'}"
+    )
+
+    return {"status": "ok", "mensaje": "Estafador fichado en la lista negra exitosamente."}
+
 @app.get("/", response_class=HTMLResponse)
 @app.get("/login", response_class=HTMLResponse)
 def get_login(request: Request):
@@ -1925,8 +2016,6 @@ async def post_procesar_solicitud_dinero(
                 nombre_guardado = f"data:{mime};base64,{base64.b64encode(contenido).decode('utf-8')}"
 
         if accion == "COMPLETO":
-            # Actualiza directamente la fila de la solicitud a LIQUIDACION APROBADA
-            # Esto evita duplicados y garantiza que impacte el balance de inmediato
             cursor.execute(
                 """UPDATE pagos 
                    SET tipo = 'LIQUIDACION', 
@@ -1938,7 +2027,6 @@ async def post_procesar_solicitud_dinero(
                 (monto_pagar, f"Liquidación Completa ({fecha_solicitud})", nombre_guardado, solicitud_id)
             )
         else:
-            # Si es abono parcial, se descuenta de la solicitud pendiente y se registra la liquidación
             monto_restante = max(0.0, monto_original - monto_pagar)
             if monto_restante > 0.009:
                 cursor.execute("UPDATE pagos SET monto = %s WHERE id = %s", (monto_restante, solicitud_id))
@@ -1963,7 +2051,6 @@ async def post_procesar_solicitud_dinero(
         conn.commit()
         conn.close()
 
-        # Recalcular tanto en la fecha de origen de la solicitud como en la fecha de hoy
         recalcular_y_actualizar_reporte(agencia_norm, fecha_solicitud)
         if fecha_solicitud != fecha_actual:
             recalcular_y_actualizar_reporte(agencia_norm, fecha_actual)
