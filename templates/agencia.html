@@ -155,6 +155,17 @@
         .accent-verde { 
             color: var(--color-acento-verde); 
         }
+
+        /* Estilo pestaña Lista Negra */
+        .tab-danger-glow {
+            color: #d32f2f !important;
+            font-weight: bold;
+        }
+        .nav-tabs .nav-link.active.tab-danger-glow {
+            background-color: #b71c1c !important;
+            color: #ffffff !important;
+            border-bottom: 3px solid #ffeb3b !important;
+        }
     </style>
 </head>
 <body>
@@ -228,10 +239,15 @@
         </div>
 
         <!-- PESTAÑAS -->
-        <ul class="nav nav-tabs mb-4" id="agenciaTabs" role="tablist">
+        <ul class="nav nav-tabs mb-4 flex-wrap" id="agenciaTabs" role="tablist">
             <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'pendiente' or not tab_activa or tab_activa == 'reportes' %}active{% endif %}" id="btn-tab-pendiente" data-bs-toggle="tab" data-bs-target="#tab-pendiente" type="button" onclick="setTab('pendiente')">
                     <i class="fas fa-clock me-1"></i> Pendientes / Pagos
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link tab-danger-glow {% if tab_activa == 'listanegra' %}active{% endif %}" id="btn-tab-listanegra" data-bs-toggle="tab" data-bs-target="#tab-listanegra" type="button" onclick="setTab('listanegra')">
+                    <i class="fas fa-skull-crossbones me-1"></i> Lista Negra 🚨
                 </button>
             </li>
             <li class="nav-item">
@@ -273,10 +289,53 @@
 
         <div class="tab-content" id="agenciaTabsContent">
 
+            <!-- PESTAÑA: LISTA NEGRA COLECTIVA (EN TIEMPO REAL E INMUTABLE) -->
+            <div class="tab-pane fade {% if tab_activa == 'listanegra' %}show active{% endif %}" id="tab-listanegra" role="tabpanel">
+                <div class="card card-custom p-4 bg-white mb-4 border-start border-4 border-danger">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <div>
+                            <h4 class="fw-bold text-danger m-0"><i class="fas fa-shield-halved me-2"></i>Lista Negra Pública y Verificada</h4>
+                            <small class="text-muted">Directorio comunitario en tiempo real de estafadores, cédulas y líneas fraudulentas. Registros permanentes.</small>
+                        </div>
+                        <button type="button" class="btn btn-danger fw-bold rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoEstafador">
+                            <i class="fas fa-user-plus me-1"></i> Reportar Estafador
+                        </button>
+                    </div>
+
+                    <!-- BUSCADOR INSTANTÁNEO POR CÉDULA O NÚMERO DE TELÉFONO -->
+                    <div class="p-3 bg-light rounded-4 mb-4 border">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-danger"></i></span>
+                            <input type="text" id="inputBuscarEstafador" class="form-control border-start-0" placeholder="Buscar por Cédula, Nombre o Teléfono..." oninput="filtrarListaNegra()">
+                            <button class="btn btn-outline-secondary" type="button" onclick="cargarListaNegra()"><i class="fas fa-rotate me-1"></i> Refrescar</button>
+                        </div>
+                    </div>
+
+                    <!-- TABLA DINÁMICA DE ESTAFADORES -->
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" style="font-size: 13px;">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Cédula</th>
+                                    <th>Nombre(s)</th>
+                                    <th>Rol</th>
+                                    <th>Teléfono(s)</th>
+                                    <th>Detalles / Motivo</th>
+                                    <th>Evidencias</th>
+                                    <th>Reportado Por</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyListaNegra">
+                                <tr><td colspan="7" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>Cargando registros...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- 1. PENDIENTES / PAGOS -->
             <div class="tab-pane fade {% if tab_activa == 'pendiente' or not tab_activa or tab_activa == 'reportes' %}show active{% endif %}" id="tab-pendiente" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-4">
-                    
                     <div class="p-3 mb-3 rounded-4 shadow-sm d-flex justify-content-between align-items-center flex-wrap gap-2 caja-balance-interactiva" 
                          data-bs-toggle="collapse" data-bs-target="#desglosePendienteDetalle" title="Toca aquí para ver el cálculo detallado">
                         <div>
@@ -288,7 +347,6 @@
                         </h2>
                     </div>
 
-                    <!-- DESGLOSE DETALLADO JUSTIFICACIÓN DE LA CUENTA -->
                     <div class="collapse show mb-4" id="desglosePendienteDetalle">
                         <div class="card p-3 border rounded-3 bg-light shadow-sm small">
                             <h6 class="fw-bold text-dark border-bottom pb-2 mb-2"><i class="fas fa-calculator text-tema me-2"></i>Justificación de la Cuenta:</h6>
@@ -447,7 +505,6 @@
                                         </td>
                                     </tr>
                                     {% endfor %}
-                                    
                                     <tr class="table-dark fw-bold">
                                         <td>TOTAL SISTEMAS</td>
                                         <td class="text-end">Bs. {{ totales_auditoria.venta | dinero }}</td>
@@ -462,7 +519,6 @@
                         </table>
                     </div>
 
-                    <!-- DESGLOSE CASHEA EN AUDITORÍA -->
                     <div class="mt-4 p-3 bg-light border rounded">
                         <h6 class="fw-bold text-info mb-2"><i class="fas fa-shopping-cart me-1"></i> Facturas Cashea Descontadas</h6>
                         <table class="table table-sm align-middle mb-2 bg-white border" style="font-size: 12px;">
@@ -487,14 +543,12 @@
                             </span>
                         </div>
                     </div>
-
                 </div>
             </div>
 
             <!-- CUADRE SEMANAL / CONCILIACIÓN POR SISTEMAS -->
             <div class="tab-pane fade {% if tab_activa == 'conciliacion' %}show active{% endif %}" id="tab-conciliacion" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-4">
-                    
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div>
                             <h5 class="fw-bold text-tema m-0"><i class="fas fa-balance-scale me-2"></i>Conciliación Semanal por Sistemas 🍀</h5>
@@ -507,7 +561,6 @@
 
                     {% set res = conciliacion_resumen if conciliacion_resumen is defined and conciliacion_resumen else {} %}
 
-                    <!-- RESUMEN GENERAL DIRECTO -->
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
                             <div class="p-3 rounded-4 shadow-sm bg-light border-start border-4 border-primary">
@@ -543,7 +596,6 @@
                         </div>
                     </div>
 
-                    <!-- TABLA COMPARATIVA DETALLADA POR SISTEMAS -->
                     <div class="table-responsive mb-3">
                         <table class="table table-bordered table-hover align-middle mb-0" style="font-size: 12.5px;">
                             <thead class="table-dark text-center">
@@ -606,11 +658,6 @@
                             </tbody>
                         </table>
                     </div>
-
-                    <div class="alert alert-light border shadow-sm p-3 m-0 rounded-3" style="font-size: 12.5px;">
-                        <i class="fas fa-info-circle text-tema me-1"></i> <strong>Explicación:</strong> Si un sistema procesó tickets o premios pasadas las 10:00 pm, la diferencia se refleja en la columna <strong>Ajuste Neto</strong> sin tocar los reportes pasados. Si el monto es positivo, corresponde cancelarlo a la banca; si es negativo, la banca lo acredita a la taquilla.
-                    </div>
-
                 </div>
             </div>
 
@@ -660,7 +707,7 @@
                 </div>
             </div>
 
-            <!-- 5. SOLICITAR AVANCE (ACTUALIZADO CON CÁLCULO AUTOMÁTICO Y ENVÍO BLINDADO) -->
+            <!-- 5. SOLICITAR AVANCE -->
             <div class="tab-pane fade {% if tab_activa == 'adelanto' %}show active{% endif %}" id="tab-adelanto" role="tabpanel">
                 <div class="card card-custom p-4 bg-white shadow-sm" style="max-width: 520px; margin: 0 auto;">
                     <div class="text-center mb-3">
@@ -678,8 +725,6 @@
 
                         <div class="mb-4">
                             <label class="form-label small fw-bold text-muted">¿Cuánto necesitas? (Bs.):</label>
-                            
-                            <!-- Cálculo Jinja2: si saldo_actual es negativo, se multiplica por -1 para obtener el monto a favor; si no, queda en 0 -->
                             {% if saldo_actual is defined and saldo_actual is not none and saldo_actual < 0 %}
                                 {% set monto_sugerido = saldo_actual * -1 %}
                             {% else %}
@@ -752,9 +797,7 @@
             <div class="tab-pane fade {% if tab_activa == 'cuenta' %}show active{% endif %}" id="tab-cuenta" role="tabpanel">
                 <div class="card card-custom p-4 bg-white" style="max-width: 500px; margin: 0 auto;">
                     <h5 class="fw-bold text-tema mb-3"><i class="fas fa-key me-1"></i> Cambiar Contraseña 🌺</h5>
-                    
                     <div id="alertaCuenta"></div>
-
                     <form action="/agencia/cambiar-clave" method="POST">
                         <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
                         <div class="mb-3">
@@ -773,12 +816,90 @@
         </div>
     </div>
 
+    <!-- MODAL REGISTRAR ESTAFADOR -->
+    <div class="modal fade" id="modalNuevoEstafador" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-danger text-white py-2">
+                    <h6 class="modal-title fw-bold"><i class="fas fa-bullhorn me-1"></i> Fichar en Lista Negra</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formRegistrarEstafador" enctype="multipart/form-data">
+                    <input type="hidden" name="agencia_reporta" value="{{ nombre_agencia }}">
+                    <div class="modal-body p-3">
+                        <div class="alert alert-warning py-2 small mb-3 border-0">
+                            <i class="fas fa-lock me-1"></i> <strong>Aviso de seguridad:</strong> Los registros en la lista negra son de carácter público permanente para proteger al gremio.
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Nombre o Alias del Estafador:</label>
+                            <input type="text" name="nombre" class="form-control form-control-sm" placeholder="Ej: Juan Perez / El Chivo" required>
+                        </div>
+
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">Cédula de Identidad:</label>
+                                <input type="text" name="cedula" class="form-control form-control-sm" placeholder="V-12345678">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">Rol / Función:</label>
+                                <select name="rol_estafador" class="form-select form-select-sm" required>
+                                    <option value="CLIENTE">Cliente</option>
+                                    <option value="AGENCIA">Agencia / Taquilla</option>
+                                    <option value="BANQUERO">Banquero</option>
+                                    <option value="PRONOSTICADOR">Pronosticador</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Número(s) de Teléfono:</label>
+                            <input type="text" name="telefonos" class="form-control form-control-sm" placeholder="0412-1234567, 0414-7654321" required>
+                            <small class="text-muted" style="font-size: 11px;">Puedes colocar varios separados por coma.</small>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Motivo / Descripción de la Estafa:</label>
+                            <textarea name="descripcion" class="form-control form-control-sm" rows="3" placeholder="Explica detalladamente qué hizo..." required></textarea>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Captures de Evidencia (Fotos / Comprobantes):</label>
+                            <input type="file" name="evidencias_files" class="form-control form-control-sm" multiple accept="image/*">
+                            <small class="text-muted" style="font-size: 11px;">Puedes seleccionar más de una imagen a la vez.</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light py-2">
+                        <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger btn-sm fw-bold rounded-pill px-4" id="btnGuardarEstafador">Publicar Registro</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL VISUALIZADOR DE EVIDENCIAS -->
+    <div class="modal fade" id="modalVerEvidencias" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-dark text-white py-2">
+                    <h6 class="modal-title fw-bold" id="tituloModalEvidencia"><i class="fas fa-images me-1"></i> Evidencias Adjuntas</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-3 text-center" id="contenedorEvidenciasFotos"></div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function setTab(tabName) {
             var campo = document.getElementById('campo_tab_activa');
             if (campo) {
                 campo.value = tabName;
+            }
+            if (tabName === 'listanegra') {
+                cargarListaNegra();
             }
         }
 
@@ -814,6 +935,104 @@
             }
         }
 
+        // ==========================================
+        // MOTOR EN TIEMPO REAL: LISTA NEGRA
+        // ==========================================
+        var estafadoresCache = [];
+
+        function cargarListaNegra(query = "") {
+            var url = "/api/lista-negra";
+            if (query && query.trim() !== "") {
+                url += "?q=" + encodeURIComponent(query.trim());
+            }
+
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    estafadoresCache = data;
+                    renderizarTablaEstafadores(data);
+                })
+                .catch(err => {
+                    console.error("Error al cargar lista negra:", err);
+                });
+        }
+
+        function renderizarTablaEstafadores(lista) {
+            var tbody = document.getElementById("tbodyListaNegra");
+            if (!tbody) return;
+
+            if (lista.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No se encontraron estafadores con ese criterio.</td></tr>';
+                return;
+            }
+
+            var html = "";
+            lista.forEach(item => {
+                var badgeRol = "bg-secondary";
+                if (item.rol_estafador === "CLIENTE") badgeRol = "bg-warning text-dark";
+                else if (item.rol_estafador === "BANQUERO") badgeRol = "bg-primary";
+                else if (item.rol_estafador === "PRONOSTICADOR") badgeRol = "bg-info text-dark";
+                else if (item.rol_estafador === "AGENCIA") badgeRol = "bg-danger";
+
+                var fotos = [];
+                try {
+                    fotos = JSON.parse(item.evidencias || "[]");
+                } catch(e) {
+                    fotos = [];
+                }
+
+                var btnEvidencia = '<span class="text-muted">Sin captures</span>';
+                if (fotos.length > 0) {
+                    var strFotos = encodeURIComponent(JSON.stringify(fotos));
+                    btnEvidencia = `<button type="button" class="btn btn-outline-danger btn-sm py-0 rounded-pill fw-bold" onclick="mostrarEvidencias('${strFotos}', '${item.nombre}')">
+                        <i class="fas fa-camera me-1"></i> Ver (${fotos.length})
+                    </button>`;
+                }
+
+                html += `
+                    <tr>
+                        <td class="fw-bold text-danger">${item.cedula || 'N/A'}</td>
+                        <td class="fw-bold text-dark">${item.nombre}</td>
+                        <td><span class="badge ${badgeRol}">${item.rol_estafador}</span></td>
+                        <td><span class="badge bg-light text-dark border"><i class="fas fa-phone-volume text-danger me-1"></i>${item.telefonos}</span></td>
+                        <td><small class="text-muted">${item.descripcion}</small></td>
+                        <td>${btnEvidencia}</td>
+                        <td><small class="fw-bold text-secondary">${item.reportado_por || 'AGENCIA'}<br><span style="font-size:10px;">${item.fecha_str || ''}</span></small></td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        function filtrarListaNegra() {
+            var q = document.getElementById("inputBuscarEstafador").value;
+            cargarListaNegra(q);
+        }
+
+        function mostrarEvidencias(encodedFotos, nombre) {
+            var fotos = JSON.parse(decodeURIComponent(encodedFotos));
+            var contenedor = document.getElementById("contenedorEvidenciasFotos");
+            document.getElementById("tituloModalEvidencia").innerText = "Captures de Evidencia: " + nombre;
+
+            var html = '<div class="row g-2">';
+            fotos.forEach(src => {
+                html += `
+                    <div class="col-md-6 mb-2">
+                        <a href="${src}" target="_blank">
+                            <img src="${src}" class="img-fluid rounded border shadow-sm" style="max-height: 380px; width: 100%; object-fit: contain;">
+                        </a>
+                        <a href="${src}" download class="btn btn-sm btn-outline-dark mt-1 w-100 py-0"><i class="fas fa-download me-1"></i> Descargar</a>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            contenedor.innerHTML = html;
+
+            var modal = new bootstrap.Modal(document.getElementById("modalVerEvidencias"));
+            modal.show();
+        }
+
         document.addEventListener("DOMContentLoaded", function() {
             asegurarFechaAvance();
 
@@ -823,6 +1042,51 @@
                     asegurarFechaAvance();
                 });
             }
+
+            // Envío por fetch del estafador para mantener tiempo real sin recargar página
+            var formEstafador = document.getElementById("formRegistrarEstafador");
+            if (formEstafador) {
+                formEstafador.addEventListener("submit", function(e) {
+                    e.preventDefault();
+                    var btn = document.getElementById("btnGuardarEstafador");
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Guardando...';
+
+                    var formData = new FormData(formEstafador);
+
+                    fetch("/api/lista-negra/guardar", {
+                        method: "POST",
+                        body: formData
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        btn.disabled = false;
+                        btn.innerHTML = 'Publicar Registro';
+                        var modalEl = document.getElementById('modalNuevoEstafador');
+                        var modal = bootstrap.Modal.getInstance(modalEl);
+                        modal.hide();
+                        formEstafador.reset();
+                        cargarListaNegra();
+                        alert("¡Ficha publicada de forma permanente en la Lista Negra!");
+                    })
+                    .catch(err => {
+                        btn.disabled = false;
+                        btn.innerHTML = 'Publicar Registro';
+                        alert("Error al guardar registro: " + err);
+                    });
+                });
+            }
+
+            // Sondeo cada 10 segundos para actualizar la lista en tiempo real
+            setInterval(function() {
+                var campo = document.getElementById('campo_tab_activa');
+                if (campo && campo.value === 'listanegra') {
+                    var q = document.getElementById("inputBuscarEstafador").value;
+                    if (!q || q.trim() === "") {
+                        cargarListaNegra();
+                    }
+                }
+            }, 10000);
 
             var urlParams = new URLSearchParams(window.location.search);
             var error = urlParams.get('error');
