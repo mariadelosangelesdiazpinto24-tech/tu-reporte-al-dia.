@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Administración - Los Ángeles del Dinero</title>
     
+    <!-- Configuración PWA e Icono Oficial -->
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" type="image/png" href="/templates/logo.png">
     <link rel="apple-touch-icon" href="/templates/logo.png">
@@ -12,6 +13,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <!-- OneSignal Web Push SDK -->
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
@@ -88,6 +90,17 @@
             border-radius: 12px 12px 0 0;
         }
 
+        /* Estilo pestaña Lista Negra */
+        .tab-danger-glow {
+            color: #d32f2f !important;
+            font-weight: bold;
+        }
+        .nav-tabs .nav-link.active.tab-danger-glow {
+            background-color: #b71c1c !important;
+            color: #ffffff !important;
+            border-radius: 12px 12px 0 0;
+        }
+
         .tag-femenino { background-color: #fce4ec; color: #c2185b; border: 1px solid #f8bbd0; font-weight: 600; }
         .tag-masculino { background-color: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; font-weight: 600; }
 
@@ -154,6 +167,11 @@
                 <button class="nav-link {% if tab_activa == 'taquillas' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-taquillas" type="button"><i class="fas fa-store me-1"></i> Taquillas Creadas 📱</button>
             </li>
             <li class="nav-item">
+                <button class="nav-link tab-danger-glow {% if tab_activa == 'listanegra' %}active{% endif %}" id="btn-admin-tab-listanegra" data-bs-toggle="tab" data-bs-target="#tab-listanegra" type="button" onclick="cargarListaNegraAdmin()">
+                    <i class="fas fa-skull-crossbones me-1"></i> Lista Negra 🚨
+                </button>
+            </li>
+            <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'modificaciones' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-modificaciones" type="button"><i class="fas fa-pen-to-square me-1"></i> Modificaciones 📝</button>
             </li>
             <li class="nav-item">
@@ -194,6 +212,50 @@
         </ul>
 
         <div class="tab-content" id="adminTabsContent">
+
+            <!-- PESTAÑA: LISTA NEGRA GLOBAL ADMIN -->
+            <div class="tab-pane fade {% if tab_activa == 'listanegra' %}show active{% endif %}" id="tab-listanegra" role="tabpanel">
+                <div class="card card-custom p-4 bg-white mb-3 shadow-sm border-start border-4 border-danger">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <div>
+                            <h4 class="fw-bold text-danger m-0"><i class="fas fa-shield-halved me-2"></i>Lista Negra Pública y Verificada</h4>
+                            <small class="text-muted">Registro colectivo inmutable en tiempo real. Protege a todas las agencias y banqueros contra estafas.</small>
+                        </div>
+                        <button type="button" class="btn btn-danger fw-bold rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoEstafadorAdmin">
+                            <i class="fas fa-user-plus me-1"></i> Reportar Estafador
+                        </button>
+                    </div>
+
+                    <!-- BUSCADOR INSTANTÁNEO -->
+                    <div class="p-3 bg-light rounded-4 mb-3 border">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-danger"></i></span>
+                            <input type="text" id="inputBuscarEstafadorAdmin" class="form-control border-start-0" placeholder="Buscar por Cédula, Nombre o Teléfono..." oninput="filtrarListaNegraAdmin()">
+                            <button class="btn btn-outline-secondary" type="button" onclick="cargarListaNegraAdmin()"><i class="fas fa-rotate me-1"></i> Refrescar</button>
+                        </div>
+                    </div>
+
+                    <!-- TABLA DE ESTAFADORES -->
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" style="font-size: 13px;">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Cédula</th>
+                                    <th>Nombre(s)</th>
+                                    <th>Rol</th>
+                                    <th>Teléfono(s)</th>
+                                    <th>Detalles / Motivo</th>
+                                    <th>Evidencias</th>
+                                    <th>Reportado Por</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyListaNegraAdmin">
+                                <tr><td colspan="7" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>Cargando registros...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
 
             <!-- PESTAÑA: MODIFICACIONES DIRECTAS -->
             <div class="tab-pane fade {% if tab_activa == 'modificaciones' %}show active{% endif %}" id="tab-modificaciones" role="tabpanel">
@@ -1314,6 +1376,81 @@
         </div>
     </div>
 
+    <!-- MODAL REGISTRAR ESTAFADOR ADMIN -->
+    <div class="modal fade" id="modalNuevoEstafadorAdmin" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-danger text-white py-2">
+                    <h6 class="modal-title fw-bold"><i class="fas fa-bullhorn me-1"></i> Fichar en Lista Negra (Admin)</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formRegistrarEstafadorAdmin" enctype="multipart/form-data">
+                    <input type="hidden" name="agencia_reporta" value="ADMIN">
+                    <div class="modal-body p-3">
+                        <div class="alert alert-warning py-2 small mb-3 border-0">
+                            <i class="fas fa-lock me-1"></i> <strong>Aviso de seguridad:</strong> Los registros en la lista negra son de carácter público permanente para proteger al gremio.
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Nombre o Alias del Estafador:</label>
+                            <input type="text" name="nombre" class="form-control form-control-sm" placeholder="Ej: Juan Perez / El Chivo" required>
+                        </div>
+
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">Cédula de Identidad:</label>
+                                <input type="text" name="cedula" class="form-control form-control-sm" placeholder="V-12345678">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">Rol / Función:</label>
+                                <select name="rol_estafador" class="form-select form-select-sm" required>
+                                    <option value="CLIENTE">Cliente</option>
+                                    <option value="AGENCIA">Agencia / Taquilla</option>
+                                    <option value="BANQUERO">Banquero</option>
+                                    <option value="PRONOSTICADOR">Pronosticador</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Número(s) de Teléfono:</label>
+                            <input type="text" name="telefonos" class="form-control form-control-sm" placeholder="0412-1234567, 0414-7654321" required>
+                            <small class="text-muted" style="font-size: 11px;">Puedes colocar varios separados por coma.</small>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Motivo / Descripción de la Estafa:</label>
+                            <textarea name="descripcion" class="form-control form-control-sm" rows="3" placeholder="Explica detalladamente qué hizo..." required></textarea>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Captures de Evidencia (Fotos / Comprobantes):</label>
+                            <input type="file" name="evidencias_files" class="form-control form-control-sm" multiple accept="image/*">
+                            <small class="text-muted" style="font-size: 11px;">Puedes seleccionar más de una imagen a la vez.</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light py-2">
+                        <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger btn-sm fw-bold rounded-pill px-4" id="btnGuardarEstafadorAdmin">Publicar Registro</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL VISUALIZADOR DE EVIDENCIAS ADMIN -->
+    <div class="modal fade" id="modalVerEvidenciasAdmin" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-dark text-white py-2">
+                    <h6 class="modal-title fw-bold" id="tituloModalEvidenciaAdmin"><i class="fas fa-images me-1"></i> Evidencias Adjuntas</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-3 text-center" id="contenedorEvidenciasFotosAdmin"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL AJUSTE MANUAL SISTEMA BANQUERO -->
     <div class="modal fade" id="modalAjusteBanqueroSistema" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -1812,6 +1949,101 @@
             modal.show();
         }
 
+        // ==========================================
+        // MOTOR EN TIEMPO REAL: LISTA NEGRA (ADMIN)
+        // ==========================================
+        function cargarListaNegraAdmin(query = "") {
+            var url = "/api/lista-negra";
+            if (query && query.trim() !== "") {
+                url += "?q=" + encodeURIComponent(query.trim());
+            }
+
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    renderizarTablaEstafadoresAdmin(data);
+                })
+                .catch(err => {
+                    console.error("Error al cargar lista negra en admin:", err);
+                });
+        }
+
+        function renderizarTablaEstafadoresAdmin(lista) {
+            var tbody = document.getElementById("tbodyListaNegraAdmin");
+            if (!tbody) return;
+
+            if (lista.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No se encontraron estafadores con ese criterio.</td></tr>';
+                return;
+            }
+
+            var html = "";
+            lista.forEach(item => {
+                var badgeRol = "bg-secondary";
+                if (item.rol_estafador === "CLIENTE") badgeRol = "bg-warning text-dark";
+                else if (item.rol_estafador === "BANQUERO") badgeRol = "bg-primary";
+                else if (item.rol_estafador === "PRONOSTICADOR") badgeRol = "bg-info text-dark";
+                else if (item.rol_estafador === "AGENCIA") badgeRol = "bg-danger";
+
+                var fotos = [];
+                try {
+                    fotos = JSON.parse(item.evidencias || "[]");
+                } catch(e) {
+                    fotos = [];
+                }
+
+                var btnEvidencia = '<span class="text-muted">Sin captures</span>';
+                if (fotos.length > 0) {
+                    var strFotos = encodeURIComponent(JSON.stringify(fotos));
+                    btnEvidencia = `<button type="button" class="btn btn-outline-danger btn-sm py-0 rounded-pill fw-bold" onclick="mostrarEvidenciasAdmin('${strFotos}', '${item.nombre}')">
+                        <i class="fas fa-camera me-1"></i> Ver (${fotos.length})
+                    </button>`;
+                }
+
+                html += `
+                    <tr>
+                        <td class="fw-bold text-danger">${item.cedula || 'N/A'}</td>
+                        <td class="fw-bold text-dark">${item.nombre}</td>
+                        <td><span class="badge ${badgeRol}">${item.rol_estafador}</span></td>
+                        <td><span class="badge bg-light text-dark border"><i class="fas fa-phone-volume text-danger me-1"></i>${item.telefonos}</span></td>
+                        <td><small class="text-muted">${item.descripcion}</small></td>
+                        <td>${btnEvidencia}</td>
+                        <td><small class="fw-bold text-secondary">${item.reportado_por || 'ADMIN'}<br><span style="font-size:10px;">${item.fecha_str || ''}</span></small></td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        function filtrarListaNegraAdmin() {
+            var q = document.getElementById("inputBuscarEstafadorAdmin").value;
+            cargarListaNegraAdmin(q);
+        }
+
+        function mostrarEvidenciasAdmin(encodedFotos, nombre) {
+            var fotos = JSON.parse(decodeURIComponent(encodedFotos));
+            var contenedor = document.getElementById("contenedorEvidenciasFotosAdmin");
+            document.getElementById("tituloModalEvidenciaAdmin").innerText = "Captures de Evidencia: " + nombre;
+
+            var html = '<div class="row g-2">';
+            fotos.forEach(src => {
+                html += `
+                    <div class="col-md-6 mb-2">
+                        <a href="${src}" target="_blank">
+                            <img src="${src}" class="img-fluid rounded border shadow-sm" style="max-height: 380px; width: 100%; object-fit: contain;">
+                        </a>
+                        <a href="${src}" download class="btn btn-sm btn-outline-dark mt-1 w-100 py-0"><i class="fas fa-download me-1"></i> Descargar</a>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            contenedor.innerHTML = html;
+
+            var modal = new bootstrap.Modal(document.getElementById("modalVerEvidenciasAdmin"));
+            modal.show();
+        }
+
         document.addEventListener("DOMContentLoaded", function() {
             recalcularTodoElPanel();
 
@@ -1834,12 +2066,60 @@
                     }
                 });
             }
+
+            // Enviar formulario de nuevo estafador desde Admin
+            var formEstafadorAdmin = document.getElementById("formRegistrarEstafadorAdmin");
+            if (formEstafadorAdmin) {
+                formEstafadorAdmin.addEventListener("submit", function(e) {
+                    e.preventDefault();
+                    var btn = document.getElementById("btnGuardarEstafadorAdmin");
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Guardando...';
+
+                    var formData = new FormData(formEstafadorAdmin);
+
+                    fetch("/api/lista-negra/guardar", {
+                        method: "POST",
+                        body: formData
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        btn.disabled = false;
+                        btn.innerHTML = 'Publicar Registro';
+                        var modalEl = document.getElementById('modalNuevoEstafadorAdmin');
+                        var modal = bootstrap.Modal.getInstance(modalEl);
+                        modal.hide();
+                        formEstafadorAdmin.reset();
+                        cargarListaNegraAdmin();
+                        alert("¡Ficha publicada de forma permanente en la Lista Negra!");
+                    })
+                    .catch(err => {
+                        btn.disabled = false;
+                        btn.innerHTML = 'Publicar Registro';
+                        alert("Error al guardar registro: " + err);
+                    });
+                });
+            }
+
+            // Sondeo periódico cada 10 segundos
+            setInterval(function() {
+                var btnTab = document.getElementById('btn-admin-tab-listanegra');
+                if (btnTab && btnTab.classList.contains('active')) {
+                    var q = document.getElementById("inputBuscarEstafadorAdmin").value;
+                    if (!q || q.trim() === "") {
+                        cargarListaNegraAdmin();
+                    }
+                }
+            }, 10000);
         });
 
         var tabButtons = document.querySelectorAll('button[data-bs-toggle="tab"]');
         tabButtons.forEach(function(btn) {
-            btn.addEventListener('shown.bs.tab', function() {
+            btn.addEventListener('shown.bs.tab', function(e) {
                 recalcularTodoElPanel();
+                if (e.target.id === 'btn-admin-tab-listanegra') {
+                    cargarListaNegraAdmin();
+                }
             });
         });
 
@@ -1999,19 +2279,17 @@
                 rowAdelantos.style.display = "none";
             }
             
-            // Fórmula contable: Saldo Anterior + Reporte - Cashea - Abonos + Liquidaciones + Adelantos
-            // Si la taquilla tenía saldo a favor (-5.000) y le diste liquidación (+5.000), totalFinal = 0.00
             var totalFinal = antNum + repNum - casNum - aboNum + liqNum + adeNum;
 
             var elemTotal = document.getElementById("mdlTotal");
             elemTotal.innerText = formatoBs(totalFinal);
             
             if (totalFinal > 0.009) {
-                elemTotal.className = "fs-6 fw-bold text-success"; // Debe a la banca
+                elemTotal.className = "fs-6 fw-bold text-success";
             } else if (totalFinal < -0.009) {
-                elemTotal.className = "fs-6 fw-bold text-danger";  // Saldo a su favor
+                elemTotal.className = "fs-6 fw-bold text-danger";
             } else {
-                elemTotal.className = "fs-6 fw-bold text-muted";   // Cuenta saldada en 0.00
+                elemTotal.className = "fs-6 fw-bold text-muted";
             }
             
             var modal = new bootstrap.Modal(document.getElementById('modalDesgloseAgencia'));
