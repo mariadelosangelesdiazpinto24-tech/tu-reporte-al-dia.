@@ -169,6 +169,9 @@
             <li class="nav-item">
                 <button class="nav-link tab-danger-glow {% if tab_activa == 'listanegra' %}active{% endif %}" id="btn-admin-tab-listanegra" data-bs-toggle="tab" data-bs-target="#tab-listanegra" type="button" onclick="cargarListaNegraAdmin()">
                     <i class="fas fa-skull-crossbones me-1"></i> Lista Negra 🚨
+                    {% if solicitudes_ln_pendientes and solicitudes_ln_pendientes | length > 0 %}
+                    <span class="badge bg-warning text-dark rounded-pill ms-1">{{ solicitudes_ln_pendientes | length }}</span>
+                    {% endif %}
                 </button>
             </li>
             <li class="nav-item">
@@ -221,10 +224,61 @@
                             <h4 class="fw-bold text-danger m-0"><i class="fas fa-shield-halved me-2"></i>Lista Negra Pública y Verificada</h4>
                             <small class="text-muted">Registro colectivo inmutable en tiempo real. Protege a todas las agencias y banqueros contra estafas.</small>
                         </div>
-                        <button type="button" class="btn btn-danger fw-bold rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoEstafadorAdmin">
-                            <i class="fas fa-user-plus me-1"></i> Reportar Estafador
-                        </button>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-dark fw-bold rounded-pill px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCrearTaquillaLNAdmin">
+                                <i class="fas fa-user-shield me-1"></i> Crear Taquilla Lista Negra
+                            </button>
+                            <button type="button" class="btn btn-danger fw-bold rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoEstafadorAdmin">
+                                <i class="fas fa-user-plus me-1"></i> Reportar Estafador
+                            </button>
+                        </div>
                     </div>
+
+                    <!-- SOLICITUDES PENDIENTES DE ACCESO A LISTA NEGRA -->
+                    {% if solicitudes_ln_pendientes and solicitudes_ln_pendientes | length > 0 %}
+                    <div class="alert alert-warning border-0 p-3 mb-3 rounded-4 shadow-sm">
+                        <h6 class="fw-bold text-dark mb-2"><i class="fas fa-user-clock text-danger me-2"></i> Solicitudes Externas de Acceso a Lista Negra</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle bg-white rounded mb-0" style="font-size: 12.5px;">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Nombre Real</th>
+                                        <th>Cédula</th>
+                                        <th>Teléfono</th>
+                                        <th>Agencia Solicitante</th>
+                                        <th>Recomendado Por</th>
+                                        <th class="text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for s in solicitudes_ln_pendientes %}
+                                    <tr>
+                                        <td class="fw-bold text-dark">{{ s.nombre_real }}</td>
+                                        <td>{{ s.cedula }}</td>
+                                        <td>{{ s.telefono }}</td>
+                                        <td class="fw-bold text-primary">{{ s.agencia }}</td>
+                                        <td><span class="badge bg-secondary">{{ s.recomendado_por or 'Directo' }}</span></td>
+                                        <td class="text-center">
+                                            <div class="d-flex justify-content-center gap-1">
+                                                <form action="/admin/aprobar-taquilla-ln" method="POST" class="d-inline">
+                                                    <input type="hidden" name="usuario_id" value="{{ s.id }}">
+                                                    <input type="hidden" name="accion" value="APROBAR">
+                                                    <button type="submit" class="btn btn-success btn-sm py-0 px-2 fw-bold"><i class="fas fa-check me-1"></i>Aprobar</button>
+                                                </form>
+                                                <form action="/admin/aprobar-taquilla-ln" method="POST" class="d-inline" onsubmit="return confirm('¿Rechazar solicitud?');">
+                                                    <input type="hidden" name="usuario_id" value="{{ s.id }}">
+                                                    <input type="hidden" name="accion" value="RECHAZAR">
+                                                    <button type="submit" class="btn btn-danger btn-sm py-0 px-2 fw-bold"><i class="fas fa-times me-1"></i>Rechazar</button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
 
                     <!-- BUSCADOR INSTANTÁNEO -->
                     <div class="p-3 bg-light rounded-4 mb-3 border">
@@ -275,7 +329,7 @@
                                 <select name="agencia" class="form-select form-select-sm fw-bold" required>
                                     <option value="">-- Elige una Taquilla --</option>
                                     {% for ag in agencias %}
-                                        {% if ag.rol != 'BANQUERO' %}
+                                        {% if ag.rol not in ['BANQUERO', 'SOLO_LISTA_NEGRA'] %}
                                         <option value="{{ ag.agencia }}">{{ ag.agencia }}</option>
                                         {% endif %}
                                     {% endfor %}
@@ -337,6 +391,7 @@
                             <thead class="table-light"><tr><th>ID</th><th>Agencia</th><th>Perfil</th><th>Clave</th><th class="text-end">Pendiente</th><th class="text-center">Acciones</th></tr></thead>
                             <tbody>
                                 {% for ag in agencias %}
+                                {% if ag.rol not in ['BANQUERO', 'SOLO_LISTA_NEGRA'] %}
                                 <tr>
                                     <td>{{ ag.id }}</td>
                                     <td class="fw-bold">
@@ -369,6 +424,7 @@
                                         </form>
                                     </td>
                                 </tr>
+                                {% endif %}
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -674,7 +730,7 @@
                                     <select name="agencia" id="selectCajaEntradaAgencia" class="form-select form-select-sm fw-bold" required onchange="actualizarMontoEntradaAuto(this)">
                                         <option value="" data-saldo="0">-- Elige una Taquilla --</option>
                                         {% for ag in agencias %}
-                                            {% if ag.rol != 'BANQUERO' %}
+                                            {% if ag.rol not in ['BANQUERO', 'SOLO_LISTA_NEGRA'] %}
                                             <option value="{{ ag.agencia }}" data-saldo="{{ ag.saldo_pendiente or 0 }}">
                                                 {{ ag.agencia }} (Pendiente: Bs. {{ (ag.saldo_pendiente or 0) | dinero }})
                                             </option>
@@ -727,7 +783,7 @@
                                     <select name="agencia" id="selectCajaSalidaAgencia" class="form-select form-select-sm fw-bold" required onchange="actualizarMontoSalidaAuto(this)">
                                         <option value="" data-saldo="0">-- Elige una Taquilla --</option>
                                         {% for ag in agencias %}
-                                            {% if ag.rol != 'BANQUERO' %}
+                                            {% if ag.rol not in ['BANQUERO', 'SOLO_LISTA_NEGRA'] %}
                                             <option value="{{ ag.agencia }}" data-saldo="{{ ag.saldo_pendiente or 0 }}">
                                                 {{ ag.agencia }} (Pendiente: Bs. {{ (ag.saldo_pendiente or 0) | dinero }})
                                             </option>
@@ -783,7 +839,7 @@
                             <select name="agencia" class="form-select form-select-sm fw-bold" onchange="this.form.submit()">
                                 <option value="">-- Ver Todas las Discrepancias --</option>
                                 {% for ag in agencias %}
-                                    {% if ag.rol != 'BANQUERO' %}
+                                    {% if ag.rol not in ['BANQUERO', 'SOLO_LISTA_NEGRA'] %}
                                     <option value="{{ ag.agencia }}" {% if agencia_filtro == ag.agencia %}selected{% endif %}>{{ ag.agencia }}</option>
                                     {% endif %}
                                 {% endfor %}
@@ -966,7 +1022,7 @@
                             <select name="agencia" class="form-select form-select-sm">
                                 <option value="">-- Todas las Taquillas --</option>
                                 {% for ag in agencias %}
-                                    {% if ag.rol != 'BANQUERO' %}
+                                    {% if ag.rol not in ['BANQUERO', 'SOLO_LISTA_NEGRA'] %}
                                     <option value="{{ ag.agencia }}" {% if agencia_filtro == ag.agencia %}selected{% endif %}>{{ ag.agencia }}</option>
                                     {% endif %}
                                 {% endfor %}
@@ -1376,6 +1432,51 @@
         </div>
     </div>
 
+    <!-- MODAL ADMIN: CREAR TAQUILLA EXCLUSIVA PARA LISTA NEGRA -->
+    <div class="modal fade" id="modalCrearTaquillaLNAdmin" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-dark text-white py-2">
+                    <h6 class="modal-title fw-bold"><i class="fas fa-user-shield me-1"></i> Crear Taquilla Lista Negra</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form action="/admin/crear-taquilla-listanegra" method="POST">
+                    <div class="modal-body p-3">
+                        <div class="alert alert-info py-2 small mb-3 border-0">
+                            <i class="fas fa-info-circle me-1"></i> Esta taquilla solo podrá entrar a reportar y buscar en la Lista Negra. No tendrá acceso a tus reportes ni balances.
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Nombre Real del Responsable:</label>
+                            <input type="text" name="nombre_real" class="form-control form-control-sm" placeholder="Ej: Carlos Silva" required>
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">Cédula:</label>
+                                <input type="text" name="cedula" class="form-control form-control-sm" placeholder="V-12345678" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">Teléfono:</label>
+                                <input type="text" name="telefono" class="form-control form-control-sm" placeholder="0412-0000000" required>
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Nombre de la Agencia (Usuario Login):</label>
+                            <input type="text" name="agencia" class="form-control form-control-sm" placeholder="Ej: AGENCIA SAN JUAN" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Contraseña:</label>
+                            <input type="text" name="clave" class="form-control form-control-sm" value="123456" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light py-2">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-dark btn-sm fw-bold px-3">Habilitar Taquilla</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL REGISTRAR ESTAFADOR ADMIN -->
     <div class="modal fade" id="modalNuevoEstafadorAdmin" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -1388,7 +1489,7 @@
                     <input type="hidden" name="agencia_reporta" value="ADMIN">
                     <div class="modal-body p-3">
                         <div class="alert alert-warning py-2 small mb-3 border-0">
-                            <i class="fas fa-lock me-1"></i> <strong>Aviso de seguridad:</strong> Los registros en la lista negra son de carácter público permanente para proteger al gremio.
+                            <i class="fas fa-lock me-1"></i> <strong>Aviso de seguridad:</strong> Los registros en la lista negra son permanentes e inmutables.
                         </div>
 
                         <div class="mb-2">
@@ -1562,7 +1663,7 @@
                             <select name="agencia" id="selectAgenciaSaldoAnterior" class="form-select form-select-sm fw-bold" required>
                                 <option value="">-- Elige una Taquilla --</option>
                                 {% for ag in agencias %}
-                                    {% if ag.rol != 'BANQUERO' %}
+                                    {% if ag.rol not in ['BANQUERO', 'SOLO_LISTA_NEGRA'] %}
                                     <option value="{{ ag.agencia }}">{{ ag.agencia }}</option>
                                     {% endif %}
                                 {% endfor %}
@@ -2027,13 +2128,15 @@
             document.getElementById("tituloModalEvidenciaAdmin").innerText = "Captures de Evidencia: " + nombre;
 
             var html = '<div class="row g-2">';
-            fotos.forEach(src => {
+            fotos.forEach(function(src, index) {
                 html += `
                     <div class="col-md-6 mb-2">
                         <a href="${src}" target="_blank">
                             <img src="${src}" class="img-fluid rounded border shadow-sm" style="max-height: 380px; width: 100%; object-fit: contain;">
                         </a>
-                        <a href="${src}" download class="btn btn-sm btn-outline-dark mt-1 w-100 py-0"><i class="fas fa-download me-1"></i> Descargar</a>
+                        <a href="${src}" download="evidencia_${nombre.replace(/\\s+/g, '_')}_${index + 1}.jpg" class="btn btn-sm btn-outline-dark mt-1 w-100 py-1">
+                            <i class="fas fa-download me-1"></i> Descargar
+                        </a>
                     </div>
                 `;
             });
