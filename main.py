@@ -26,6 +26,20 @@ app = FastAPI()
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # ==============================================================================
+# BANQUEROS FIJOS EN CÓDIGO (USUARIOS, CLAVES Y SU CUADRO ASIGNADO)
+# ==============================================================================
+BANQUEROS_FIJOS = {
+    "LIDER": {
+        "clave": "lider123",
+        "comercializadora": "COMERCIALIZADORA LIDER"
+    },
+    "NYS": {
+        "clave": "nys123",
+        "comercializadora": "COMERCIALIZADORA NYS"
+    }
+}
+
+# ==============================================================================
 # CONFIGURACIÓN ONESIGNAL PUSH NOTIFICATIONS
 # ==============================================================================
 ONESIGNAL_APP_ID = "88b4cb90-08ed-4ef3-8852-c45316493190"
@@ -1258,6 +1272,9 @@ async def api_guardar_lista_negra(
 
     return {"status": "ok", "mensaje": "Estafador fichado en la lista negra exitosamente."}
 
+# ==============================================================================
+# LOGIN INTELIGENTE (ADMIN, BANQUEROS FIJOS EN CÓDIGO Y TAQUILLAS)
+# ==============================================================================
 @app.get("/", response_class=HTMLResponse)
 @app.get("/login", response_class=HTMLResponse)
 def get_login(request: Request):
@@ -1269,11 +1286,23 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
         return templates.TemplateResponse(request=request, name="login.html", context={"error": "Ingresa usuario y clave"})
 
     usuario_norm = normalizar(usuario)
+
+    # 1. Acceso Administrador Central
     if usuario_norm == "ADMIN" and clave == "admin123":
         response = RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
         response.set_cookie(key="user", value="ADMIN")
         return response
 
+    # 2. Acceso Banqueros Fijos en Código (LIDER, NYS, etc.)
+    if usuario_norm in BANQUEROS_FIJOS:
+        if BANQUEROS_FIJOS[usuario_norm]["clave"] == clave.strip():
+            response = RedirectResponse(url=f"/banquero?usuario={usuario_norm}", status_code=status.HTTP_303_SEE_OTHER)
+            response.set_cookie(key="user", value=usuario_norm)
+            return response
+        else:
+            return templates.TemplateResponse(request=request, name="login.html", context={"error": "Usuario o clave incorrectos"})
+
+    # 3. Acceso Taquillas Registradas en Base de Datos
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM usuarios WHERE UPPER(TRIM(agencia)) = %s", (usuario_norm,))
@@ -1282,29 +1311,35 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
 
     if user_data and user_data['clave'] == clave:
         actualizar_ultima_conexion(usuario_norm)
-        
-        if user_data.get('rol') == 'BANQUERO':
-            response = RedirectResponse(url=f"/banquero?usuario={usuario_norm}", status_code=status.HTTP_303_SEE_OTHER)
-            response.set_cookie(key="user", value=usuario_norm)
-            return response
-
         response = RedirectResponse(url=f"/agencia?nombre={usuario_norm}", status_code=status.HTTP_303_SEE_OTHER)
         response.set_cookie(key="user", value=usuario_norm)
         return response
 
     return templates.TemplateResponse(request=request, name="login.html", context={"error": "Usuario o clave incorrectos"})
 
+# ==============================================================================
+# ÁREA PRIVADA DE BANQUERO (SOLO SU LIQUIDACIÓN + LISTA NEGRA)
+# ==============================================================================
 @app.get("/banquero", response_class=HTMLResponse)
 def get_banquero(
     request: Request, 
     usuario: Optional[str] = None, 
     desde_fecha: Optional[str] = None, 
-    hasta_fecha: Optional[str] = None
+    hasta_fecha: Optional[str] = None,
+    tab: Optional[str] = "liquidacion"
 ):
     if not usuario:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
     usr_norm = normalizar(usuario)
+    
+    # Validar que sea un banquero configurado en código
+    if usr_norm not in BANQUEROS_FIJOS:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Identificar su comercializadora exacta
+    nombre_comercializadora = BANQUEROS_FIJOS[usr_norm]["comercializadora"]
+
     hoy_vzla = obtener_fecha_venezuela()
     
     conn = get_db()
@@ -1326,19 +1361,7 @@ def get_banquero(
         _, _, _, _
     ) = calcular_desglose_banqueros_datos(f_desde, f_hasta)
 
-    nombre_comercializadora = ""
-    for b_key in desglose_banqueros.keys():
-        if usr_norm in b_key.upper() or b_key.upper() in usr_norm:
-            nombre_comercializadora = b_key
-            break
-
-    if not nombre_comercializadora:
-        for b_key in desglose_banqueros.keys():
-            partes = usr_norm.split()
-            if any(p in b_key.upper() for p in partes if len(p) > 2):
-                nombre_comercializadora = b_key
-                break
-
+    # Extraer única y exclusivamente su cuadro correspondiente
     cuadro_banquero = desglose_banqueros.get(nombre_comercializadora, {
         "sistemas": [],
         "cashea_descontado": 0.0,
@@ -1347,12 +1370,34 @@ def get_banquero(
         "total_a_pagar_banquero": 0.0
     })
 
+    # Filtrar información y excluir datos de comisiones privadas
+    sistemas_filtrados = []
+    for sys in cuadro_banquero.get("sistemas", []):
+        sistemas_filtrados.append({
+            "sistema": sys.get("sistema"),
+            "venta": sys.get("venta", 0.0),
+            "premios": sys.get("premios", 0.0),
+            "comision": sys.get("comision_banquero", 0.0),
+            "total_sistema": sys.get("total_sistema", 0.0),
+            "participacion": sys.get("monto_participacion", 0.0),
+            "total_final": sys.get("total_final", 0.0)
+        })
+
+    cuadro_seguro = {
+        "sistemas": sistemas_filtrados,
+        "cashea_descontado": cuadro_banquero.get("cashea_descontado", 0.0),
+        "adelantos_banquero": cuadro_banquero.get("adelantos_banquero", 0.0),
+        "pendientes_banquero": cuadro_banquero.get("pendientes_banquero", 0.0),
+        "total_a_pagar": cuadro_banquero.get("total_a_pagar_banquero", 0.0)
+    }
+
     return templates.TemplateResponse(request=request, name="banquero.html", context={
         "usuario": usr_norm,
-        "nombre_comercializadora": nombre_comercializadora or "MI COMERCIALIZADORA",
-        "cuadro": cuadro_banquero,
+        "nombre_comercializadora": nombre_comercializadora,
+        "cuadro": cuadro_seguro,
         "desde_fecha": f_desde,
-        "hasta_fecha": f_hasta
+        "hasta_fecha": f_hasta,
+        "tab_activa": tab or "liquidacion"
     })
 
 @app.get("/agencia", response_class=HTMLResponse)
