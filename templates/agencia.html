@@ -180,7 +180,13 @@
                         <h3 class="fw-bold m-0 text-white">
                             {{ nombre_agencia }} <span class="ms-1">🍀🌴🌺</span>
                         </h3>
-                        <small class="text-white-50">Panel de Operaciones Financieras</small>
+                        <small class="text-white-50">
+                            {% if agencia and agencia.rol == 'SOLO_LISTA_NEGRA' %}
+                                Portal de Seguridad Comunitaria
+                            {% else %}
+                                Panel de Operaciones Financieras
+                            {% endif %}
+                        </small>
                     </div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
@@ -219,7 +225,10 @@
         </div>
         {% endif %}
 
-        <!-- BUSCADOR POR RANGO DE FECHAS -->
+        {% set es_solo_ln = (agencia and agencia.rol == 'SOLO_LISTA_NEGRA') %}
+
+        <!-- BUSCADOR POR RANGO DE FECHAS (OCULTO PARA SOLO LISTA NEGRA) -->
+        {% if not es_solo_ln %}
         <div class="card card-custom p-3 bg-white mb-4">
             <form method="GET" action="/agencia" class="row g-2 align-items-end">
                 <input type="hidden" name="nombre" value="{{ nombre_agencia }}">
@@ -237,19 +246,27 @@
                 </div>
             </form>
         </div>
+        {% else %}
+        <input type="hidden" id="campo_tab_activa" value="listanegra">
+        {% endif %}
 
         <!-- PESTAÑAS -->
         <ul class="nav nav-tabs mb-4 flex-wrap" id="agenciaTabs" role="tablist">
+            {% if not es_solo_ln %}
             <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'pendiente' or not tab_activa or tab_activa == 'reportes' %}active{% endif %}" id="btn-tab-pendiente" data-bs-toggle="tab" data-bs-target="#tab-pendiente" type="button" onclick="setTab('pendiente')">
                     <i class="fas fa-clock me-1"></i> Pendientes / Pagos
                 </button>
             </li>
+            {% endif %}
+
             <li class="nav-item">
-                <button class="nav-link tab-danger-glow {% if tab_activa == 'listanegra' %}active{% endif %}" id="btn-tab-listanegra" data-bs-toggle="tab" data-bs-target="#tab-listanegra" type="button" onclick="setTab('listanegra')">
+                <button class="nav-link tab-danger-glow {% if tab_activa == 'listanegra' or es_solo_ln %}active{% endif %}" id="btn-tab-listanegra" data-bs-toggle="tab" data-bs-target="#tab-listanegra" type="button" onclick="setTab('listanegra')">
                     <i class="fas fa-skull-crossbones me-1"></i> Lista Negra 🚨
                 </button>
             </li>
+
+            {% if not es_solo_ln %}
             <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'cashea' %}active{% endif %}" id="btn-tab-cashea" data-bs-toggle="tab" data-bs-target="#tab-cashea" type="button" onclick="setTab('cashea')">
                     <i class="fas fa-shopping-cart me-1"></i> Cashea
@@ -280,6 +297,8 @@
                     <i class="fas fa-edit me-1"></i> Modificaciones
                 </button>
             </li>
+            {% endif %}
+
             <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'cuenta' %}active{% endif %}" id="btn-tab-cuenta" data-bs-toggle="tab" data-bs-target="#tab-cuenta" type="button" onclick="setTab('cuenta')">
                     <i class="fas fa-user-lock me-1"></i> Mi Cuenta
@@ -290,16 +309,21 @@
         <div class="tab-content" id="agenciaTabsContent">
 
             <!-- PESTAÑA: LISTA NEGRA COLECTIVA (EN TIEMPO REAL E INMUTABLE) -->
-            <div class="tab-pane fade {% if tab_activa == 'listanegra' %}show active{% endif %}" id="tab-listanegra" role="tabpanel">
+            <div class="tab-pane fade {% if tab_activa == 'listanegra' or es_solo_ln %}show active{% endif %}" id="tab-listanegra" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-4 border-start border-4 border-danger">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                         <div>
                             <h4 class="fw-bold text-danger m-0"><i class="fas fa-shield-halved me-2"></i>Lista Negra Pública y Verificada</h4>
                             <small class="text-muted">Directorio comunitario en tiempo real de estafadores, cédulas y líneas fraudulentas. Registros permanentes.</small>
                         </div>
-                        <button type="button" class="btn btn-danger fw-bold rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoEstafador">
-                            <i class="fas fa-user-plus me-1"></i> Reportar Estafador
-                        </button>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-success fw-bold rounded-pill px-3 shadow-sm" onclick="compartirEnlaceListaNegra('{{ nombre_agencia }}')">
+                                <i class="fas fa-share-nodes me-1"></i> Compartir Lista Negra
+                            </button>
+                            <button type="button" class="btn btn-danger fw-bold rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoEstafador">
+                                <i class="fas fa-user-plus me-1"></i> Reportar Estafador
+                            </button>
+                        </div>
                     </div>
 
                     <!-- BUSCADOR INSTANTÁNEO POR CÉDULA O NÚMERO DE TELÉFONO -->
@@ -333,6 +357,7 @@
                 </div>
             </div>
 
+            {% if not es_solo_ln %}
             <!-- 1. PENDIENTES / PAGOS -->
             <div class="tab-pane fade {% if tab_activa == 'pendiente' or not tab_activa or tab_activa == 'reportes' %}show active{% endif %}" id="tab-pendiente" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-4">
@@ -792,6 +817,7 @@
                     </form>
                 </div>
             </div>
+            {% endif %}
 
             <!-- 7. MI CUENTA -->
             <div class="tab-pane fade {% if tab_activa == 'cuenta' %}show active{% endif %}" id="tab-cuenta" role="tabpanel">
@@ -935,6 +961,24 @@
             }
         }
 
+        function compartirEnlaceListaNegra(miAgencia) {
+            var urlRegistro = window.location.origin + "/registro-lista-negra?ref=" + encodeURIComponent(miAgencia);
+            var mensaje = "🚨 *LISTA NEGRA COMUNITARIA - LOS ÁNGELES DEL DINERO* 🚨\n\n" +
+                          "Colega, únete a nuestra red para verificar cédulas, números y reportes de estafadores en tiempo real.\n\n" +
+                          "Regístrate aquí para que el administrador te apruebe el acceso:\n" + urlRegistro;
+
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Acceso a Lista Negra',
+                    text: mensaje
+                }).catch(() => {});
+            } else {
+                navigator.clipboard.writeText(mensaje).then(() => {
+                    alert("¡Enlace copiado al portapapeles! Pégaselo a tu compañero por WhatsApp.");
+                });
+            }
+        }
+
         // ==========================================
         // MOTOR EN TIEMPO REAL: LISTA NEGRA
         // ==========================================
@@ -1016,13 +1060,15 @@
             document.getElementById("tituloModalEvidencia").innerText = "Captures de Evidencia: " + nombre;
 
             var html = '<div class="row g-2">';
-            fotos.forEach(src => {
+            fotos.forEach(function(src, index) {
                 html += `
                     <div class="col-md-6 mb-2">
                         <a href="${src}" target="_blank">
                             <img src="${src}" class="img-fluid rounded border shadow-sm" style="max-height: 380px; width: 100%; object-fit: contain;">
                         </a>
-                        <a href="${src}" download class="btn btn-sm btn-outline-dark mt-1 w-100 py-0"><i class="fas fa-download me-1"></i> Descargar</a>
+                        <a href="${src}" download="evidencia_${nombre.replace(/\\s+/g, '_')}_${index + 1}.jpg" class="btn btn-sm btn-outline-dark mt-1 w-100 py-1">
+                            <i class="fas fa-download me-1"></i> Descargar
+                        </a>
                     </div>
                 `;
             });
@@ -1043,7 +1089,6 @@
                 });
             }
 
-            // Envío por fetch del estafador para mantener tiempo real sin recargar página
             var formEstafador = document.getElementById("formRegistrarEstafador");
             if (formEstafador) {
                 formEstafador.addEventListener("submit", function(e) {
@@ -1075,6 +1120,12 @@
                         alert("Error al guardar registro: " + err);
                     });
                 });
+            }
+
+            // Cargar por defecto si la pestaña activa es lista negra
+            var campoTab = document.getElementById('campo_tab_activa');
+            if (campoTab && campoTab.value === 'listanegra') {
+                cargarListaNegra();
             }
 
             // Sondeo cada 10 segundos para actualizar la lista en tiempo real
