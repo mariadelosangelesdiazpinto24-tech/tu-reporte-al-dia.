@@ -673,12 +673,8 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             subtotal_banquero += total_despues_participacion
             desglose_banqueros[b_nombre]["total_mi_ganancia_banca"] += g_total
 
-        # MATEMÁTICA EXACTA:
-        # Se descuenta Cashea
         subtotal_banquero -= cashea_a_descontar
-        # Se resta el adelanto (si el banquero te dio plata, amortiza la cuenta)
         subtotal_banquero -= adelantos_b_val
-        # Se suman los pendientes atrasados (si el banquero debía plata a tu favor, aumenta lo que debe)
         subtotal_banquero += pendientes_b_val
 
         desglose_banqueros[b_nombre]["total_a_pagar_banquero"] = subtotal_banquero
@@ -1890,6 +1886,9 @@ def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[st
         return RedirectResponse(url=redirect_to, status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
+# ==============================================================================
+# PROCESAMIENTO DE SOLICITUD DE DINERO CORREGIDO
+# ==============================================================================
 @app.post("/admin/procesar-solicitud-dinero")
 async def post_procesar_solicitud_dinero(
     solicitud_id: int = Form(...),
@@ -1908,7 +1907,8 @@ async def post_procesar_solicitud_dinero(
         monto_original = float(solicitud['monto'] or 0.0)
         monto_pagar = monto_original if accion == "COMPLETO" else float(monto_abono or 0.0)
         agencia_norm = normalizar(agencia)
-        fecha_operacion = fecha or obtener_fecha_venezuela()
+        fecha_solicitud = solicitud['fecha'] or fecha or obtener_fecha_venezuela()
+        fecha_actual = obtener_fecha_venezuela()
 
         nombre_guardado = f"Liquidación Saldo #{solicitud_id}"
         if comprobante_file and comprobante_file.filename:
@@ -1924,24 +1924,50 @@ async def post_procesar_solicitud_dinero(
                 mime = comprobante_file.content_type or "image/jpeg"
                 nombre_guardado = f"data:{mime};base64,{base64.b64encode(contenido).decode('utf-8')}"
 
-        cursor.execute("UPDATE pagos SET estado = 'PROCESADO' WHERE id = %s", (solicitud_id,))
-        
-        cursor.execute(
-            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) 
-               VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
-            (agencia_norm, fecha_operacion, monto_pagar, f"Liquidación {accion} ({fecha_operacion})", nombre_guardado)
-        )
+        if accion == "COMPLETO":
+            # Actualiza directamente la fila de la solicitud a LIQUIDACION APROBADA
+            # Esto evita duplicados y garantiza que impacte el balance de inmediato
+            cursor.execute(
+                """UPDATE pagos 
+                   SET tipo = 'LIQUIDACION', 
+                       estado = 'APROBADO', 
+                       monto = %s, 
+                       factura = %s, 
+                       comprobante = %s 
+                   WHERE id = %s""",
+                (monto_pagar, f"Liquidación Completa ({fecha_solicitud})", nombre_guardado, solicitud_id)
+            )
+        else:
+            # Si es abono parcial, se descuenta de la solicitud pendiente y se registra la liquidación
+            monto_restante = max(0.0, monto_original - monto_pagar)
+            if monto_restante > 0.009:
+                cursor.execute("UPDATE pagos SET monto = %s WHERE id = %s", (monto_restante, solicitud_id))
+            else:
+                cursor.execute("UPDATE pagos SET estado = 'PROCESADO' WHERE id = %s", (solicitud_id,))
+            
+            cursor.execute(
+                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) 
+                   VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
+                (agencia_norm, fecha_solicitud, monto_pagar, f"Liquidación Parcial ({fecha_solicitud})", nombre_guardado)
+            )
 
         mensaje_com = f"Se te ha transferido Bs. {monto_pagar:,.2f} ({accion}) para saldar tu cuenta."
-        cursor.execute(
-            "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
-            (mensaje_com, agencia_norm)
-        )
+        try:
+            cursor.execute(
+                "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
+                (mensaje_com, agencia_norm)
+            )
+        except Exception:
+            cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje_com,))
 
         conn.commit()
         conn.close()
 
-        recalcular_y_actualizar_reporte(agencia_norm, fecha_operacion)
+        # Recalcular tanto en la fecha de origen de la solicitud como en la fecha de hoy
+        recalcular_y_actualizar_reporte(agencia_norm, fecha_solicitud)
+        if fecha_solicitud != fecha_actual:
+            recalcular_y_actualizar_reporte(agencia_norm, fecha_actual)
+
         disparar_notificacion(agencia_norm, "💸 Liquidación Procesada", mensaje_com)
         return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
