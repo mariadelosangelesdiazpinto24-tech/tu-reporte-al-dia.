@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Banquero - {{ nombre_comercializadora }}</title>
+    
+    <link rel="icon" type="image/png" href="/templates/logo.png">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --banquero-primario: #0d47a1;
+            --banquero-hover: #1565c0;
+            --bg-body: #f4f6f9;
+        }
+        body { 
+            background-color: var(--bg-body); 
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; 
+            font-size: 13px; 
+            color: #333;
+        }
+        .bg-tema { 
+            background: linear-gradient(135deg, #0d47a1, #1a237e) !important; 
+            color: white !important; 
+        }
+        .card-custom { 
+            border-radius: 16px; 
+            border: none; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.06); 
+        }
+        .nav-tabs {
+            border-bottom: 2px solid #cfd8dc;
+        }
+        .nav-tabs .nav-link { 
+            color: #546e7a; 
+            font-weight: 600; 
+            border: none; 
+            padding: 10px 18px; 
+            border-radius: 10px 10px 0 0; 
+        }
+        .nav-tabs .nav-link.active { 
+            background-color: var(--banquero-primario) !important; 
+            color: white !important; 
+        }
+        .tab-danger-glow {
+            color: #d32f2f !important;
+            font-weight: bold;
+        }
+        .nav-tabs .nav-link.active.tab-danger-glow {
+            background-color: #b71c1c !important;
+            color: #ffffff !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container-fluid py-3 px-3 px-md-4">
+        <!-- HEADER -->
+        <div class="card bg-tema shadow-sm border-0 mb-3" style="border-radius: 16px;">
+            <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2 py-3 px-4">
+                <div class="d-flex align-items-center">
+                    <img src="/templates/logo.png" alt="Logo" style="width: 42px; height: 42px; object-fit: contain; border-radius: 10px; margin-right: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
+                    <div>
+                        <h4 class="fw-bold m-0 text-white">{{ nombre_comercializadora }} 🏪</h4>
+                        <small class="text-white-50">Portal Privado de Liquidación y Seguridad</small>
+                    </div>
+                </div>
+                <div>
+                    <a href="/login" class="btn btn-light btn-sm fw-bold text-dark rounded-pill px-3 shadow-sm">
+                        <i class="fas fa-sign-out-alt me-1"></i> Salir
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- PESTAÑAS -->
+        <ul class="nav nav-tabs mb-3" id="banqueroTabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link {% if tab_activa == 'liquidacion' or not tab_activa %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-liquidacion" type="button">
+                    <i class="fas fa-file-invoice-dollar me-1"></i> Mi Liquidación
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link tab-danger-glow {% if tab_activa == 'listanegra' %}active{% endif %}" id="btn-tab-listanegra-b" data-bs-toggle="tab" data-bs-target="#tab-listanegra" type="button" onclick="cargarListaNegraBanquero()">
+                    <i class="fas fa-skull-crossbones me-1"></i> Lista Negra 🚨
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="banqueroTabsContent">
+
+            <!-- 1. LIQUIDACIÓN DEL BANQUERO -->
+            <div class="tab-pane fade {% if tab_activa == 'liquidacion' or not tab_activa %}show active{% endif %}" id="tab-liquidacion" role="tabpanel">
+                
+                <!-- FILTRO DE FECHAS -->
+                <div class="card card-custom p-3 bg-white mb-3 shadow-sm">
+                    <form method="GET" action="/banquero" class="row g-2 align-items-end">
+                        <input type="hidden" name="usuario" value="{{ usuario }}">
+                        <div class="col-md-5">
+                            <label class="form-label small fw-bold text-muted">Desde:</label>
+                            <input type="date" name="desde_fecha" value="{{ desde_fecha }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small fw-bold text-muted">Hasta:</label>
+                            <input type="date" name="hasta_fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold"><i class="fas fa-search me-1"></i> Consultar</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- CUADRO DE LIQUIDACIÓN -->
+                <div class="card card-custom p-3 bg-white shadow-sm mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom flex-wrap gap-2">
+                        <div>
+                            <h5 class="fw-bold text-dark m-0 d-inline-block me-2">{{ nombre_comercializadora }}</h5>
+                            <span class="badge bg-dark fs-6" id="badgeTotalBanquero">
+                                Total a Liquidar: Bs. {{ cuadro.total_a_pagar | dinero }}
+                            </span>
+                        </div>
+                        <button class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold shadow-sm" onclick="copiarMiLiquidacion()">
+                            <i class="fas fa-copy me-1"></i> Copiar Liquidación
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered bg-white align-middle mb-0" id="tablaBanquero" style="font-size: 12px;">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Sistema</th>
+                                    <th class="text-end">Venta</th>
+                                    <th class="text-end">Premio</th>
+                                    <th class="text-end">Comisión</th>
+                                    <th class="text-end">Total (V - P - C)</th>
+                                    <th class="text-end">Participación</th>
+                                    <th class="text-end fw-bold">Total Sistema</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% set subtotal_sistemas = namespace(valor=0.0) %}
+                                {% for s in cuadro.sistemas %}
+                                {% set subtotal_sistemas.valor = subtotal_sistemas.valor + (s.total_final or 0) %}
+                                <tr>
+                                    <td class="fw-bold">{{ s.sistema }}</td>
+                                    <td class="text-end">Bs. {{ s.venta | dinero }}</td>
+                                    <td class="text-end text-danger">Bs. {{ s.premios | dinero }}</td>
+                                    <td class="text-end text-primary">Bs. {{ s.comision | dinero }}</td>
+                                    <td class="text-end fw-bold">Bs. {{ s.total_sistema | dinero }}</td>
+                                    <td class="text-end {% if s.participacion < 0 %}text-danger{% elif s.participacion > 0 %}text-success{% else %}text-muted{% endif %}">
+                                        Bs. {{ s.participacion | dinero }}
+                                    </td>
+                                    <td class="text-end fw-bold">Bs. {{ s.total_final | dinero }}</td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="7" class="text-center text-muted py-3">No hay movimientos registrados en este período.</td></tr>
+                                {% endfor %}
+
+                                <!-- DEDUCCIÓN CASHEA -->
+                                {% if cuadro.cashea_descontado > 0 %}
+                                <tr class="table-warning fw-bold">
+                                    <td colspan="6" class="text-danger"><i class="fas fa-shopping-cart me-1"></i> (-) Facturas Cashea Absorbidas:</td>
+                                    <td class="text-end text-danger">- Bs. {{ cuadro.cashea_descontado | dinero }}</td>
+                                </tr>
+                                {% endif %}
+
+                                <!-- PENDIENTES DEL BANQUERO -->
+                                {% if cuadro.pendientes_banquero != 0 %}
+                                <tr class="table-info fw-bold">
+                                    <td colspan="6" class="text-primary"><i class="fas fa-history me-1"></i> Saldo Pendiente Anterior:</td>
+                                    <td class="text-end text-primary">
+                                        {% if cuadro.pendientes_banquero > 0 %}+{% endif %}Bs. {{ cuadro.pendientes_banquero | dinero }}
+                                    </td>
+                                </tr>
+                                {% endif %}
+
+                                <!-- ADELANTOS DEL BANQUERO -->
+                                {% if cuadro.adelantos_banquero != 0 %}
+                                <tr class="table-danger fw-bold">
+                                    <td colspan="6" class="text-danger"><i class="fas fa-hand-holding-dollar me-1"></i> (-) Adelantos Entregados:</td>
+                                    <td class="text-end text-danger">- Bs. {{ (cuadro.adelantos_banquero | abs) | dinero }}</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                            <tfoot class="table-dark fw-bold">
+                                <tr>
+                                    <td colspan="6" class="text-end text-uppercase">TOTAL FINAL A LIQUIDAR:</td>
+                                    <td class="text-end fs-6 text-warning">Bs. {{ cuadro.total_a_pagar | dinero }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. LISTA NEGRA PÚBLICA -->
+            <div class="tab-pane fade {% if tab_activa == 'listanegra' %}show active{% endif %}" id="tab-listanegra" role="tabpanel">
+                <div class="card card-custom p-4 bg-white mb-3 shadow-sm border-start border-4 border-danger">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <div>
+                            <h4 class="fw-bold text-danger m-0"><i class="fas fa-shield-halved me-2"></i>Lista Negra Pública y Verificada</h4>
+                            <small class="text-muted">Registro colectivo inmutable en tiempo real. Consulta cédulas, números y evidencias de estafadores.</small>
+                        </div>
+                        <button type="button" class="btn btn-danger fw-bold rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoEstafadorBanquero">
+                            <i class="fas fa-user-plus me-1"></i> Reportar Estafador
+                        </button>
+                    </div>
+
+                    <!-- BUSCADOR EN TIEMPO REAL -->
+                    <div class="p-3 bg-light rounded-4 mb-3 border">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-danger"></i></span>
+                            <input type="text" id="inputBuscarEstafadorBanquero" class="form-control border-start-0" placeholder="Buscar por Cédula, Nombre o Teléfono..." oninput="filtrarListaNegraBanquero()">
+                            <button class="btn btn-outline-secondary" type="button" onclick="cargarListaNegraBanquero()"><i class="fas fa-rotate me-1"></i> Refrescar</button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" style="font-size: 13px;">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Cédula</th>
+                                    <th>Nombre(s)</th>
+                                    <th>Rol</th>
+                                    <th>Teléfono(s)</th>
+                                    <th>Detalles / Motivo</th>
+                                    <th>Evidencias</th>
+                                    <th>Reportado Por</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyListaNegraBanquero">
+                                <tr><td colspan="7" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>Cargando registros...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- MODAL REGISTRAR ESTAFADOR -->
+    <div class="modal fade" id="modalNuevoEstafadorBanquero" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-danger text-white py-2">
+                    <h6 class="modal-title fw-bold"><i class="fas fa-bullhorn me-1"></i> Fichar en Lista Negra</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formRegistrarEstafadorBanquero" enctype="multipart/form-data">
+                    <input type="hidden" name="agencia_reporta" value="{{ nombre_comercializadora }}">
+                    <div class="modal-body p-3">
+                        <div class="alert alert-warning py-2 small mb-3 border-0">
+                            <i class="fas fa-lock me-1"></i> <strong>Aviso:</strong> Los registros en la lista negra son permanentes e inmutables para proteger a las comercializadoras y taquillas.
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Nombre o Alias del Estafador:</label>
+                            <input type="text" name="nombre" class="form-control form-control-sm" placeholder="Ej: Pedro Perez / El Brujo" required>
+                        </div>
+
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">Cédula de Identidad:</label>
+                                <input type="text" name="cedula" class="form-control form-control-sm" placeholder="V-12345678">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">Rol / Función:</label>
+                                <select name="rol_estafador" class="form-select form-select-sm" required>
+                                    <option value="CLIENTE">Cliente</option>
+                                    <option value="AGENCIA">Agencia / Taquilla</option>
+                                    <option value="BANQUERO">Banquero</option>
+                                    <option value="PRONOSTICADOR">Pronosticador</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Número(s) de Teléfono:</label>
+                            <input type="text" name="telefonos" class="form-control form-control-sm" placeholder="0412-1234567, 0414-7654321" required>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Motivo / Descripción de la Estafa:</label>
+                            <textarea name="descripcion" class="form-control form-control-sm" rows="3" placeholder="Explica detalladamente qué hizo..." required></textarea>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Captures de Evidencia (Fotos / Comprobantes):</label>
+                            <input type="file" name="evidencias_files" class="form-control form-control-sm" multiple accept="image/*">
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light py-2">
+                        <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger btn-sm fw-bold rounded-pill px-4" id="btnGuardarEstafadorBanquero">Publicar Registro</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL VER EVIDENCIAS -->
+    <div class="modal fade" id="modalVerEvidenciasBanquero" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-dark text-white py-2">
+                    <h6 class="modal-title fw-bold" id="tituloModalEvidenciaBanquero"><i class="fas fa-images me-1"></i> Evidencias Adjuntas</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-3 text-center" id="contenedorEvidenciasBanquero"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function formatoBs(val) {
+            return "Bs. " + Number(val).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function copiarMiLiquidacion() {
+            var tabla = document.getElementById("tablaBanquero");
+            var texto = "🏪 *LIQUIDACIÓN: {{ nombre_comercializadora }}* 🍀\n";
+            texto += "📅 *Período:* {{ desde_fecha }} al {{ hasta_fecha }}\n";
+            texto += "----------------------------------------\n\n";
+
+            var filas = tabla.querySelectorAll("tbody tr:not(.table-warning):not(.table-info):not(.table-danger)");
+            filas.forEach(function(tr) {
+                var c = tr.querySelectorAll("td");
+                if (c.length >= 7) {
+                    texto += "📌 *" + c[0].innerText.trim() + "*\n";
+                    texto += "   • Venta: " + c[1].innerText.trim() + "\n";
+                    texto += "   • Premios: " + c[2].innerText.trim() + "\n";
+                    texto += "   • Comisión: " + c[3].innerText.trim() + "\n";
+                    texto += "   • Total Sistema: " + c[6].innerText.trim() + "\n\n";
+                }
+            });
+
+            {% if cuadro.cashea_descontado > 0 %}
+            texto += "🛒 (-) Cashea Absorbido: - " + formatoBs({{ cuadro.cashea_descontado }}) + "\n";
+            {% endif %}
+            {% if cuadro.pendientes_banquero != 0 %}
+            texto += "⏳ Saldo Pendiente Anterior: " + formatoBs({{ cuadro.pendientes_banquero }}) + "\n";
+            {% endif %}
+            {% if cuadro.adelantos_banquero != 0 %}
+            texto += "💵 (-) Adelantos Entregados: - " + formatoBs({{ cuadro.adelantos_banquero | abs }}) + "\n";
+            {% endif %}
+
+            texto += "========================================\n";
+            texto += "💰 *TOTAL A LIQUIDAR:* Bs. {{ cuadro.total_a_pagar | dinero }}\n";
+            texto += "----------------------------------------\n";
+            texto += "🍀 *Los Ángeles del Dinero* 🍀";
+
+            navigator.clipboard.writeText(texto).then(function() {
+                alert("Liquidación copiada al portapapeles con éxito.");
+            });
+        }
+
+        // LISTA NEGRA BANQUERO
+        function cargarListaNegraBanquero(query = "") {
+            var url = "/api/lista-negra";
+            if (query && query.trim() !== "") {
+                url += "?q=" + encodeURIComponent(query.trim());
+            }
+
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    renderizarTablaEstafadoresBanquero(data);
+                })
+                .catch(err => console.error(err));
+        }
+
+        function renderizarTablaEstafadoresBanquero(lista) {
+            var tbody = document.getElementById("tbodyListaNegraBanquero");
+            if (!tbody) return;
+
+            if (lista.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No hay registros con ese criterio.</td></tr>';
+                return;
+            }
+
+            var html = "";
+            lista.forEach(item => {
+                var badgeRol = "bg-secondary";
+                if (item.rol_estafador === "CLIENTE") badgeRol = "bg-warning text-dark";
+                else if (item.rol_estafador === "BANQUERO") badgeRol = "bg-primary";
+                else if (item.rol_estafador === "PRONOSTICADOR") badgeRol = "bg-info text-dark";
+                else if (item.rol_estafador === "AGENCIA") badgeRol = "bg-danger";
+
+                var fotos = [];
+                try { fotos = JSON.parse(item.evidencias || "[]"); } catch(e) { fotos = []; }
+
+                var btnEvidencia = '<span class="text-muted">Sin captures</span>';
+                if (fotos.length > 0) {
+                    var strFotos = encodeURIComponent(JSON.stringify(fotos));
+                    btnEvidencia = `<button type="button" class="btn btn-outline-danger btn-sm py-0 rounded-pill fw-bold" onclick="mostrarEvidenciasBanquero('${strFotos}', '${item.nombre}')">
+                        <i class="fas fa-camera me-1"></i> Ver (${fotos.length})
+                    </button>`;
+                }
+
+                html += `
+                    <tr>
+                        <td class="fw-bold text-danger">${item.cedula || 'N/A'}</td>
+                        <td class="fw-bold text-dark">${item.nombre}</td>
+                        <td><span class="badge ${badgeRol}">${item.rol_estafador}</span></td>
+                        <td><span class="badge bg-light text-dark border"><i class="fas fa-phone-volume text-danger me-1"></i>${item.telefonos}</span></td>
+                        <td><small class="text-muted">${item.descripcion}</small></td>
+                        <td>${btnEvidencia}</td>
+                        <td><small class="fw-bold text-secondary">${item.reportado_por || 'COMERCIALIZADORA'}<br><span style="font-size:10px;">${item.fecha_str || ''}</span></small></td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        }
+
+        function filtrarListaNegraBanquero() {
+            var q = document.getElementById("inputBuscarEstafadorBanquero").value;
+            cargarListaNegraBanquero(q);
+        }
+
+        function mostrarEvidenciasBanquero(encodedFotos, nombre) {
+            var fotos = JSON.parse(decodeURIComponent(encodedFotos));
+            var contenedor = document.getElementById("contenedorEvidenciasBanquero");
+            document.getElementById("tituloModalEvidenciaBanquero").innerText = "Captures de Evidencia: " + nombre;
+
+            var html = '<div class="row g-2">';
+            fotos.forEach(src => {
+                html += `
+                    <div class="col-md-6 mb-2">
+                        <a href="${src}" target="_blank">
+                            <img src="${src}" class="img-fluid rounded border shadow-sm" style="max-height: 380px; width: 100%; object-fit: contain;">
+                        </a>
+                        <a href="${src}" download class="btn btn-sm btn-outline-dark mt-1 w-100 py-0"><i class="fas fa-download me-1"></i> Descargar</a>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            contenedor.innerHTML = html;
+
+            var modal = new bootstrap.Modal(document.getElementById("modalVerEvidenciasBanquero"));
+            modal.show();
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            var formEstafador = document.getElementById("formRegistrarEstafadorBanquero");
+            if (formEstafador) {
+                formEstafador.addEventListener("submit", function(e) {
+                    e.preventDefault();
+                    var btn = document.getElementById("btnGuardarEstafadorBanquero");
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Guardando...';
+
+                    fetch("/api/lista-negra/guardar", {
+                        method: "POST",
+                        body: new FormData(formEstafador)
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        btn.disabled = false;
+                        btn.innerHTML = 'Publicar Registro';
+                        var modalEl = document.getElementById('modalNuevoEstafadorBanquero');
+                        bootstrap.Modal.getInstance(modalEl).hide();
+                        formEstafador.reset();
+                        cargarListaNegraBanquero();
+                        alert("¡Ficha publicada de forma permanente en la Lista Negra!");
+                    })
+                    .catch(err => {
+                        btn.disabled = false;
+                        btn.innerHTML = 'Publicar Registro';
+                        alert("Error al guardar: " + err);
+                    });
+                });
+            }
+
+            // Actualización periódica en segundo plano
+            setInterval(function() {
+                var btnTab = document.getElementById('btn-tab-listanegra-b');
+                if (btnTab && btnTab.classList.contains('active')) {
+                    var q = document.getElementById("inputBuscarEstafadorBanquero").value;
+                    if (!q || q.trim() === "") {
+                        cargarListaNegraBanquero();
+                    }
+                }
+            }, 10000);
+        });
+    </script>
+</body>
+</html>
