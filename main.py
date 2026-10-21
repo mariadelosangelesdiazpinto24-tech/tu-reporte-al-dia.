@@ -1273,6 +1273,118 @@ async def api_guardar_lista_negra(
     return {"status": "ok", "mensaje": "Estafador fichado en la lista negra exitosamente."}
 
 # ==============================================================================
+# ENDPOINT: CREAR TAQUILLA EXCLUSIVA PARA LISTA NEGRA
+# ==============================================================================
+@app.post("/api/banquero/crear-taquilla-listanegra")
+def api_crear_taquilla_listanegra(
+    nombre_real: str = Form(...),
+    cedula: str = Form(...),
+    agencia: str = Form(...),
+    clave: str = Form("123456"),
+    creado_por: str = Form(...)
+):
+    agencia_norm = normalizar(agencia)
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        INSERT INTO usuarios (agencia, clave, genero, rol)
+        VALUES (%s, %s, 'FEMENINO', 'SOLO_LISTA_NEGRA')
+        ON CONFLICT (agencia) DO UPDATE SET clave = EXCLUDED.clave, rol = 'SOLO_LISTA_NEGRA'
+    """, (agencia_norm, clave.strip()))
+    
+    mensaje = f"Taquilla {agencia_norm} (C.I: {cedula}) habilitada para Lista Negra por {creado_por}."
+    try:
+        cursor.execute("INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, 'ADMIN')", (mensaje,))
+    except Exception:
+        pass
+
+    conn.commit()
+    conn.close()
+    
+    return {"status": "ok", "mensaje": f"Taquilla '{agencia_norm}' creada exitosamente con acceso único a Lista Negra."}
+
+# ==============================================================================
+# ENDPOINT: AJUSTES DE ADELANTOS Y PENDIENTES DEL BANQUERO (SINCRONIZADO)
+# ==============================================================================
+@app.post("/banquero/guardar-ajustes-cuenta")
+def post_banquero_guardar_ajustes_cuenta(
+    banquero: str = Form(...),
+    fecha: str = Form(...),
+    adelantos: float = Form(0.0),
+    pendientes: float = Form(0.0),
+    desde_fecha: Optional[str] = Form(None),
+    hasta_fecha: Optional[str] = Form(None),
+    usuario: str = Form(...)
+):
+    b_norm = banquero.strip().upper()
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """INSERT INTO ajustes_globales_banqueros (banquero, fecha, adelantos, pendientes)
+           VALUES (%s, %s, %s, %s)
+           ON CONFLICT (banquero, fecha)
+           DO UPDATE SET adelantos = EXCLUDED.adelantos, pendientes = EXCLUDED.pendientes""",
+        (b_norm, fecha, adelantos, pendientes)
+    )
+
+    cursor.execute(
+        "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo IN ('ADELANTO_BANQUERO', 'PENDIENTE_BANQUERO')",
+        (b_norm, fecha)
+    )
+
+    if adelantos != 0:
+        cursor.execute(
+            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+               VALUES (%s, %s, %s, %s, %s, 'ADELANTO_BANQUERO', 'APROBADO')""",
+            (b_norm, fecha, abs(adelantos), f"Adelanto reportado por {b_norm}", f"Adelanto registrado el {fecha}")
+        )
+
+    if pendientes != 0:
+        cursor.execute(
+            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+               VALUES (%s, %s, %s, %s, %s, 'PENDIENTE_BANQUERO', 'APROBADO')""",
+            (b_norm, fecha, abs(pendientes), f"Atraso/Pendiente de {b_norm}", f"Pendiente registrado el {fecha}")
+        )
+
+    conn.commit()
+    conn.close()
+
+    url_retorno = f"/banquero?usuario={usuario}&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
+    return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
+
+# ==============================================================================
+# ENDPOINT: AJUSTE MANUAL DE UN SISTEMA DESDE EL BANQUERO (SINCRONIZADO)
+# ==============================================================================
+@app.post("/banquero/guardar-ajuste-sistema")
+def post_banquero_guardar_ajuste_sistema(
+    banquero: str = Form(...),
+    sistema: str = Form(...),
+    fecha: str = Form(...),
+    venta: float = Form(...),
+    comision: float = Form(...),
+    premios: float = Form(...),
+    desde_fecha: Optional[str] = Form(None),
+    hasta_fecha: Optional[str] = Form(None),
+    usuario: str = Form(...)
+):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        """INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+           VALUES (%s, %s, %s, %s, %s, %s)
+           ON CONFLICT (banquero, sistema, fecha) 
+           DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
+        (banquero, sistema, fecha, venta, comision, premios)
+    )
+    conn.commit()
+    conn.close()
+
+    url_retorno = f"/banquero?usuario={usuario}&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
+    return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
+
+# ==============================================================================
 # LOGIN INTELIGENTE (ADMIN, BANQUEROS FIJOS EN CÓDIGO Y TAQUILLAS)
 # ==============================================================================
 @app.get("/", response_class=HTMLResponse)
@@ -1311,6 +1423,13 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
 
     if user_data and user_data['clave'] == clave:
         actualizar_ultima_conexion(usuario_norm)
+        
+        # Redirección exclusiva para taquillas creadas solo para Lista Negra
+        if user_data.get('rol') == 'SOLO_LISTA_NEGRA':
+            response = RedirectResponse(url=f"/agencia?nombre={usuario_norm}&tab=listanegra", status_code=status.HTTP_303_SEE_OTHER)
+            response.set_cookie(key="user", value=usuario_norm)
+            return response
+
         response = RedirectResponse(url=f"/agencia?nombre={usuario_norm}", status_code=status.HTTP_303_SEE_OTHER)
         response.set_cookie(key="user", value=usuario_norm)
         return response
