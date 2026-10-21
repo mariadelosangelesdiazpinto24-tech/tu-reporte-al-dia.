@@ -1233,19 +1233,19 @@ async def api_guardar_lista_negra(
     agencia_reporta: str = Form(...),
     evidencias_files: List[UploadFile] = File(default=[])
 ):
-    evidencias_urls = []
+    evidencias_data = []
     
     for file in evidencias_files:
         if file.filename:
             contenido = await file.read()
-            ext = file.filename.split('.')[-1]
-            nom_arch = f"evidencia_{datetime.now(TZ_VENEZUELA).strftime('%Y%m%d_%H%M%S')}_{file.filename.replace(' ', '_')}"
-            ruta = os.path.join("uploads", nom_arch)
-            with open(ruta, "wb") as f:
-                f.write(contenido)
-            evidencias_urls.append(f"/uploads/{nom_arch}")
+            mime = file.content_type or "image/jpeg"
+            # Convertimos la imagen a Base64 puro
+            b64_str = base64.b64encode(contenido).decode('utf-8')
+            data_url = f"data:{mime};base64,{b64_str}"
+            evidencias_data.append(data_url)
 
-    evidencias_json = json.dumps(evidencias_urls)
+    # Se guarda la lista de imágenes como JSON con Base64 directo en la BD
+    evidencias_json = json.dumps(evidencias_data)
     
     conn = get_db()
     cursor = conn.cursor()
@@ -1270,7 +1270,7 @@ async def api_guardar_lista_negra(
         f"Se ha boletinado a: {nombre.upper()} ({rol_estafador}) - C.I: {cedula or 'N/A'}"
     )
 
-    return {"status": "ok", "mensaje": "Estafador fichado en la lista negra exitosamente."}
+    return {"status": "ok", "mensaje": "Estafador fichado con imágenes permanentes."}
 
 # ==============================================================================
 # ENDPOINT: CREAR TAQUILLA EXCLUSIVA PARA LISTA NEGRA
