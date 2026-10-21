@@ -232,6 +232,15 @@ def init_db():
         )
     ''')
 
+    # Añadir columnas para solicitudes y taquillas de Lista Negra
+    cursor.execute('''
+        ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS nombre_real TEXT;
+        ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cedula TEXT;
+        ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefono TEXT;
+        ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS estado TEXT DEFAULT 'ACTIVO';
+        ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS recomendado_por TEXT;
+    ''')
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
             id SERIAL PRIMARY KEY,
@@ -1239,12 +1248,10 @@ async def api_guardar_lista_negra(
         if file.filename:
             contenido = await file.read()
             mime = file.content_type or "image/jpeg"
-            # Convertimos la imagen a Base64 puro
             b64_str = base64.b64encode(contenido).decode('utf-8')
             data_url = f"data:{mime};base64,{b64_str}"
             evidencias_data.append(data_url)
 
-    # Se guarda la lista de imágenes como JSON con Base64 directo en la BD
     evidencias_json = json.dumps(evidencias_data)
     
     conn = get_db()
@@ -1273,7 +1280,7 @@ async def api_guardar_lista_negra(
     return {"status": "ok", "mensaje": "Estafador fichado con imágenes permanentes."}
 
 # ==============================================================================
-# ENDPOINT: CREAR TAQUILLA EXCLUSIVA PARA LISTA NEGRA
+# ENDPOINT: CREAR TAQUILLA EXCLUSIVA PARA LISTA NEGRA (BANQUERO)
 # ==============================================================================
 @app.post("/api/banquero/crear-taquilla-listanegra")
 def api_crear_taquilla_listanegra(
@@ -1288,10 +1295,11 @@ def api_crear_taquilla_listanegra(
     cursor = conn.cursor()
     
     cursor.execute("""
-        INSERT INTO usuarios (agencia, clave, genero, rol)
-        VALUES (%s, %s, 'FEMENINO', 'SOLO_LISTA_NEGRA')
-        ON CONFLICT (agencia) DO UPDATE SET clave = EXCLUDED.clave, rol = 'SOLO_LISTA_NEGRA'
-    """, (agencia_norm, clave.strip()))
+        INSERT INTO usuarios (agencia, clave, genero, rol, nombre_real, cedula, estado, recomendado_por)
+        VALUES (%s, %s, 'FEMENINO', 'SOLO_LISTA_NEGRA', %s, %s, 'ACTIVO', %s)
+        ON CONFLICT (agencia) DO UPDATE 
+        SET clave = EXCLUDED.clave, rol = 'SOLO_LISTA_NEGRA', estado = 'ACTIVO', nombre_real = EXCLUDED.nombre_real, cedula = EXCLUDED.cedula
+    """, (agencia_norm, clave.strip(), nombre_real.strip().upper(), cedula.strip().upper(), creado_por))
     
     mensaje = f"Taquilla {agencia_norm} (C.I: {cedula}) habilitada para Lista Negra por {creado_por}."
     try:
@@ -1385,6 +1393,85 @@ def post_banquero_guardar_ajuste_sistema(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 # ==============================================================================
+# REGISTRO PÚBLICO: COMPAÑERO EXTERNO PIDE ACCESO A LISTA NEGRA
+# ==============================================================================
+@app.get("/registro-lista-negra", response_class=HTMLResponse)
+def get_registro_lista_negra(request: Request, ref: Optional[str] = None):
+    return templates.TemplateResponse(request=request, name="registro_lista_negra.html", context={"ref": ref or "AGENCIA EXTERNA"})
+
+@app.post("/registro-lista-negra")
+def post_registro_lista_negra(
+    nombre_real: str = Form(...),
+    cedula: str = Form(...),
+    telefono: str = Form(...),
+    agencia: str = Form(...),
+    clave: str = Form(...),
+    recomendado_por: Optional[str] = Form("DIRECTO")
+):
+    agencia_norm = normalizar(agencia)
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id FROM usuarios WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
+    existe = cursor.fetchone()
+    if existe:
+        conn.close()
+        return HTMLResponse("<script>alert('Ese nombre de agencia ya está en uso. Elige otro.'); window.history.back();</script>")
+
+    cursor.execute("""
+        INSERT INTO usuarios (agencia, clave, genero, rol, nombre_real, cedula, telefono, estado, recomendado_por)
+        VALUES (%s, %s, 'FEMENINO', 'SOLO_LISTA_NEGRA', %s, %s, %s, 'PENDIENTE', %s)
+    """, (agencia_norm, clave.strip(), nombre_real.strip().upper(), cedula.strip().upper(), telefono.strip(), recomendado_por))
+
+    conn.commit()
+    conn.close()
+
+    disparar_notificacion("ADMIN", "🛡️ Nueva Solicitud Lista Negra", f"{nombre_real} ({agencia_norm}) solicitó acceso a la Lista Negra.")
+
+    return HTMLResponse("""
+        <script>
+            alert('¡Solicitud enviada con éxito! La administración revisará tus datos y activará tu acceso pronto.');
+            window.location.href = '/login';
+        </script>
+    """)
+
+# ==============================================================================
+# ADMIN: APROBAR / RECHAZAR SOLICITUDES Y CREAR DIRECTO
+# ==============================================================================
+@app.post("/admin/crear-taquilla-listanegra")
+def post_admin_crear_taquilla_ln(
+    nombre_real: str = Form(...),
+    cedula: str = Form(...),
+    telefono: str = Form(...),
+    agencia: str = Form(...),
+    clave: str = Form(...)
+):
+    agencia_norm = normalizar(agencia)
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO usuarios (agencia, clave, genero, rol, nombre_real, cedula, telefono, estado, recomendado_por)
+        VALUES (%s, %s, 'FEMENINO', 'SOLO_LISTA_NEGRA', %s, %s, %s, 'ACTIVO', 'ADMIN')
+        ON CONFLICT (agencia) DO UPDATE 
+        SET clave = EXCLUDED.clave, rol = 'SOLO_LISTA_NEGRA', estado = 'ACTIVO', nombre_real = EXCLUDED.nombre_real, cedula = EXCLUDED.cedula, telefono = EXCLUDED.telefono
+    """, (agencia_norm, clave.strip(), nombre_real.strip().upper(), cedula.strip().upper(), telefono.strip()))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin?tab=listanegra", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/aprobar-taquilla-ln")
+def post_aprobar_taquilla_ln(usuario_id: int = Form(...), accion: str = Form(...)):
+    conn = get_db()
+    cursor = conn.cursor()
+    if accion == "APROBAR":
+        cursor.execute("UPDATE usuarios SET estado = 'ACTIVO', rol = 'SOLO_LISTA_NEGRA' WHERE id = %s", (usuario_id,))
+    else:
+        cursor.execute("DELETE FROM usuarios WHERE id = %s", (usuario_id,))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin?tab=listanegra", status_code=status.HTTP_303_SEE_OTHER)
+
+# ==============================================================================
 # LOGIN INTELIGENTE (ADMIN, BANQUEROS FIJOS EN CÓDIGO Y TAQUILLAS)
 # ==============================================================================
 @app.get("/", response_class=HTMLResponse)
@@ -1422,6 +1509,12 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
     conn.close()
 
     if user_data and user_data['clave'] == clave:
+        # Verificar estado de aprobación
+        if user_data.get('estado') == 'PENDIENTE':
+            return templates.TemplateResponse(request=request, name="login.html", context={
+                "error": "Tu cuenta está pendiente de aprobación por la administración."
+            })
+
         actualizar_ultima_conexion(usuario_norm)
         
         # Redirección exclusiva para taquillas creadas solo para Lista Negra
@@ -2435,6 +2528,9 @@ def post_eliminar_agencia(agencia_id: int = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
 
+# ==============================================================================
+# PANEL DE ADMINISTRACIÓN
+# ==============================================================================
 @app.get("/admin", response_class=HTMLResponse)
 def get_admin(
     request: Request, 
@@ -2470,6 +2566,10 @@ def get_admin(
 
         cursor.execute("SELECT * FROM usuarios ORDER BY id DESC")
         agencias = [dict(row) for row in cursor.fetchall()]
+
+        # Solicitudes externas de Lista Negra pendientes por aprobar
+        cursor.execute("SELECT * FROM usuarios WHERE estado = 'PENDIENTE' AND rol = 'SOLO_LISTA_NEGRA' ORDER BY id DESC")
+        solicitudes_ln_pendientes = [dict(r) for r in cursor.fetchall()]
         
         try:
             cursor.execute("SELECT * FROM comunicados WHERE agencia_destino = 'TODAS' ORDER BY id DESC")
@@ -2504,7 +2604,7 @@ def get_admin(
         positivos = []
         negativos = []
         for ag in agencias:
-            if ag.get('rol') == 'BANQUERO':
+            if ag.get('rol') in ['BANQUERO', 'SOLO_LISTA_NEGRA']:
                 continue
             ag_nombre = ag['agencia']
             
@@ -2629,6 +2729,7 @@ def get_admin(
             "suma_cuadros_banqueros": suma_cuadros_banqueros,
             "solicitudes_pendientes": solicitudes_pendientes,
             "solicitudes_pendientes_count": solicitudes_pendientes_count,
+            "solicitudes_ln_pendientes": solicitudes_ln_pendientes,
             "conciliacion_admin_resumen": conciliacion_admin_resumen,
             "conciliacion_admin_detalle": conciliacion_admin_detalle,
             "desde_fecha": f_desde,
