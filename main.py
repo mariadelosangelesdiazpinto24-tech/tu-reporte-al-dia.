@@ -36,6 +36,14 @@ BANQUEROS_FIJOS = {
     "NYS": {
         "clave": "nys123",
         "comercializadora": "COMERCIALIZADORA NYS"
+    },
+    "SUPER APUESTAS": {
+        "clave": "super123",
+        "comercializadora": "COMERCIALIZADORA SUPER APUESTAS"
+    },
+    "DUBAI": {
+        "clave": "dubai123",
+        "comercializadora": "COMERCIALIZADORA DUBAI"
     }
 }
 
@@ -127,7 +135,8 @@ SISTEMAS_OFICIALES = [
     "LA IMAGINARIA", "BETSOL", "GATO", "LOTIPOS", "LOTTIPLAY", 
     "LOTTOLUCKY", "MAXPLAY", "SRQ", "POSNET", "POZO", 
     "PREMIER", "SRQ POLLA", "WINBIG VENTAS", "WINBIG BINGO", 
-    "WINBIG POLLAS", "VENTA ACTIVA", "PARLEY", "CALAMAR", "GUACA"
+    "WINBIG POLLAS", "VENTA ACTIVA", "PARLEY", "CALAMAR", "GUACA",
+    "PATRONUS", "MASTER ACTIVO"
 ]
 
 ALIAS_AGENCIAS = {
@@ -232,7 +241,6 @@ def init_db():
         )
     ''')
 
-    # Añadir columnas para solicitudes y taquillas de Lista Negra
     cursor.execute('''
         ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS nombre_real TEXT;
         ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cedula TEXT;
@@ -337,7 +345,6 @@ def init_db():
         )
     ''')
 
-    # TABLA PERMANENTE DE LISTA NEGRA
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS lista_negra (
             id SERIAL PRIMARY KEY,
@@ -362,6 +369,39 @@ def init_db():
             cursor.execute("INSERT INTO usuarios (agencia, clave, genero, rol) VALUES (%s, '123456', 'FEMENINO', 'TAQUILLA') ON CONFLICT (agencia) DO NOTHING", (ag,))
         except Exception:
             pass
+
+    # ==========================================================================
+    # REGLAS DE BANQUEROS: LIDER (PATRONUS Y MASTER ACTIVO), SUPER APUESTAS Y DUBAI
+    # ==========================================================================
+    cursor.execute("""
+        INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
+        VALUES ('COMERCIALIZADORA LIDER', 'PATRONUS', 0.16, 0.12, 0.20, FALSE)
+        ON CONFLICT (banquero, sistema) DO UPDATE
+        SET pct_banquero = EXCLUDED.pct_banquero,
+            pct_taquilla = EXCLUDED.pct_taquilla,
+            pct_participacion = EXCLUDED.pct_participacion;
+    """)
+
+    cursor.execute("""
+        INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
+        VALUES ('COMERCIALIZADORA LIDER', 'MASTER ACTIVO', 0.17, 0.13, 0.30, FALSE)
+        ON CONFLICT (banquero, sistema) DO UPDATE
+        SET pct_banquero = EXCLUDED.pct_banquero,
+            pct_taquilla = EXCLUDED.pct_taquilla,
+            pct_participacion = EXCLUDED.pct_participacion;
+    """)
+
+    cursor.execute("""
+        INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
+        VALUES ('COMERCIALIZADORA SUPER APUESTAS', 'BETSOL', 0.12, 0.12, 0.0, FALSE)
+        ON CONFLICT (banquero, sistema) DO NOTHING;
+    """)
+
+    cursor.execute("""
+        INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
+        VALUES ('COMERCIALIZADORA DUBAI', 'LOTTOLUCKY', 0.13, 0.13, 0.0, FALSE)
+        ON CONFLICT (banquero, sistema) DO NOTHING;
+    """)
 
     conn.commit()
     conn.close()
@@ -1492,7 +1532,7 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
         response.set_cookie(key="user", value="ADMIN")
         return response
 
-    # 2. Acceso Banqueros Fijos en Código (LIDER, NYS, etc.)
+    # 2. Acceso Banqueros Fijos en Código (LIDER, NYS, SUPER APUESTAS, DUBAI)
     if usuario_norm in BANQUEROS_FIJOS:
         if BANQUEROS_FIJOS[usuario_norm]["clave"] == clave.strip():
             response = RedirectResponse(url=f"/banquero?usuario={usuario_norm}", status_code=status.HTTP_303_SEE_OTHER)
@@ -1509,7 +1549,6 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
     conn.close()
 
     if user_data and user_data['clave'] == clave:
-        # Verificar estado de aprobación
         if user_data.get('estado') == 'PENDIENTE':
             return templates.TemplateResponse(request=request, name="login.html", context={
                 "error": "Tu cuenta está pendiente de aprobación por la administración."
@@ -1517,7 +1556,6 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
 
         actualizar_ultima_conexion(usuario_norm)
         
-        # Redirección exclusiva para taquillas creadas solo para Lista Negra
         if user_data.get('rol') == 'SOLO_LISTA_NEGRA':
             response = RedirectResponse(url=f"/agencia?nombre={usuario_norm}&tab=listanegra", status_code=status.HTTP_303_SEE_OTHER)
             response.set_cookie(key="user", value=usuario_norm)
@@ -1545,11 +1583,9 @@ def get_banquero(
 
     usr_norm = normalizar(usuario)
     
-    # Validar que sea un banquero configurado en código
     if usr_norm not in BANQUEROS_FIJOS:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    # Identificar su comercializadora exacta
     nombre_comercializadora = BANQUEROS_FIJOS[usr_norm]["comercializadora"]
 
     hoy_vzla = obtener_fecha_venezuela()
@@ -1573,7 +1609,6 @@ def get_banquero(
         _, _, _, _
     ) = calcular_desglose_banqueros_datos(f_desde, f_hasta)
 
-    # Extraer única y exclusivamente su cuadro correspondiente
     cuadro_banquero = desglose_banqueros.get(nombre_comercializadora, {
         "sistemas": [],
         "cashea_descontado": 0.0,
@@ -1582,7 +1617,6 @@ def get_banquero(
         "total_a_pagar_banquero": 0.0
     })
 
-    # Filtrar información y excluir datos de comisiones privadas
     sistemas_filtrados = []
     for sys in cuadro_banquero.get("sistemas", []):
         sistemas_filtrados.append({
@@ -2035,7 +2069,7 @@ def post_marcar_leido(comunicado_id: int = Form(...), agencia: str = Form(...)):
 def post_solicitar_banca_directo(
     agencia: str = Form(...), 
     fecha: str = Form(...), 
-    monto: float = Form(...),
+    monto: float = Form(...), 
     tipo_solicitud: Optional[str] = Form("SOLICITUD_SALDO")
 ):
     agencia_norm = normalizar(agencia)
@@ -2147,6 +2181,10 @@ def post_actualizar_reporte_sistema(
             pct_com = 0.14
         elif "PARLEY" in sys_u:
             pct_com = 0.10
+        elif "PATRONUS" in sys_u:
+            pct_com = 0.12
+        elif "MASTER ACTIVO" in sys_u:
+            pct_com = 0.13
 
         comision_nueva = venta * pct_com
         total_nuevo_sistema = venta - comision_nueva - premio
@@ -2567,7 +2605,6 @@ def get_admin(
         cursor.execute("SELECT * FROM usuarios ORDER BY id DESC")
         agencias = [dict(row) for row in cursor.fetchall()]
 
-        # Solicitudes externas de Lista Negra pendientes por aprobar
         cursor.execute("SELECT * FROM usuarios WHERE estado = 'PENDIENTE' AND rol = 'SOLO_LISTA_NEGRA' ORDER BY id DESC")
         solicitudes_ln_pendientes = [dict(r) for r in cursor.fetchall()]
         
