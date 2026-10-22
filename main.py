@@ -371,7 +371,7 @@ def init_db():
             pass
 
     # ==========================================================================
-    # REGLAS DE BANQUEROS: LIDER (PATRONUS Y MASTER ACTIVO), SUPER APUESTAS Y DUBAI
+    # CONFIGURACIÓN EXACTA DE SISTEMAS Y BANQUEROS (COMISIÓN BANQUERO / TAQUILLA)
     # ==========================================================================
     cursor.execute("""
         INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
@@ -393,14 +393,20 @@ def init_db():
 
     cursor.execute("""
         INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
-        VALUES ('COMERCIALIZADORA SUPER APUESTAS', 'BETSOL', 0.12, 0.12, 0.0, FALSE)
-        ON CONFLICT (banquero, sistema) DO NOTHING;
+        VALUES ('COMERCIALIZADORA DUBAI', 'LOTTOLUCKY', 0.17, 0.13, 0.0, FALSE)
+        ON CONFLICT (banquero, sistema) DO UPDATE
+        SET pct_banquero = 0.17,
+            pct_taquilla = 0.13,
+            pct_participacion = 0.0;
     """)
 
     cursor.execute("""
         INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
-        VALUES ('COMERCIALIZADORA DUBAI', 'LOTTOLUCKY', 0.13, 0.13, 0.0, FALSE)
-        ON CONFLICT (banquero, sistema) DO NOTHING;
+        VALUES ('COMERCIALIZADORA SUPER APUESTAS', 'BETSOL', 0.16, 0.12, 0.0, FALSE)
+        ON CONFLICT (banquero, sistema) DO UPDATE
+        SET pct_banquero = 0.16,
+            pct_taquilla = 0.12,
+            pct_participacion = 0.0;
     """)
 
     conn.commit()
@@ -696,8 +702,8 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             v_sys = sistemas_consolidados.get(s_name, {}).get("venta", 0.0)
             p_sys = sistemas_consolidados.get(s_name, {}).get("premio", 0.0)
             
-            pct_b = item["pct_banquero"]
-            pct_t = item["pct_taquilla"]
+            pct_b = item["pct_banquero"]       # Comisión completa del banquero
+            pct_t = item["pct_taquilla"]       # Comisión taquillas
             pct_part = item["pct_participacion"]
 
             cursor.execute(
@@ -714,13 +720,13 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
                 c_banquero = float(ajuste_manual['total_c'] or 0.0)
                 hay_ajuste = True
             else:
-                c_banquero = v_sys * pct_b
+                c_banquero = v_sys * pct_b    # Comisión completa calculada para el banquero
                 hay_ajuste = False
 
             t_banquero_sistema = v_sys - c_banquero - p_sys
             c_taquilla = v_sys * pct_t
             pct_excedente = (pct_b - pct_t) * 100.0
-            g_excedente = v_sys * (pct_b - pct_t)
+            g_excedente = v_sys * (pct_b - pct_t)    # Ganancia propia exacta
             
             monto_participacion = t_banquero_sistema * pct_part if pct_part > 0 else 0.0
             total_despues_participacion = t_banquero_sistema - monto_participacion
