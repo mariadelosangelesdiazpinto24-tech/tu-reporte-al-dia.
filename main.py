@@ -371,7 +371,25 @@ def init_db():
             pass
 
     # ==========================================================================
-    # CONFIGURACIÓN EXACTA DE SISTEMAS Y BANQUEROS (COMISIÓN BANQUERO / TAQUILLA)
+    # UNIFICACIÓN DE NOMBRES PARA ELIMINAR DUPLICADOS EN LA BASE DE DATOS
+    # ==========================================================================
+    cursor.execute("UPDATE configuracion_banqueros SET banquero = 'COMERCIALIZADORA LIDER' WHERE banquero = 'LIDER';")
+    cursor.execute("UPDATE configuracion_banqueros SET banquero = 'COMERCIALIZADORA NYS' WHERE banquero = 'NYS';")
+    cursor.execute("UPDATE configuracion_banqueros SET banquero = 'COMERCIALIZADORA DUBAI' WHERE banquero = 'DUBAI';")
+    cursor.execute("UPDATE configuracion_banqueros SET banquero = 'COMERCIALIZADORA SUPER APUESTAS' WHERE banquero = 'SUPER APUESTAS';")
+
+    cursor.execute("UPDATE ajustes_globales_banqueros SET banquero = 'COMERCIALIZADORA LIDER' WHERE banquero = 'LIDER';")
+    cursor.execute("UPDATE ajustes_globales_banqueros SET banquero = 'COMERCIALIZADORA NYS' WHERE banquero = 'NYS';")
+    cursor.execute("UPDATE ajustes_globales_banqueros SET banquero = 'COMERCIALIZADORA DUBAI' WHERE banquero = 'DUBAI';")
+    cursor.execute("UPDATE ajustes_globales_banqueros SET banquero = 'COMERCIALIZADORA SUPER APUESTAS' WHERE banquero = 'SUPER APUESTAS';")
+
+    cursor.execute("UPDATE ajustes_banqueros_manuales SET banquero = 'COMERCIALIZADORA LIDER' WHERE banquero = 'LIDER';")
+    cursor.execute("UPDATE ajustes_banqueros_manuales SET banquero = 'COMERCIALIZADORA NYS' WHERE banquero = 'NYS';")
+    cursor.execute("UPDATE ajustes_banqueros_manuales SET banquero = 'COMERCIALIZADORA DUBAI' WHERE banquero = 'DUBAI';")
+    cursor.execute("UPDATE ajustes_banqueros_manuales SET banquero = 'COMERCIALIZADORA SUPER APUESTAS' WHERE banquero = 'SUPER APUESTAS';")
+
+    # ==========================================================================
+    # REGLAS EXACTAS POR COMERCIALIZADORA (SIN DUPLICADOS)
     # ==========================================================================
     cursor.execute("""
         INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
@@ -569,19 +587,34 @@ def obtener_estructura_banqueros_bd():
 
     estructura = {}
     for f in filas:
-        b_name = f['banquero']
+        b_name = f['banquero'].strip().upper()
+        
+        # Homogeneizar los nombres para que nunca se dupliquen por prefijo
+        if b_name in ["LIDER", "COMERCIALIZADORA LIDER"]:
+            b_name = "COMERCIALIZADORA LIDER"
+        elif b_name in ["NYS", "COMERCIALIZADORA NYS"]:
+            b_name = "COMERCIALIZADORA NYS"
+        elif b_name in ["DUBAI", "COMERCIALIZADORA DUBAI"]:
+            b_name = "COMERCIALIZADORA DUBAI"
+        elif b_name in ["SUPER APUESTAS", "COMERCIALIZADORA SUPER APUESTAS"]:
+            b_name = "COMERCIALIZADORA SUPER APUESTAS"
+
         if b_name not in estructura:
             estructura[b_name] = {
                 "sistemas": [],
                 "absorbe_cashea": bool(f['absorbe_cashea'])
             }
-        estructura[b_name]["sistemas"].append({
-            "id": f['id'],
-            "sistema": f['sistema'],
-            "pct_banquero": float(f['pct_banquero']),
-            "pct_taquilla": float(f['pct_taquilla']),
-            "pct_participacion": float(f['pct_participacion'])
-        })
+        
+        # Evitar registrar el mismo sistema dos veces si estaba duplicado
+        sistemas_ya_agregados = [s['sistema'] for s in estructura[b_name]["sistemas"]]
+        if f['sistema'] not in sistemas_ya_agregados:
+            estructura[b_name]["sistemas"].append({
+                "id": f['id'],
+                "sistema": f['sistema'],
+                "pct_banquero": float(f['pct_banquero']),
+                "pct_taquilla": float(f['pct_taquilla']),
+                "pct_participacion": float(f['pct_participacion'])
+            })
     return estructura
 
 def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
@@ -675,9 +708,13 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
     suma_cuadros_banqueros = 0.0
 
     for b_nombre, cfg in ESTRUCTURA_BANQUEROS.items():
+        # Consulta de ajustes considerando ambos nombres para evitar pérdidas
+        alias_banquero = b_nombre.replace("COMERCIALIZADORA ", "")
         cursor.execute(
-            "SELECT SUM(adelantos) as sum_adelantos, SUM(pendientes) as sum_pendientes FROM ajustes_globales_banqueros WHERE banquero = %s AND fecha >= %s AND fecha <= %s",
-            (b_nombre, f_desde, f_hasta)
+            """SELECT SUM(adelantos) as sum_adelantos, SUM(pendientes) as sum_pendientes 
+               FROM ajustes_globales_banqueros 
+               WHERE (banquero = %s OR banquero = %s) AND fecha >= %s AND fecha <= %s""",
+            (b_nombre, alias_banquero, f_desde, f_hasta)
         )
         row_ajustes_glob = cursor.fetchone()
         adelantos_b_val = float(row_ajustes_glob['sum_adelantos'] or 0.0) if row_ajustes_glob else 0.0
@@ -702,15 +739,15 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
             v_sys = sistemas_consolidados.get(s_name, {}).get("venta", 0.0)
             p_sys = sistemas_consolidados.get(s_name, {}).get("premio", 0.0)
             
-            pct_b = item["pct_banquero"]       # Comisión completa del banquero
-            pct_t = item["pct_taquilla"]       # Comisión taquillas
+            pct_b = item["pct_banquero"]
+            pct_t = item["pct_taquilla"]
             pct_part = item["pct_participacion"]
 
             cursor.execute(
                 """SELECT SUM(venta) as total_v, SUM(comision) as total_c, SUM(premios) as total_p, COUNT(*) as cant 
                    FROM ajustes_banqueros_manuales 
-                   WHERE banquero = %s AND sistema = %s AND fecha >= %s AND fecha <= %s""",
-                (b_nombre, s_name, f_desde, f_hasta)
+                   WHERE (banquero = %s OR banquero = %s) AND sistema = %s AND fecha >= %s AND fecha <= %s""",
+                (b_nombre, alias_banquero, s_name, f_desde, f_hasta)
             )
             ajuste_manual = cursor.fetchone()
 
@@ -720,13 +757,13 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
                 c_banquero = float(ajuste_manual['total_c'] or 0.0)
                 hay_ajuste = True
             else:
-                c_banquero = v_sys * pct_b    # Comisión completa calculada para el banquero
+                c_banquero = v_sys * pct_b
                 hay_ajuste = False
 
             t_banquero_sistema = v_sys - c_banquero - p_sys
             c_taquilla = v_sys * pct_t
             pct_excedente = (pct_b - pct_t) * 100.0
-            g_excedente = v_sys * (pct_b - pct_t)    # Ganancia propia exacta
+            g_excedente = v_sys * (pct_b - pct_t)
             
             monto_participacion = t_banquero_sistema * pct_part if pct_part > 0 else 0.0
             total_despues_participacion = t_banquero_sistema - monto_participacion
@@ -2475,7 +2512,7 @@ def post_actualizar_regla_banquero(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/guardar-ajuste-banquero-sistema")
-def post_guardar_ajuste_banquero_sistema(
+def post_guardar_ajuste_banquero-sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     fecha: str = Form(...),
