@@ -371,25 +371,15 @@ def init_db():
             pass
 
     # ==========================================================================
-    # UNIFICACIÓN DE NOMBRES PARA ELIMINAR DUPLICADOS EN LA BASE DE DATOS
+    # LIMPIEZA DE FILAS DUPLICADAS POR ALIAS VIEJOS (LOTTOLUCKY, DUBAI, LIDER, ETC.)
     # ==========================================================================
-    cursor.execute("UPDATE configuracion_banqueros SET banquero = 'COMERCIALIZADORA LIDER' WHERE banquero = 'LIDER';")
-    cursor.execute("UPDATE configuracion_banqueros SET banquero = 'COMERCIALIZADORA NYS' WHERE banquero = 'NYS';")
-    cursor.execute("UPDATE configuracion_banqueros SET banquero = 'COMERCIALIZADORA DUBAI' WHERE banquero = 'DUBAI';")
-    cursor.execute("UPDATE configuracion_banqueros SET banquero = 'COMERCIALIZADORA SUPER APUESTAS' WHERE banquero = 'SUPER APUESTAS';")
-
-    cursor.execute("UPDATE ajustes_globales_banqueros SET banquero = 'COMERCIALIZADORA LIDER' WHERE banquero = 'LIDER';")
-    cursor.execute("UPDATE ajustes_globales_banqueros SET banquero = 'COMERCIALIZADORA NYS' WHERE banquero = 'NYS';")
-    cursor.execute("UPDATE ajustes_globales_banqueros SET banquero = 'COMERCIALIZADORA DUBAI' WHERE banquero = 'DUBAI';")
-    cursor.execute("UPDATE ajustes_globales_banqueros SET banquero = 'COMERCIALIZADORA SUPER APUESTAS' WHERE banquero = 'SUPER APUESTAS';")
-
-    cursor.execute("UPDATE ajustes_banqueros_manuales SET banquero = 'COMERCIALIZADORA LIDER' WHERE banquero = 'LIDER';")
-    cursor.execute("UPDATE ajustes_banqueros_manuales SET banquero = 'COMERCIALIZADORA NYS' WHERE banquero = 'NYS';")
-    cursor.execute("UPDATE ajustes_banqueros_manuales SET banquero = 'COMERCIALIZADORA DUBAI' WHERE banquero = 'DUBAI';")
-    cursor.execute("UPDATE ajustes_banqueros_manuales SET banquero = 'COMERCIALIZADORA SUPER APUESTAS' WHERE banquero = 'SUPER APUESTAS';")
+    cursor.execute("""
+        DELETE FROM configuracion_banqueros 
+        WHERE banquero IN ('DUBAI', 'LOTTOLUCKY', 'LIDER', 'SUPER APUESTAS', 'BETSOL', 'NYS');
+    """)
 
     # ==========================================================================
-    # REGLAS EXACTAS POR COMERCIALIZADORA (SIN DUPLICADOS)
+    # REGLAS EXACTAS POR COMERCIALIZADORA
     # ==========================================================================
     cursor.execute("""
         INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
@@ -578,26 +568,30 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
         "saldo_final": saldo_final
     }
 
+def normalizar_nombre_banquero(nombre_raw: str) -> str:
+    if not nombre_raw:
+        return ""
+    b = nombre_raw.strip().upper()
+    if b in ["LIDER", "COMERCIALIZADORA LIDER"]:
+        return "COMERCIALIZADORA LIDER"
+    if b in ["NYS", "COMERCIALIZADORA NYS"]:
+        return "COMERCIALIZADORA NYS"
+    if b in ["DUBAI", "COMERCIALIZADORA DUBAI", "LOTTOLUCKY", "LUCKY"]:
+        return "COMERCIALIZADORA DUBAI"
+    if b in ["SUPER APUESTAS", "COMERCIALIZADORA SUPER APUESTAS", "BETSOL"]:
+        return "COMERCIALIZADORA SUPER APUESTAS"
+    return b
+
 def obtener_estructura_banqueros_bd():
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM configuracion_banqueros ORDER BY banquero, id ASC")
+    cursor.execute("SELECT * FROM configuracion_banqueros ORDER BY id ASC")
     filas = cursor.fetchall()
     conn.close()
 
     estructura = {}
     for f in filas:
-        b_name = f['banquero'].strip().upper()
-        
-        # Homogeneizar los nombres para que nunca se dupliquen por prefijo
-        if b_name in ["LIDER", "COMERCIALIZADORA LIDER"]:
-            b_name = "COMERCIALIZADORA LIDER"
-        elif b_name in ["NYS", "COMERCIALIZADORA NYS"]:
-            b_name = "COMERCIALIZADORA NYS"
-        elif b_name in ["DUBAI", "COMERCIALIZADORA DUBAI"]:
-            b_name = "COMERCIALIZADORA DUBAI"
-        elif b_name in ["SUPER APUESTAS", "COMERCIALIZADORA SUPER APUESTAS"]:
-            b_name = "COMERCIALIZADORA SUPER APUESTAS"
+        b_name = normalizar_nombre_banquero(f['banquero'])
 
         if b_name not in estructura:
             estructura[b_name] = {
@@ -605,9 +599,9 @@ def obtener_estructura_banqueros_bd():
                 "absorbe_cashea": bool(f['absorbe_cashea'])
             }
         
-        # Evitar registrar el mismo sistema dos veces si estaba duplicado
-        sistemas_ya_agregados = [s['sistema'] for s in estructura[b_name]["sistemas"]]
-        if f['sistema'] not in sistemas_ya_agregados:
+        # Evitar duplicar el mismo sistema si viene de nombres anteriores
+        sistemas_existentes = [s['sistema'] for s in estructura[b_name]["sistemas"]]
+        if f['sistema'] not in sistemas_existentes:
             estructura[b_name]["sistemas"].append({
                 "id": f['id'],
                 "sistema": f['sistema'],
@@ -708,7 +702,6 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
     suma_cuadros_banqueros = 0.0
 
     for b_nombre, cfg in ESTRUCTURA_BANQUEROS.items():
-        # Consulta de ajustes considerando ambos nombres para evitar pérdidas
         alias_banquero = b_nombre.replace("COMERCIALIZADORA ", "")
         cursor.execute(
             """SELECT SUM(adelantos) as sum_adelantos, SUM(pendientes) as sum_pendientes 
@@ -1045,7 +1038,7 @@ def post_guardar_ajustes_banquero_global(
     desde_fecha: Optional[str] = Form(None),
     hasta_fecha: Optional[str] = Form(None)
 ):
-    b_norm = banquero.strip().upper()
+    b_norm = normalizar_nombre_banquero(banquero)
     conn = get_db()
     cursor = conn.cursor()
 
@@ -1408,7 +1401,7 @@ def post_banquero_guardar_ajustes_cuenta(
     hasta_fecha: Optional[str] = Form(None),
     usuario: str = Form(...)
 ):
-    b_norm = banquero.strip().upper()
+    b_norm = normalizar_nombre_banquero(banquero)
     conn = get_db()
     cursor = conn.cursor()
 
@@ -1460,6 +1453,7 @@ def post_banquero_guardar_ajuste_sistema(
     hasta_fecha: Optional[str] = Form(None),
     usuario: str = Form(...)
 ):
+    b_norm = normalizar_nombre_banquero(banquero)
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
@@ -1467,7 +1461,7 @@ def post_banquero_guardar_ajuste_sistema(
            VALUES (%s, %s, %s, %s, %s, %s)
            ON CONFLICT (banquero, sistema, fecha) 
            DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
-        (banquero, sistema, fecha, venta, comision, premios)
+        (b_norm, sistema, fecha, venta, comision, premios)
     )
     conn.commit()
     conn.close()
@@ -2512,7 +2506,7 @@ def post_actualizar_regla_banquero(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/guardar-ajuste-banquero-sistema")
-def post_guardar_ajuste_banquero-sistema(
+def post_guardar_ajuste_banquero_sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     fecha: str = Form(...),
@@ -2522,6 +2516,7 @@ def post_guardar_ajuste_banquero-sistema(
     desde_fecha: Optional[str] = Form(None),
     hasta_fecha: Optional[str] = Form(None)
 ):
+    b_norm = normalizar_nombre_banquero(banquero)
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
@@ -2529,7 +2524,7 @@ def post_guardar_ajuste_banquero-sistema(
            VALUES (%s, %s, %s, %s, %s, %s)
            ON CONFLICT (banquero, sistema, fecha) 
            DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
-        (banquero, sistema, fecha, venta, comision, premios)
+        (b_norm, sistema, fecha, venta, comision, premios)
     )
     conn.commit()
     conn.close()
@@ -2544,6 +2539,7 @@ def post_restablecer_ajuste_banquero_sistema(
     desde_fecha: Optional[str] = Form(None),
     hasta_fecha: Optional[str] = Form(None)
 ):
+    b_norm = normalizar_nombre_banquero(banquero)
     if sistema.upper() in ["GUACA", "CALAMAR"]:
         url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
         return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
@@ -2551,8 +2547,8 @@ def post_restablecer_ajuste_banquero_sistema(
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "DELETE FROM ajustes_banqueros_manuales WHERE banquero = %s AND sistema = %s",
-        (banquero, sistema)
+        "DELETE FROM ajustes_banqueros_manuales WHERE (banquero = %s OR banquero = %s) AND sistema = %s",
+        (b_norm, b_norm.replace("COMERCIALIZADORA ", ""), sistema)
     )
     conn.commit()
     conn.close()
