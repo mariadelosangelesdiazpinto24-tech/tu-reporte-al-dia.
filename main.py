@@ -371,15 +371,28 @@ def init_db():
             pass
 
     # ==========================================================================
-    # LIMPIEZA DE FILAS DUPLICADAS POR ALIAS VIEJOS (LOTTOLUCKY, DUBAI, LIDER, ETC.)
+    # ELIMINACIÓN Y PURGA DEFINITIVA DE DUPLICADOS EN LA BASE DE DATOS
     # ==========================================================================
     cursor.execute("""
         DELETE FROM configuracion_banqueros 
-        WHERE banquero IN ('DUBAI', 'LOTTOLUCKY', 'LIDER', 'SUPER APUESTAS', 'BETSOL', 'NYS');
+        WHERE banquero IN (
+            'DUBAI', 'LOTTOLUCKY', 'COMERCIALIZADORA LOTTOLUCKY', 'LUCKY',
+            'LIDER', 'SUPER APUESTAS', 'BETSOL', 'NYS'
+        );
     """)
 
+    cursor.execute("UPDATE ajustes_globales_banqueros SET banquero = 'COMERCIALIZADORA DUBAI' WHERE banquero IN ('DUBAI', 'LOTTOLUCKY', 'COMERCIALIZADORA LOTTOLUCKY', 'LUCKY');")
+    cursor.execute("UPDATE ajustes_globales_banqueros SET banquero = 'COMERCIALIZADORA LIDER' WHERE banquero IN ('LIDER');")
+    cursor.execute("UPDATE ajustes_globales_banqueros SET banquero = 'COMERCIALIZADORA NYS' WHERE banquero IN ('NYS');")
+    cursor.execute("UPDATE ajustes_globales_banqueros SET banquero = 'COMERCIALIZADORA SUPER APUESTAS' WHERE banquero IN ('SUPER APUESTAS', 'BETSOL');")
+
+    cursor.execute("UPDATE ajustes_banqueros_manuales SET banquero = 'COMERCIALIZADORA DUBAI' WHERE banquero IN ('DUBAI', 'LOTTOLUCKY', 'COMERCIALIZADORA LOTTOLUCKY', 'LUCKY');")
+    cursor.execute("UPDATE ajustes_banqueros_manuales SET banquero = 'COMERCIALIZADORA LIDER' WHERE banquero IN ('LIDER');")
+    cursor.execute("UPDATE ajustes_banqueros_manuales SET banquero = 'COMERCIALIZADORA NYS' WHERE banquero IN ('NYS');")
+    cursor.execute("UPDATE ajustes_banqueros_manuales SET banquero = 'COMERCIALIZADORA SUPER APUESTAS' WHERE banquero IN ('SUPER APUESTAS', 'BETSOL');")
+
     # ==========================================================================
-    # REGLAS EXACTAS POR COMERCIALIZADORA
+    # REGISTRO LIMPIO Y ÚNICO DE BANQUEROS OFICIALES
     # ==========================================================================
     cursor.execute("""
         INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
@@ -576,7 +589,7 @@ def normalizar_nombre_banquero(nombre_raw: str) -> str:
         return "COMERCIALIZADORA LIDER"
     if b in ["NYS", "COMERCIALIZADORA NYS"]:
         return "COMERCIALIZADORA NYS"
-    if b in ["DUBAI", "COMERCIALIZADORA DUBAI", "LOTTOLUCKY", "LUCKY"]:
+    if b in ["DUBAI", "COMERCIALIZADORA DUBAI", "LOTTOLUCKY", "COMERCIALIZADORA LOTTOLUCKY", "LUCKY"]:
         return "COMERCIALIZADORA DUBAI"
     if b in ["SUPER APUESTAS", "COMERCIALIZADORA SUPER APUESTAS", "BETSOL"]:
         return "COMERCIALIZADORA SUPER APUESTAS"
@@ -599,7 +612,6 @@ def obtener_estructura_banqueros_bd():
                 "absorbe_cashea": bool(f['absorbe_cashea'])
             }
         
-        # Evitar duplicar el mismo sistema si viene de nombres anteriores
         sistemas_existentes = [s['sistema'] for s in estructura[b_name]["sistemas"]]
         if f['sistema'] not in sistemas_existentes:
             estructura[b_name]["sistemas"].append({
