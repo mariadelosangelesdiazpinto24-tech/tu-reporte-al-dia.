@@ -1284,7 +1284,14 @@
                                     </thead>
                                     <tbody>
                                         {% for sys in b_info.sistemas %}
-                                        <tr data-sistema="{{ sys.sistema }}" data-pct-part="{{ sys.pct_participacion if sys.pct_participacion is defined else '' }}" data-monto-part="{{ sys.monto_participacion if sys.monto_participacion is defined else '' }}" class="{% if sys.ajustado_manual %}table-info{% endif %}">
+                                        <tr data-sistema="{{ sys.sistema }}" 
+                                            data-pct-banquero="{{ sys.pct_banquero if sys.pct_banquero is defined else '' }}" 
+                                            data-pct-taquilla="{{ sys.pct_taquilla if sys.pct_taquilla is defined else '' }}" 
+                                            data-pct-excedente="{{ sys.pct_excedente if sys.pct_excedente is defined else '' }}" 
+                                            data-pct-part="{{ sys.pct_participacion if sys.pct_participacion is defined else '' }}" 
+                                            data-monto-part="{{ sys.monto_participacion if sys.monto_participacion is defined else '' }}" 
+                                            data-manual="{{ '1' if sys.ajustado_manual else '0' }}"
+                                            class="{% if sys.ajustado_manual %}table-info{% endif %}">
                                             <td class="fw-bold col-sistema">
                                                 {{ sys.sistema }}
                                                 {% if sys.ajustado_manual %}
@@ -1328,7 +1335,7 @@
                                         {% endfor %}
 
                                         <!-- DEDUCCIÓN CASHEA -->
-                                        {% if 'NYS' in b_nom.upper() and b_info.cashea_descontado > 0 %}
+                                        {% if ('NYS' in b_nom.upper() or b_info.absorbe_cashea) and b_info.cashea_descontado > 0 %}
                                         <tr class="table-warning fw-bold fila-cashea-extra">
                                             <td colspan="6" class="text-danger">
                                                 <i class="fas fa-cart-shopping me-1"></i> (-) Facturas Cashea Absorbidas:
@@ -1708,11 +1715,14 @@
             "LOTTI":          { pct_agencia: 12, pct_ganancia: 3, pct_part: 0 },
             "LUCKY":          { pct_agencia: 13, pct_ganancia: 4, pct_part: 0 },
             "TOLUCKY":        { pct_agencia: 13, pct_ganancia: 4, pct_part: 0 },
+            "LOTTOLUCKY":     { pct_agencia: 13, pct_ganancia: 4, pct_part: 0 },
             "POZO":           { pct_agencia: 11, pct_ganancia: 1, pct_part: 0 },
             "LA IMAGINARIA":  { pct_agencia: 14, pct_ganancia: 3, pct_part: 35 },
             "IMAGINARIA":     { pct_agencia: 14, pct_ganancia: 3, pct_part: 35 },
             "CALAMAR":        { pct_agencia: 14, pct_ganancia: 4, pct_part: 25 },
-            "BETSOL":         { pct_agencia: 12, pct_ganancia: 3, pct_part: 10 }
+            "BETSOL":         { pct_agencia: 12, pct_ganancia: 4, pct_part: 0 },
+            "PATRONUS":       { pct_agencia: 12, pct_ganancia: 4, pct_part: 20 },
+            "MASTER ACTIVO":  { pct_agencia: 13, pct_ganancia: 4, pct_part: 30 }
         };
 
         function obtenerReglaSistema(nombre) {
@@ -1850,13 +1860,26 @@
                     var nombreSistema = (tr.querySelector(".col-sistema").innerText || "").trim();
                     var regla = obtenerReglaSistema(nombreSistema);
 
+                    // Si en la base de datos viene configurado su propio porcentaje, respetarlo
+                    var pctBanqueroAttr = tr.getAttribute("data-pct-banquero");
+                    var pctTaquillaAttr = tr.getAttribute("data-pct-taquilla");
+                    var pctExcedenteAttr = tr.getAttribute("data-pct-excedente");
+                    var pctPartAttr = tr.getAttribute("data-pct-part");
+
+                    var pct_banquero = pctBanqueroAttr !== "" && !isNaN(parseFloat(pctBanqueroAttr)) ? parseFloat(pctBanqueroAttr) : (regla.pct_agencia + regla.pct_ganancia);
+                    var pct_taquilla = pctTaquillaAttr !== "" && !isNaN(parseFloat(pctTaquillaAttr)) ? parseFloat(pctTaquillaAttr) : regla.pct_agencia;
+                    var pct_excedente = pctExcedenteAttr !== "" && !isNaN(parseFloat(pctExcedenteAttr)) ? parseFloat(pctExcedenteAttr) : (pct_banquero - pct_taquilla);
+                    var pct_part = pctPartAttr !== "" && !isNaN(parseFloat(pctPartAttr)) ? parseFloat(pctPartAttr) : regla.pct_part;
+
                     var v = parseMonto(tr.querySelector(".col-venta").innerText);
                     var p = parseMonto(tr.querySelector(".col-premio").innerText);
                     var c = parseMonto(tr.querySelector(".col-comision").innerText);
 
-                    // Si no tiene comisión calculada o viene en 0, calcularla (Agencia + Excedente)
-                    if (c === 0 && v > 0) {
-                        c = v * ((regla.pct_agencia + regla.pct_ganancia) / 100);
+                    var esManual = tr.getAttribute("data-manual") === "1";
+
+                    // Si no tiene comisión calculada o viene en 0, calcularla con el porcentaje completo del banquero
+                    if ((c === 0 || !esManual) && v > 0) {
+                        c = v * (pct_banquero / 100);
                         tr.querySelector(".col-comision").innerText = formatoBs(c);
                     }
 
@@ -1865,8 +1888,8 @@
 
                     // Participación según la regla estricta
                     var part = 0;
-                    if (regla.pct_part > 0) {
-                        part = t * (regla.pct_part / 100);
+                    if (pct_part > 0) {
+                        part = t * (pct_part / 100);
                     }
 
                     var celdaPart = tr.querySelector(".col-part");
@@ -1876,8 +1899,8 @@
                     var finalRow = t - part;
                     tr.querySelector(".col-total-final").innerText = formatoBs(finalRow);
 
-                    // Excedente estricto: Venta * % Ganancia Privada
-                    var exc = v * (regla.pct_ganancia / 100);
+                    // Excedente estricto: Venta * % Ganancia Privada (Excedente)
+                    var exc = v * (pct_excedente / 100);
                     mapaExcedentes[nombreSistema.toUpperCase()] = exc;
 
                     totVenta += v;
@@ -2221,7 +2244,6 @@
                 });
             }
 
-            // Enviar formulario de nuevo estafador desde Admin
             var formEstafadorAdmin = document.getElementById("formRegistrarEstafadorAdmin");
             if (formEstafadorAdmin) {
                 formEstafadorAdmin.addEventListener("submit", function(e) {
