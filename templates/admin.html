@@ -1284,7 +1284,7 @@
                                     </thead>
                                     <tbody>
                                         {% for sys in b_info.sistemas %}
-                                        <tr data-pct-part="{{ sys.pct_participacion if sys.pct_participacion is defined else '' }}" data-monto-part="{{ sys.monto_participacion if sys.monto_participacion is defined else '' }}" class="{% if sys.ajustado_manual %}table-info{% endif %}">
+                                        <tr data-sistema="{{ sys.sistema }}" data-pct-part="{{ sys.pct_participacion if sys.pct_participacion is defined else '' }}" data-monto-part="{{ sys.monto_participacion if sys.monto_participacion is defined else '' }}" class="{% if sys.ajustado_manual %}table-info{% endif %}">
                                             <td class="fw-bold col-sistema">
                                                 {{ sys.sistema }}
                                                 {% if sys.ajustado_manual %}
@@ -1408,15 +1408,15 @@
                                 </div>
                             </div>
 
-                            <div class="small fw-bold text-white-50 mb-1">Diferencial por Sistemas:</div>
+                            <div class="small fw-bold text-white-50 mb-1">Excedente por Sistemas (%):</div>
                             <div class="table-responsive" style="max-height: 140px;">
                                 <table class="table table-sm table-borderless text-white mb-0 tabla-ganancias-sistemas" style="font-size: 11px;">
                                     <tbody>
                                         {% for sys in b_info.sistemas %}
-                                        <tr class="fila-dif-sistema">
+                                        <tr class="fila-dif-sistema" data-sistema="{{ sys.sistema }}">
                                             <td class="dif-nombre">{{ sys.sistema }}</td>
                                             <td class="text-end fw-bold dif-monto">
-                                                Bs. {{ (sys.ganancia_total if sys.ganancia_total is defined else ((sys.venta or 0) * 0.04)) | dinero }}
+                                                Bs. 0,00
                                             </td>
                                         </tr>
                                         {% endfor %}
@@ -1694,6 +1694,38 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // CONFIGURACIÓN OFICIAL DE REGLAS POR SISTEMA
+        var TABLA_REGLAS_SISTEMAS = {
+            "MAXPLAY":        { pct_agencia: 12, pct_ganancia: 4, pct_part: 20 },
+            "MATRIX":         { pct_agencia: 12, pct_ganancia: 4, pct_part: 20 },
+            "GATO":           { pct_agencia: 12, pct_ganancia: 4, pct_part: 20 },
+            "POSNET":         { pct_agencia: 12, pct_ganancia: 4, pct_part: 20 },
+            "PREMIER":        { pct_agencia: 12, pct_ganancia: 4, pct_part: 0 },
+            "SRQ":            { pct_agencia: 12, pct_ganancia: 4, pct_part: 30 },
+            "LOTIPOS":        { pct_agencia: 13, pct_ganancia: 4, pct_part: 20 },
+            "GUACA":          { pct_agencia: 14, pct_ganancia: 3, pct_part: 30 },
+            "LOTTI PLAY":     { pct_agencia: 12, pct_ganancia: 3, pct_part: 0 },
+            "LOTTI":          { pct_agencia: 12, pct_ganancia: 3, pct_part: 0 },
+            "LUCKY":          { pct_agencia: 13, pct_ganancia: 4, pct_part: 0 },
+            "TOLUCKY":        { pct_agencia: 13, pct_ganancia: 4, pct_part: 0 },
+            "POZO":           { pct_agencia: 11, pct_ganancia: 1, pct_part: 0 },
+            "LA IMAGINARIA":  { pct_agencia: 14, pct_ganancia: 3, pct_part: 35 },
+            "IMAGINARIA":     { pct_agencia: 14, pct_ganancia: 3, pct_part: 35 },
+            "CALAMAR":        { pct_agencia: 14, pct_ganancia: 4, pct_part: 25 },
+            "BETSOL":         { pct_agencia: 12, pct_ganancia: 3, pct_part: 10 }
+        };
+
+        function obtenerReglaSistema(nombre) {
+            if (!nombre) return { pct_agencia: 12, pct_ganancia: 3, pct_part: 0 };
+            var nom = String(nombre).toUpperCase().trim();
+            for (var key in TABLA_REGLAS_SISTEMAS) {
+                if (nom.includes(key)) {
+                    return TABLA_REGLAS_SISTEMAS[key];
+                }
+            }
+            return { pct_agencia: 12, pct_ganancia: 3, pct_part: 0 };
+        }
+
         function parseMonto(txt) {
             if (!txt) return 0;
             var str = String(txt).replace(/Bs\.?/g, '').trim();
@@ -1812,26 +1844,29 @@
                 var filas = tabla.querySelectorAll("tbody tr:not(.fila-cashea-extra):not(.fila-pendientes-extra):not(.fila-adelantos-extra)");
                 
                 var totVenta = 0, totPremio = 0, totComision = 0, totNeto = 0, totPart = 0, totFinal = 0;
+                var mapaExcedentes = {};
 
                 filas.forEach(function(tr) {
+                    var nombreSistema = (tr.querySelector(".col-sistema").innerText || "").trim();
+                    var regla = obtenerReglaSistema(nombreSistema);
+
                     var v = parseMonto(tr.querySelector(".col-venta").innerText);
                     var p = parseMonto(tr.querySelector(".col-premio").innerText);
                     var c = parseMonto(tr.querySelector(".col-comision").innerText);
 
+                    // Si no tiene comisión calculada o viene en 0, calcularla (Agencia + Excedente)
+                    if (c === 0 && v > 0) {
+                        c = v * ((regla.pct_agencia + regla.pct_ganancia) / 100);
+                        tr.querySelector(".col-comision").innerText = formatoBs(c);
+                    }
+
                     var t = v - p - c;
                     tr.querySelector(".col-total").innerText = formatoBs(t);
 
-                    var partAttr = tr.getAttribute("data-monto-part");
-                    var pctPartAttr = tr.getAttribute("data-pct-part");
+                    // Participación según la regla estricta
                     var part = 0;
-
-                    if (pctPartAttr && !isNaN(parseFloat(pctPartAttr))) {
-                        part = t * (parseFloat(pctPartAttr) / 100);
-                    } else if (partAttr && !isNaN(parseFloat(partAttr)) && parseFloat(partAttr) !== 0) {
-                        part = parseFloat(partAttr);
-                    } else {
-                        var partCelda = parseMonto(tr.querySelector(".col-part").innerText);
-                        part = partCelda !== 0 ? partCelda : 0;
+                    if (regla.pct_part > 0) {
+                        part = t * (regla.pct_part / 100);
                     }
 
                     var celdaPart = tr.querySelector(".col-part");
@@ -1840,6 +1875,10 @@
 
                     var finalRow = t - part;
                     tr.querySelector(".col-total-final").innerText = formatoBs(finalRow);
+
+                    // Excedente estricto: Venta * % Ganancia Privada
+                    var exc = v * (regla.pct_ganancia / 100);
+                    mapaExcedentes[nombreSistema.toUpperCase()] = exc;
 
                     totVenta += v;
                     totPremio += p;
@@ -1938,11 +1977,24 @@
                 granTotalBanqueros += totFinalBanquero;
                 granTotalPartGlobal += totPart;
 
+                // RECALCULO DE LA TARJETA MI GANANCIA PRIVADA
                 var box = b.querySelector(".tarjeta-mi-ganancia-banca");
                 var difFilas = box.querySelectorAll(".fila-dif-sistema");
                 var gananciaExcedente = 0;
+
                 difFilas.forEach(function(df) {
-                    gananciaExcedente += parseMonto(df.querySelector(".dif-monto").innerText);
+                    var nomSys = (df.querySelector(".dif-nombre").innerText || "").trim().toUpperCase();
+                    var montoExc = 0;
+                    
+                    for (var k in mapaExcedentes) {
+                        if (nomSys.includes(k) || k.includes(nomSys)) {
+                            montoExc = mapaExcedentes[k];
+                            break;
+                        }
+                    }
+
+                    df.querySelector(".dif-monto").innerText = formatoBs(montoExc);
+                    gananciaExcedente += montoExc;
                 });
 
                 granTotalExcedenteGlobal += gananciaExcedente;
@@ -1965,14 +2017,13 @@
             }
 
             var cardExcedenteTotalizador = document.getElementById("totalizadorExcedente");
-            if (cardExcedenteTotalizador && granTotalExcedenteGlobal > 0) {
+            if (cardExcedenteTotalizador) {
                 cardExcedenteTotalizador.innerText = formatoBs(granTotalExcedenteGlobal);
             }
 
             var cardGranTotalGanancia = document.getElementById("totalizadorGranTotalGanancia");
             if (cardGranTotalGanancia) {
-                var gananciaTotalGlobal = (granTotalExcedenteGlobal > 0 ? granTotalExcedenteGlobal : parseMonto(document.getElementById("totalizadorExcedente").innerText)) + granTotalPartGlobal;
-                cardGranTotalGanancia.innerText = formatoBs(gananciaTotalGlobal);
+                cardGranTotalGanancia.innerText = formatoBs(granTotalExcedenteGlobal + granTotalPartGlobal);
             }
 
             actualizarResumenBalancesTaquillas();
@@ -2204,7 +2255,6 @@
                 });
             }
 
-            // Sondeo periódico cada 10 segundos
             setInterval(function() {
                 var btnTab = document.getElementById('btn-admin-tab-listanegra');
                 if (btnTab && btnTab.classList.contains('active')) {
