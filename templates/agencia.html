@@ -547,153 +547,103 @@
                     <div class="mt-4 p-3 bg-light border rounded">
                         <h6 class="fw-bold text-info mb-2"><i class="fas fa-shopping-cart me-1"></i> Facturas Cashea Descontadas</h6>
                         <table class="table table-sm align-middle mb-2 bg-white border" style="font-size: 12px;">
-                            <thead class="table-light"><tr><th>Fecha</th><th>Detalle / Factura</th><th class="text-end">Monto Absorbido</th></tr></thead>
+                            <thead class="table-light">
+                                <tr><th>Fecha</th><th>Detalle</th><th class="text-end">Monto</th></tr>
+                            </thead>
                             <tbody>
                                 {% for fc in facturas_cashea_auditoria %}
                                 <tr>
                                     <td>{{ fc.fecha }}</td>
                                     <td>{{ fc.factura or fc.comprobante }}</td>
-                                    <td class="text-end fw-bold text-danger">Bs. {{ fc.monto | dinero }}</td>
+                                    <td class="text-end fw-bold text-danger">- Bs. {{ fc.monto | dinero }}</td>
                                 </tr>
                                 {% else %}
-                                <tr><td colspan="3" class="text-center text-muted py-2">Sin facturas de Cashea aplicadas.</td></tr>
+                                <tr><td colspan="3" class="text-center text-muted py-2">Sin facturas Cashea en el rango.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
-                        
-                        <div class="d-flex justify-content-between align-items-center p-3 rounded bg-white border border-2 fw-bold fs-6">
-                            <span>TOTAL NETO A PAGAR (SISTEMAS - CASHEA):</span>
-                            <span class="{% if (totales_auditoria.neto - auditoria_cashea_monto) < 0 %}text-danger{% else %}text-success{% endif %}">
-                                Bs. {{ (totales_auditoria.neto - auditoria_cashea_monto) | dinero }}
-                            </span>
+                        <div class="d-flex justify-content-between fw-bold text-dark px-1">
+                            <span>TOTAL NETO CON CASHEA DEDUCIDO:</span>
+                            <span class="fs-6 text-primary">Bs. {{ (totales_auditoria.neto - auditoria_cashea_monto) | dinero }}</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- CUADRE SEMANAL / CONCILIACIÓN POR SISTEMAS -->
+            <!-- 4. CUADRE SEMANAL / CONCILIACIÓN -->
             <div class="tab-pane fade {% if tab_activa == 'conciliacion' %}show active{% endif %}" id="tab-conciliacion" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-4">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div>
-                            <h5 class="fw-bold text-tema m-0"><i class="fas fa-balance-scale me-2"></i>Conciliación Semanal por Sistemas 🍀</h5>
-                            <small class="text-muted">Comparativa entre lo cobrado en reportes diarios y el cierre semanal definitivo del sistema.</small>
-                        </div>
-                        <span class="badge bg-light text-dark border px-3 py-2 rounded-pill">
-                            <i class="far fa-calendar-alt text-tema me-1"></i> Período Cerrado
-                        </span>
-                    </div>
-
-                    {% set res = conciliacion_resumen if conciliacion_resumen is defined and conciliacion_resumen else {} %}
-
+                    <h5 class="fw-bold text-tema mb-3"><i class="fas fa-balance-scale me-1"></i> Conciliación y Cuadre Semanal 🍀</h5>
+                    <p class="small text-muted mb-3">Revisa las diferencias entre lo cobrado diariamente y las auditorías de los sistemas oficiales.</p>
+                    
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
-                            <div class="p-3 rounded-4 shadow-sm bg-light border-start border-4 border-primary">
-                                <small class="text-muted fw-bold d-block text-uppercase">Neto Cobrado en Diarios</small>
-                                <h4 class="fw-bold text-primary m-0 mt-1">Bs. {{ (res.get('total_reportado', 0)) | dinero }}</h4>
-                                <small class="text-muted" style="font-size: 11px;">Suma de netos de lunes a domingo</small>
+                            <div class="p-3 border rounded-3 bg-light text-center">
+                                <span class="small fw-bold text-muted d-block">TOTAL REPORTADO DIARIOS</span>
+                                <h4 class="fw-bold text-dark m-0">Bs. {{ (conciliacion_resumen.total_reportado or 0) | dinero }}</h4>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div class="p-3 rounded-4 shadow-sm bg-light border-start border-4 border-info">
-                                <small class="text-muted fw-bold d-block text-uppercase">Neto Real Semanal</small>
-                                <h4 class="fw-bold text-dark m-0 mt-1">Bs. {{ (res.get('total_sistema', 0)) | dinero }}</h4>
-                                <small class="text-muted" style="font-size: 11px;">Consolidado real definitivo</small>
+                            <div class="p-3 border rounded-3 bg-light text-center">
+                                <span class="small fw-bold text-muted d-block">TOTAL AUDITORÍA SISTEMA</span>
+                                <h4 class="fw-bold text-primary m-0">Bs. {{ (conciliacion_resumen.total_sistema or 0) | dinero }}</h4>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            {% set dif_neta = res.get('diferencia', 0) %}
-                            <div class="p-3 rounded-4 shadow-sm bg-light border-start border-4 {% if dif_neta > 0 %}border-danger{% elif dif_neta < 0 %}border-warning{% else %}border-success{% endif %}">
-                                <small class="text-muted fw-bold d-block text-uppercase">Diferencia Neta a Ajustar</small>
-                                <h4 class="fw-bold m-0 mt-1 {% if dif_neta > 0 %}text-danger{% elif dif_neta < 0 %}text-warning{% else %}text-success{% endif %}">
-                                    Bs. {{ dif_neta | dinero }}
+                            <div class="p-3 border rounded-3 bg-light text-center">
+                                <span class="small fw-bold text-muted d-block">DIFERENCIA (AJUSTE)</span>
+                                <h4 class="fw-bold m-0 {% if conciliacion_resumen.diferencia > 0 %}text-danger{% elif conciliacion_resumen.diferencia < 0 %}text-success{% else %}text-muted{% endif %}">
+                                    Bs. {{ (conciliacion_resumen.diferencia or 0) | dinero }}
                                 </h4>
-                                <small class="fw-bold" style="font-size: 11px;">
-                                    {% if dif_neta > 0 %}
-                                        Taquilla debe cancelar ajuste a favor de banca
-                                    {% elif dif_neta < 0 %}
-                                        Banca debe acreditar a taquilla
-                                    {% else %}
-                                        ¡Cuadre exacto sin diferencias! ✨
-                                    {% endif %}
-                                </small>
                             </div>
                         </div>
                     </div>
 
-                    <div class="table-responsive mb-3">
-                        <table class="table table-bordered table-hover align-middle mb-0" style="font-size: 12.5px;">
-                            <thead class="table-dark text-center">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 12.5px;">
+                            <thead class="table-dark">
                                 <tr>
-                                    <th rowspan="2" class="align-middle" style="min-width: 130px;">SISTEMA</th>
-                                    <th colspan="3" class="bg-primary text-white border-bottom">COBRADO EN DIARIOS</th>
-                                    <th colspan="3" class="bg-secondary text-white border-bottom">CIERRE REAL SEMANAL</th>
-                                    <th colspan="2" class="bg-dark text-warning border-bottom">DIFERENCIAS</th>
-                                </tr>
-                                <tr>
-                                    <th>Venta</th>
-                                    <th>Premios</th>
-                                    <th>Neto Cobrado</th>
-                                    <th>Venta Real</th>
-                                    <th>Premios Real</th>
-                                    <th>Neto Real</th>
-                                    <th>Dif. Venta</th>
-                                    <th>Ajuste Neto</th>
+                                    <th>Sistema</th>
+                                    <th class="text-end">Venta Cobrada</th>
+                                    <th class="text-end">Premio Cobrado</th>
+                                    <th class="text-end">Neto Cobrado</th>
+                                    <th class="text-end">Venta Real</th>
+                                    <th class="text-end">Premio Real</th>
+                                    <th class="text-end">Neto Real</th>
+                                    <th class="text-end">Diferencia</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% if detalle_conciliacion is defined and detalle_conciliacion and detalle_conciliacion | length > 0 %}
-                                    {% for s in detalle_conciliacion %}
-                                    {% set s_dif_v = s.get('dif_venta', 0) %}
-                                    {% set s_dif_n = s.get('dif_neto', 0) %}
-                                    <tr class="{% if s_dif_n != 0 %}table-warning{% endif %}">
-                                        <td class="fw-bold">{{ s.get('sistema', s.get('dia_nombre', '')) }}</td>
-                                        <td class="text-end">Bs. {{ s.get('venta_cobrada', s.get('reportado_diario', 0)) | dinero }}</td>
-                                        <td class="text-end text-danger">Bs. {{ s.get('premio_cobrado', 0) | dinero }}</td>
-                                        <td class="text-end fw-bold text-primary">Bs. {{ s.get('neto_cobrado', s.get('reportado_diario', 0)) | dinero }}</td>
-                                        <td class="text-end">Bs. {{ s.get('venta_real', s.get('sistema_real', 0)) | dinero }}</td>
-                                        <td class="text-end text-danger">Bs. {{ s.get('premio_real', 0) | dinero }}</td>
-                                        <td class="text-end fw-bold">Bs. {{ s.get('neto_real', s.get('sistema_real', 0)) | dinero }}</td>
-                                        <td class="text-end fw-bold {% if s_dif_v > 0 %}text-danger{% elif s_dif_v < 0 %}text-primary{% else %}text-muted{% endif %}">
-                                            {% if s_dif_v > 0 %}+{% endif %}Bs. {{ s_dif_v | dinero }}
-                                        </td>
-                                        <td class="text-end fw-bold {% if s_dif_n > 0 %}text-danger{% elif s_dif_n < 0 %}text-success{% else %}text-muted{% endif %}">
-                                            {% if s_dif_n > 0 %}+{% endif %}Bs. {{ s_dif_n | dinero }}
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                    <tr class="table-dark fw-bold text-end">
-                                        <td class="text-center">TOTALES</td>
-                                        <td>Bs. {{ res.get('total_venta_cobrada', 0) | dinero }}</td>
-                                        <td class="text-danger">Bs. {{ res.get('total_premio_cobrado', 0) | dinero }}</td>
-                                        <td class="text-primary">Bs. {{ res.get('total_reportado', 0) | dinero }}</td>
-                                        <td>Bs. {{ res.get('total_venta_real', 0) | dinero }}</td>
-                                        <td class="text-danger">Bs. {{ res.get('total_premio_real', 0) | dinero }}</td>
-                                        <td>Bs. {{ res.get('total_sistema', 0) | dinero }}</td>
-                                        <td class="text-warning">Bs. {{ (res.get('total_venta_real', 0) - res.get('total_venta_cobrada', 0)) | dinero }}</td>
-                                        <td class="{% if res.get('diferencia', 0) > 0 %}text-danger{% elif res.get('diferencia', 0) < 0 %}text-success{% else %}text-white{% endif %}">
-                                            Bs. {{ res.get('diferencia', 0) | dinero }}
-                                        </td>
-                                    </tr>
+                                {% for det in detalle_conciliacion %}
+                                <tr>
+                                    <td class="fw-bold">{{ det.sistema }}</td>
+                                    <td class="text-end">Bs. {{ (det.venta_cobrada or 0) | dinero }}</td>
+                                    <td class="text-end">Bs. {{ (det.premio_cobrado or 0) | dinero }}</td>
+                                    <td class="text-end text-primary">Bs. {{ (det.neto_cobrado or 0) | dinero }}</td>
+                                    <td class="text-end">Bs. {{ (det.venta_real or 0) | dinero }}</td>
+                                    <td class="text-end">Bs. {{ (det.premio_real or 0) | dinero }}</td>
+                                    <td class="text-end fw-bold">Bs. {{ (det.neto_real or 0) | dinero }}</td>
+                                    <td class="text-end fw-bold {% if (det.dif_neto or 0) > 0 %}text-danger{% elif (det.dif_neto or 0) < 0 %}text-success{% else %}text-muted{% endif %}">
+                                        Bs. {{ (det.dif_neto or 0) | dinero }}
+                                    </td>
+                                </tr>
                                 {% else %}
-                                    <tr>
-                                        <td colspan="9" class="text-center text-muted py-3">No hay datos para conciliar en este rango de fechas.</td>
-                                    </tr>
-                                {% endif %}
+                                <tr><td colspan="8" class="text-center text-muted py-3">No hay conciliación cargada para este rango.</td></tr>
+                                {% endfor %}
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
 
-            <!-- 4. TRANSACCIONES -->
+            <!-- 5. TRANSACCIONES -->
             <div class="tab-pane fade {% if tab_activa == 'transacciones' %}show active{% endif %}" id="tab-transacciones" role="tabpanel">
-                <div class="card card-custom p-4 bg-white">
-                    <h5 class="fw-bold text-tema mb-3"><i class="fas fa-list me-1"></i> Historial de Transacciones 🍀</h5>
+                <div class="card card-custom p-4 bg-white mb-4">
+                    <h5 class="fw-bold text-tema mb-3"><i class="fas fa-list-check me-1"></i> Historial de Transacciones Registradas</h5>
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0" style="font-size: 13px;">
                             <thead class="table-light">
-                                <tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Detalle / Comprobante</th><th>Estado</th></tr>
+                                <tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Detalle / Factura</th><th>Estado</th></tr>
                             </thead>
                             <tbody>
                                 {% for p in pagos %}
@@ -706,25 +656,17 @@
                                     <td>
                                         {{ p.factura }}<br>
                                         {% if p.comprobante %}
-                                            <a href="/comprobante/{{ p.id }}" class="small fw-bold text-primary">
-                                                <i class="fas fa-download me-1"></i> Descargar Comprobante
-                                            </a>
+                                        <a href="/comprobante/{{ p.id }}" class="small fw-bold text-primary"><i class="fas fa-download"></i> Ver Capture</a>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if p.estado == 'APROBADO' %}
-                                            <span class="badge bg-success">APROBADO</span>
-                                        {% elif p.estado == 'PROCESADO' %}
-                                            <span class="badge bg-info text-dark">PROCESADO</span>
-                                        {% elif p.estado == 'RECHAZADO' %}
-                                            <span class="badge bg-danger">RECHAZADO</span>
-                                        {% else %}
-                                            <span class="badge bg-warning text-dark">PENDIENTE</span>
-                                        {% endif %}
+                                        <span class="badge {% if p.estado == 'APROBADO' %}bg-success{% elif p.estado == 'RECHAZADO' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                                            {{ p.estado }}
+                                        </span>
                                     </td>
                                 </tr>
                                 {% else %}
-                                <tr><td colspan="5" class="text-center text-muted py-3">No hay transacciones registradas.</td></tr>
+                                <tr><td colspan="5" class="text-center text-muted py-3">No se registran transacciones.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -732,109 +674,96 @@
                 </div>
             </div>
 
-            <!-- 5. SOLICITAR AVANCE -->
+            <!-- 6. SOLICITAR AVANCE -->
             <div class="tab-pane fade {% if tab_activa == 'adelanto' %}show active{% endif %}" id="tab-adelanto" role="tabpanel">
-                <div class="card card-custom p-4 bg-white shadow-sm" style="max-width: 520px; margin: 0 auto;">
-                    <div class="text-center mb-3">
-                        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fs-6 mb-2">
-                            <i class="fas fa-hand-holding-dollar me-1"></i> Caja y Premios
-                        </span>
-                        <h5 class="fw-bold text-dark m-0">Solicitar Avance a la Banca</h5>
-                        <small class="text-muted">Llegará de inmediato al panel de administración para ser transferido.</small>
-                    </div>
-
-                    <form action="/solicitar-banca-directo" method="POST" id="formSolicitarAvance">
+                <div class="card card-custom p-4 bg-white mb-4">
+                    <h5 class="fw-bold text-tema mb-2"><i class="fas fa-hand-holding-dollar me-1"></i> Solicitud de Avance de Dinero</h5>
+                    <p class="small text-muted mb-4">Pide un adelanto o avance para cubrir operatividad o premios mayores que no puedas liquidar en taquilla.</p>
+                    
+                    <form action="/solicitar-banca-directo" method="POST" class="p-3 bg-light rounded-3 border">
                         <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
                         <input type="hidden" name="tipo_solicitud" value="AVANCE_PREMIOS">
-                        <input type="hidden" name="fecha" id="inputFechaAvance" value="{{ hasta_fecha or '' }}">
-
-                        <div class="mb-4">
-                            <label class="form-label small fw-bold text-muted">¿Cuánto necesitas? (Bs.):</label>
-                            {% if saldo_actual is defined and saldo_actual is not none and saldo_actual < 0 %}
-                                {% set monto_sugerido = saldo_actual * -1 %}
-                            {% else %}
-                                {% set monto_sugerido = 0 %}
-                            {% endif %}
-                            
-                            <input type="number" 
-                                   step="0.01" 
-                                   name="monto" 
-                                   id="inputMontoAvance" 
-                                   class="form-control form-control-lg fw-bold fs-4 text-center {% if monto_sugerido > 0 %}text-success{% else %}text-danger{% endif %}" 
-                                   placeholder="0.00" 
-                                   value="{% if monto_sugerido > 0 %}{{ '%.2f' | format(monto_sugerido) }}{% else %}0{% endif %}" 
-                                   required 
-                                   autofocus>
-
-                            {% if monto_sugerido > 0 %}
-                                <div class="alert alert-success border-0 py-2 px-3 mt-3 small text-center mb-0 rounded-pill">
-                                    <i class="fas fa-check-circle me-1"></i> Monto sugerido cargado por saldo a tu favor (Bs. {{ monto_sugerido | dinero }})
-                                </div>
-                            {% else %}
-                                <div class="text-muted small text-center mt-2">
-                                    Sin saldo a favor pendiente. Puedes ingresar manualmente el monto que necesites solicitar.
-                                </div>
-                            {% endif %}
+                        
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Fecha:</label>
+                                <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Monto Requerido (Bs.):</label>
+                                <input type="number" step="0.01" name="monto" class="form-control form-control-sm fw-bold text-danger" placeholder="0.00" required>
+                            </div>
                         </div>
-
-                        <button type="submit" class="btn btn-tema fw-bold w-100 rounded-pill shadow-sm py-3" id="btnEnviarAvance">
+                        <button type="submit" class="btn btn-tema fw-bold w-100 py-2 rounded-pill shadow-sm">
                             <i class="fas fa-paper-plane me-1"></i> Enviar Solicitud a la Administración
                         </button>
                     </form>
                 </div>
             </div>
 
-            <!-- 6. MODIFICACIONES -->
+            <!-- 7. MODIFICACIONES -->
             <div class="tab-pane fade {% if tab_activa == 'modificaciones' %}show active{% endif %}" id="tab-modificaciones" role="tabpanel">
-                <div class="card card-custom p-4 bg-white">
-                    <h5 class="fw-bold text-tema mb-3"><i class="fas fa-edit me-1"></i> Modificar Sistema de Día Anterior 🌴</h5>
-                    <form action="/actualizar-reporte-sistema" method="POST" class="row g-3">
+                <div class="card card-custom p-4 bg-white mb-4">
+                    <h5 class="fw-bold text-tema mb-2"><i class="fas fa-pen-to-square me-1"></i> Actualizar Sistema del Día</h5>
+                    <p class="small text-muted mb-4">Ingresa ventas o premios corregidos si hubo algún inconveniente con el cierre del sistema.</p>
+                    
+                    <form action="/actualizar-reporte-sistema" method="POST" class="p-3 bg-light rounded-3 border">
                         <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
                         <input type="hidden" name="origen" value="agencia">
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold">Fecha del Reporte:</label>
-                            <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
+                        
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold">Fecha del Reporte:</label>
+                                <input type="date" name="fecha" value="{{ hasta_fecha }}" class="form-control form-control-sm" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold">Sistema:</label>
+                                <select name="sistema" class="form-select form-select-sm fw-bold" required>
+                                    <option value="">-- Elige Sistema --</option>
+                                    {% for s in sistemas %}
+                                    <option value="{{ s }}">{{ s }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold">Venta Corregida (Bs.):</label>
+                                <input type="number" step="0.01" name="venta" class="form-control form-control-sm fw-bold text-success" placeholder="0.00" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold">Premio Corregido (Bs.):</label>
+                                <input type="number" step="0.01" name="premio" class="form-control form-control-sm fw-bold text-danger" placeholder="0.00" required>
+                            </div>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold">Sistema:</label>
-                            <select name="sistema" class="form-select form-select-sm" required>
-                                {% for s in sistemas %}
-                                <option value="{{ s }}">{{ s }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold">Nueva Venta (Bs.):</label>
-                            <input type="number" step="0.01" name="venta" class="form-control form-control-sm" required>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold">Nuevo Premio (Bs.):</label>
-                            <input type="number" step="0.01" name="premio" class="form-control form-control-sm" required>
-                        </div>
-                        <div class="col-12">
-                            <button type="submit" class="btn btn-tema fw-bold w-100 rounded-pill shadow-sm py-2">Guardar Modificación</button>
-                        </div>
+                        <button type="submit" class="btn btn-tema fw-bold w-100 py-2 rounded-pill shadow-sm">
+                            <i class="fas fa-floppy-disk me-1"></i> Guardar y Recalcular Día
+                        </button>
                     </form>
                 </div>
             </div>
             {% endif %}
 
-            <!-- 7. MI CUENTA -->
+            <!-- PESTAÑA: MI CUENTA -->
             <div class="tab-pane fade {% if tab_activa == 'cuenta' %}show active{% endif %}" id="tab-cuenta" role="tabpanel">
-                <div class="card card-custom p-4 bg-white" style="max-width: 500px; margin: 0 auto;">
-                    <h5 class="fw-bold text-tema mb-3"><i class="fas fa-key me-1"></i> Cambiar Contraseña 🌺</h5>
-                    <div id="alertaCuenta"></div>
+                <div class="card card-custom p-4 bg-white mb-4" style="max-width: 500px; margin: 0 auto;">
+                    <h5 class="fw-bold text-tema mb-3 text-center"><i class="fas fa-lock me-1"></i> Seguridad y Acceso</h5>
+                    
                     <form action="/agencia/cambiar-clave" method="POST">
                         <input type="hidden" name="agencia" value="{{ nombre_agencia }}">
                         <div class="mb-3">
-                            <label class="form-label small fw-bold">Nueva Contraseña:</label>
-                            <input type="password" name="nueva_clave" class="form-control" placeholder="Escribe tu nueva clave" required>
+                            <label class="form-label small fw-bold">Usuario / Agencia:</label>
+                            <input type="text" class="form-control form-control-sm" value="{{ nombre_agencia }}" disabled>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label small fw-bold">Confirmar Nueva Contraseña:</label>
-                            <input type="password" name="confirm_clave" class="form-control" placeholder="Repite la nueva clave" required>
+                            <label class="form-label small fw-bold">Nueva Contraseña:</label>
+                            <input type="password" name="nueva_clave" class="form-control form-control-sm" placeholder="Ingresa tu nueva clave" required>
                         </div>
-                        <button type="submit" class="btn btn-tema fw-bold w-100 rounded-pill shadow-sm py-2">Actualizar Contraseña</button>
+                        <div class="mb-4">
+                            <label class="form-label small fw-bold">Confirmar Nueva Contraseña:</label>
+                            <input type="password" name="confirm_clave" class="form-control form-control-sm" placeholder="Repite tu nueva clave" required>
+                        </div>
+                        <button type="submit" class="btn btn-tema fw-bold w-100 py-2 rounded-pill shadow-sm">
+                            Actualizar Contraseña
+                        </button>
                     </form>
                 </div>
             </div>
@@ -847,19 +776,19 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow">
                 <div class="modal-header bg-danger text-white py-2">
-                    <h6 class="modal-title fw-bold"><i class="fas fa-bullhorn me-1"></i> Fichar en Lista Negra</h6>
+                    <h6 class="modal-title fw-bold"><i class="fas fa-skull-crossbones me-1"></i> Reportar a Lista Negra</h6>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <form id="formRegistrarEstafador" enctype="multipart/form-data">
                     <input type="hidden" name="agencia_reporta" value="{{ nombre_agencia }}">
                     <div class="modal-body p-3">
                         <div class="alert alert-warning py-2 small mb-3 border-0">
-                            <i class="fas fa-lock me-1"></i> <strong>Aviso de seguridad:</strong> Los registros en la lista negra son de carácter público permanente para proteger al gremio.
+                            <i class="fas fa-shield-alt me-1"></i> <strong>Aviso importante:</strong> La información ingresada es pública y permanente para proteger a todas las bancas.
                         </div>
 
                         <div class="mb-2">
                             <label class="form-label small fw-bold">Nombre o Alias del Estafador:</label>
-                            <input type="text" name="nombre" class="form-control form-control-sm" placeholder="Ej: Juan Perez / El Chivo" required>
+                            <input type="text" name="nombre" class="form-control form-control-sm" placeholder="Ej: Pedro Pérez" required>
                         </div>
 
                         <div class="row g-2 mb-2">
@@ -880,24 +809,22 @@
 
                         <div class="mb-2">
                             <label class="form-label small fw-bold">Número(s) de Teléfono:</label>
-                            <input type="text" name="telefonos" class="form-control form-control-sm" placeholder="0412-1234567, 0414-7654321" required>
-                            <small class="text-muted" style="font-size: 11px;">Puedes colocar varios separados por coma.</small>
+                            <input type="text" name="telefonos" class="form-control form-control-sm" placeholder="0412-1234567, 0414-0000000" required>
                         </div>
 
                         <div class="mb-2">
-                            <label class="form-label small fw-bold">Motivo / Descripción de la Estafa:</label>
-                            <textarea name="descripcion" class="form-control form-control-sm" rows="3" placeholder="Explica detalladamente qué hizo..." required></textarea>
+                            <label class="form-label small fw-bold">Motivo / Descripción de lo ocurrido:</label>
+                            <textarea name="descripcion" class="form-control form-control-sm" rows="3" placeholder="Explica detalladamente la estafa o jugada falsa..." required></textarea>
                         </div>
 
                         <div class="mb-2">
-                            <label class="form-label small fw-bold">Captures de Evidencia (Fotos / Comprobantes):</label>
+                            <label class="form-label small fw-bold">Captures de Evidencia (Fotos):</label>
                             <input type="file" name="evidencias_files" class="form-control form-control-sm" multiple accept="image/*">
-                            <small class="text-muted" style="font-size: 11px;">Puedes seleccionar más de una imagen a la vez.</small>
                         </div>
                     </div>
                     <div class="modal-footer bg-light py-2">
                         <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-danger btn-sm fw-bold rounded-pill px-4" id="btnGuardarEstafador">Publicar Registro</button>
+                        <button type="submit" class="btn btn-danger btn-sm fw-bold rounded-pill px-4" id="btnGuardarEstafador">Publicar Reporte</button>
                     </div>
                 </form>
             </div>
@@ -920,69 +847,38 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function setTab(tabName) {
-            var campo = document.getElementById('campo_tab_activa');
-            if (campo) {
-                campo.value = tabName;
-            }
+            var campo = document.getElementById("campo_tab_activa");
+            if (campo) campo.value = tabName;
             if (tabName === 'listanegra') {
                 cargarListaNegra();
             }
         }
 
-        function asegurarFechaAvance() {
-            var inputFecha = document.getElementById('inputFechaAvance');
-            if (inputFecha && (!inputFecha.value || inputFecha.value.trim() === '')) {
-                var filtroHasta = document.getElementById('filtro_hasta_fecha');
-                if (filtroHasta && filtroHasta.value) {
-                    inputFecha.value = filtroHasta.value;
-                } else {
-                    var hoy = new Date().toISOString().split('T')[0];
-                    inputFecha.value = hoy;
-                }
-            }
-        }
-
         function irASolicitarAvance() {
-            var tabBtn = document.getElementById('btn-tab-adelanto');
+            var tabBtn = document.getElementById("btn-tab-adelanto");
             if (tabBtn) {
                 var tab = new bootstrap.Tab(tabBtn);
                 tab.show();
                 setTab('adelanto');
             }
-
-            asegurarFechaAvance();
-
-            var inputMonto = document.getElementById('inputMontoAvance');
-            if (inputMonto) {
-                setTimeout(function() {
-                    inputMonto.focus();
-                    inputMonto.select();
-                }, 150);
-            }
         }
 
-        function compartirEnlaceListaNegra(miAgencia) {
-            var urlRegistro = window.location.origin + "/registro-lista-negra?ref=" + encodeURIComponent(miAgencia);
-            var mensaje = "🚨 *LISTA NEGRA COMUNITARIA - LOS ÁNGELES DEL DINERO* 🚨\n\n" +
-                          "Colega, únete a nuestra red para verificar cédulas, números y reportes de estafadores en tiempo real.\n\n" +
-                          "Regístrate aquí para que el administrador te apruebe el acceso:\n" + urlRegistro;
-
+        function compartirEnlaceListaNegra(agencia) {
+            var url = window.location.origin + "/registro-lista-negra?ref=" + encodeURIComponent(agencia);
+            var mensaje = "🛡️ Únete a la Lista Negra Comunitaria de Bancas y Loterías.\nVerifica cédulas, números y reporte de estafadores en tiempo real:\n\n" + url;
+            
             if (navigator.share) {
                 navigator.share({
-                    title: 'Acceso a Lista Negra',
-                    text: mensaje
+                    title: 'Lista Negra Comunitaria',
+                    text: mensaje,
+                    url: url
                 }).catch(() => {});
             } else {
-                navigator.clipboard.writeText(mensaje).then(() => {
-                    alert("¡Enlace copiado al portapapeles! Pégaselo a tu compañero por WhatsApp.");
+                navigator.clipboard.writeText(url).then(function() {
+                    alert("Enlace copiado al portapapeles. Compártelo con otras agencias:\n\n" + url);
                 });
             }
         }
-
-        // ==========================================
-        // MOTOR EN TIEMPO REAL: LISTA NEGRA
-        // ==========================================
-        var estafadoresCache = [];
 
         function cargarListaNegra(query = "") {
             var url = "/api/lista-negra";
@@ -993,7 +889,6 @@
             fetch(url)
                 .then(res => res.json())
                 .then(data => {
-                    estafadoresCache = data;
                     renderizarTablaEstafadores(data);
                 })
                 .catch(err => {
@@ -1006,7 +901,7 @@
             if (!tbody) return;
 
             if (lista.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No se encontraron estafadores con ese criterio.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No se encontraron registros en la lista negra.</td></tr>';
                 return;
             }
 
@@ -1057,7 +952,7 @@
         function mostrarEvidencias(encodedFotos, nombre) {
             var fotos = JSON.parse(decodeURIComponent(encodedFotos));
             var contenedor = document.getElementById("contenedorEvidenciasFotos");
-            document.getElementById("tituloModalEvidencia").innerText = "Captures de Evidencia: " + nombre;
+            document.getElementById("tituloModalEvidencia").innerText = "Evidencias: " + nombre;
 
             var html = '<div class="row g-2">';
             fotos.forEach(function(src, index) {
@@ -1080,13 +975,9 @@
         }
 
         document.addEventListener("DOMContentLoaded", function() {
-            asegurarFechaAvance();
-
-            var formAvance = document.getElementById('formSolicitarAvance');
-            if (formAvance) {
-                formAvance.addEventListener('submit', function() {
-                    asegurarFechaAvance();
-                });
+            var tabActual = "{{ tab_activa or 'pendiente' }}";
+            if (tabActual === 'listanegra') {
+                cargarListaNegra();
             }
 
             var formEstafador = document.getElementById("formRegistrarEstafador");
@@ -1095,7 +986,7 @@
                     e.preventDefault();
                     var btn = document.getElementById("btnGuardarEstafador");
                     btn.disabled = true;
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Guardando...';
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Publicando...';
 
                     var formData = new FormData(formEstafador);
 
@@ -1106,50 +997,20 @@
                     .then(res => res.json())
                     .then(data => {
                         btn.disabled = false;
-                        btn.innerHTML = 'Publicar Registro';
+                        btn.innerHTML = 'Publicar Reporte';
                         var modalEl = document.getElementById('modalNuevoEstafador');
                         var modal = bootstrap.Modal.getInstance(modalEl);
                         modal.hide();
                         formEstafador.reset();
                         cargarListaNegra();
-                        alert("¡Ficha publicada de forma permanente en la Lista Negra!");
+                        alert("¡Estafador publicado permanentemente en la Lista Negra!");
                     })
                     .catch(err => {
                         btn.disabled = false;
-                        btn.innerHTML = 'Publicar Registro';
-                        alert("Error al guardar registro: " + err);
+                        btn.innerHTML = 'Publicar Reporte';
+                        alert("Error al guardar reporte: " + err);
                     });
                 });
-            }
-
-            // Cargar por defecto si la pestaña activa es lista negra
-            var campoTab = document.getElementById('campo_tab_activa');
-            if (campoTab && campoTab.value === 'listanegra') {
-                cargarListaNegra();
-            }
-
-            // Sondeo cada 10 segundos para actualizar la lista en tiempo real
-            setInterval(function() {
-                var campo = document.getElementById('campo_tab_activa');
-                if (campo && campo.value === 'listanegra') {
-                    var q = document.getElementById("inputBuscarEstafador").value;
-                    if (!q || q.trim() === "") {
-                        cargarListaNegra();
-                    }
-                }
-            }, 10000);
-
-            var urlParams = new URLSearchParams(window.location.search);
-            var error = urlParams.get('error');
-            var success = urlParams.get('success');
-            var alerta = document.getElementById('alertaCuenta');
-
-            if (alerta) {
-                if (error === 'claves_no_coinciden') {
-                    alerta.innerHTML = '<div class="alert alert-danger py-2 small mb-3">Las contraseñas no coinciden. Inténtalo de nuevo.</div>';
-                } else if (success === 'clave_actualizada') {
-                    alerta.innerHTML = '<div class="alert alert-success py-2 small mb-3">¡Contraseña actualizada con éxito!</div>';
-                }
             }
         });
     </script>
