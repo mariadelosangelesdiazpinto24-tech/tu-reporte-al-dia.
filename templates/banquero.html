@@ -49,8 +49,8 @@
             font-weight: bold;
         }
         .nav-tabs .nav-link.active.tab-danger-glow {
-            background-color: #b71c1c !important;
-            color: #ffffff !important;
+            background-color: #b71c1c !important; 
+            color: #ffffff !important; 
         }
     </style>
 </head>
@@ -562,6 +562,7 @@
                     </tr>
                 `;
             });
+
             tbody.innerHTML = html;
         }
 
@@ -594,7 +595,6 @@
         }
 
         document.addEventListener("DOMContentLoaded", function() {
-            // Guardar Estafador
             var formEstafador = document.getElementById("formRegistrarEstafadorBanquero");
             if (formEstafador) {
                 formEstafador.addEventListener("submit", function(e) {
@@ -625,7 +625,6 @@
                 });
             }
 
-            // Crear Taquilla para Lista Negra
             var formTaquillaLN = document.getElementById("formCrearTaquillaLN");
             if (formTaquillaLN) {
                 formTaquillaLN.addEventListener("submit", function(e) {
@@ -655,7 +654,6 @@
                 });
             }
 
-            // Actualización periódica en segundo plano
             setInterval(function() {
                 var btnTab = document.getElementById('btn-tab-listanegra-b');
                 if (btnTab && btnTab.classList.contains('active')) {
