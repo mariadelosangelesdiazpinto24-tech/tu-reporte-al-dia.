@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solicitud de Acceso - Red Lista Negra</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #fdf2f4;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .card-custom {
+            border-radius: 18px;
+            border: 1px solid rgba(0,0,0,0.06);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+        }
+        .btn-registro {
+            background: linear-gradient(135deg, #b71c1c, #d32f2f);
+            color: #ffffff;
+            border: none;
+            transition: all 0.2s ease;
+        }
+        .btn-registro:hover {
+            background: #8b0000;
+            color: #ffffff;
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body class="d-flex align-items-center min-vh-100 py-4">
+
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6 col-lg-5">
+                <div class="card card-custom p-4 bg-white">
+                    <div class="text-center mb-3">
+                        <div class="mb-2">
+                            <i class="fas fa-shield-halved text-danger fa-3x"></i>
+                        </div>
+                        <h4 class="fw-bold text-dark m-0">Red de Seguridad</h4>
+                        <span class="badge bg-danger text-white rounded-pill px-3 py-1 mt-1">Acceso Exclusivo: Lista Negra 🚨</span>
+                        <p class="text-muted small mt-2">Completa la solicitud para acceder al directorio colectivo de números y cédulas fraudulentas.</p>
+                    </div>
+
+                    {% if request.args.get('exito') %}
+                    <div class="alert alert-success border-0 small text-center rounded-3 p-3 mb-3">
+                        <i class="fas fa-clock fa-2x mb-2 text-success d-block"></i>
+                        <strong>¡Solicitud enviada con éxito!</strong><br>
+                        Tu cuenta está en estado <strong>Pendiente de Aprobación</strong>. La administración revisará tus datos para activar tu acceso.
+                    </div>
+                    <div class="text-center">
+                        <a href="/login" class="btn btn-outline-secondary btn-sm rounded-pill px-4">Ir al Login</a>
+                    </div>
+                    {% else %}
+
+                    {% if request.args.get('error') == 'usuario_existe' %}
+                    <div class="alert alert-danger border-0 small py-2 rounded-3 text-center mb-3">
+                        Ese nombre de usuario ya está registrado. Intenta con otro.
+                    </div>
+                    {% endif %}
+
+                    {% if request.args.get('ref') %}
+                    <div class="alert alert-light border small py-2 px-3 mb-3 rounded-3 text-muted text-center">
+                        <i class="fas fa-handshake me-1 text-danger"></i> Invitado por: <strong>{{ request.args.get('ref') }}</strong>
+                    </div>
+                    {% endif %}
+
+                    <form action="/registro-lista-negra" method="POST">
+                        <input type="hidden" name="referido" value="{{ request.args.get('ref', '') }}">
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold text-muted mb-1">Nombre de la Agencia / Taquilla:</label>
+                            <input type="text" name="nombre_agencia" class="form-control form-control-sm" placeholder="Ej: Inversiones La Fortuna" required>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold text-muted mb-1">WhatsApp de Contacto:</label>
+                            <input type="text" name="telefono" class="form-control form-control-sm" placeholder="0412-1234567" required>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold text-muted mb-1">Usuario para Iniciar Sesión:</label>
+                            <input type="text" name="usuario" class="form-control form-control-sm" placeholder="Elige tu usuario" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted mb-1">Contraseña:</label>
+                            <input type="password" name="clave" class="form-control form-control-sm" placeholder="Crea tu clave" required>
+                        </div>
+
+                        <div class="p-2 bg-light border rounded-3 mb-3 text-muted" style="font-size: 11px;">
+                            <i class="fas fa-info-circle text-primary me-1"></i> <strong>Nota:</strong> Este acceso es restringido y únicamente otorga permisos de consulta y reporte en la Lista Negra comunitaria previa aprobación.
+                        </div>
+
+                        <button type="submit" class="btn btn-registro w-100 fw-bold py-2 rounded-pill shadow-sm">
+                            <i class="fas fa-paper-plane me-1"></i> Enviar Solicitud de Acceso
+                        </button>
+                    </form>
+
+                    <div class="text-center mt-3 border-top pt-2">
+                        <a href="/login" class="text-muted small text-decoration-none">¿Ya estás aprobada? Iniciar Sesión</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
