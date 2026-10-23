@@ -2434,7 +2434,7 @@ def post_guardar_ajuste_banquero-sistema(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/restablecer-ajuste-banquero-sistema")
-def post_restablecer_ajuste_banquero-sistema(
+def post_restablecer_ajuste_banquero_sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     desde_fecha: Optional[str] = Form(None),
