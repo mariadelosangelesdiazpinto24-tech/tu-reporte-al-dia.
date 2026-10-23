@@ -414,7 +414,7 @@
                         </div>
                     </div>
 
-                    <div class="row g-3">
+                    <div class="row g-3 mb-4">
                         <div class="col-md-6">
                             <button class="btn btn-success btn-lg w-100 fw-bold shadow-sm rounded-pill py-3" data-bs-toggle="collapse" data-bs-target="#seccionPagar">
                                 <i class="fas fa-credit-card me-2 accent-amarillo"></i> Registrar Pago o Abono a la Banca
@@ -428,7 +428,7 @@
                     </div>
 
                     <!-- FORMULARIO DE PAGO -->
-                    <div class="collapse mt-3" id="seccionPagar">
+                    <div class="collapse mb-4" id="seccionPagar">
                         <div class="card p-3 border rounded-3 bg-light shadow-sm">
                             <h5 class="fw-bold text-success mb-2"><i class="fas fa-check-square me-2"></i>Reportar Pago a la Banca:</h5>
                             <p class="small text-muted mb-3">Introduce los datos del pago móvil o transferencia realizada.</p>
@@ -457,6 +457,29 @@
                                 <button type="submit" class="btn btn-success fw-bold w-100 mt-3 shadow-sm rounded-pill">Confirmar y Enviar Comprobante</button>
                             </form>
                         </div>
+                    </div>
+
+                    <!-- VISOR DEL DETALLE DEL REPORTE DIARIO DE SISTEMAS -->
+                    <div class="mt-2">
+                        <h5 class="fw-bold text-dark mb-3"><i class="fas fa-file-invoice text-tema me-2"></i>Detalle de Sistemas Reportados</h5>
+                        {% if reportes and reportes | length > 0 %}
+                            {% for r in reportes %}
+                                <div class="card border rounded-3 p-3 mb-3 bg-light shadow-sm">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap border-bottom pb-2 mb-2">
+                                        <span class="fw-bold text-dark"><i class="far fa-calendar-alt me-1 text-tema"></i> Fecha: {{ r.fecha }}</span>
+                                        <span class="badge bg-tema fs-6">Neto: Bs. {{ r.monto | dinero }}</span>
+                                    </div>
+                                    <div class="reporte-html-render" style="font-size: 13px;">
+                                        {{ r.detalle_html | safe }}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="alert alert-light border text-center text-muted py-4 rounded-3">
+                                <i class="fas fa-folder-open fs-2 mb-2 d-block"></i>
+                                No hay reportes de sistemas cargados para esta fecha.
+                            </div>
+                        {% endif %}
                     </div>
 
                 </div>
