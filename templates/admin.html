@@ -164,7 +164,12 @@
         <!-- PESTAÑAS -->
         <ul class="nav nav-tabs mb-3 flex-wrap" id="adminTabs" role="tablist">
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'taquillas' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-taquillas" type="button"><i class="fas fa-store me-1"></i> Taquillas Creadas 📱</button>
+                <button class="nav-link {% if tab_activa == 'taquillas' or not tab_activa %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-taquillas" type="button"><i class="fas fa-store me-1"></i> Taquillas Creadas 📱</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link {% if tab_activa == 'taquillas_ln' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-taquillas-ln" type="button">
+                    <i class="fas fa-user-shield text-danger me-1"></i> Taquillas Lista Negra 🛡️
+                </button>
             </li>
             <li class="nav-item">
                 <button class="nav-link tab-danger-glow {% if tab_activa == 'listanegra' %}active{% endif %}" id="btn-admin-tab-listanegra" data-bs-toggle="tab" data-bs-target="#tab-listanegra" type="button" onclick="cargarListaNegraAdmin()">
@@ -189,7 +194,7 @@
                 </button>
             </li>
             <li class="nav-item">
-                <button class="nav-link {% if tab_activa == 'balances' or not tab_activa %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-balances" type="button"><i class="fas fa-scale-balanced me-1"></i> Balances Globales (+ / -)</button>
+                <button class="nav-link {% if tab_activa == 'balances' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-balances" type="button"><i class="fas fa-scale-balanced me-1"></i> Balances Globales (+ / -)</button>
             </li>
             <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'ajustes' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-ajustes" type="button"><i class="fas fa-hand-holding-dollar me-1"></i> Caja y Ajustes 💵</button>
@@ -216,6 +221,78 @@
 
         <div class="tab-content" id="adminTabsContent">
 
+            <!-- PESTAÑA: TAQUILLAS DE LISTA NEGRA (INDEPENDIENTE) -->
+            <div class="tab-pane fade {% if tab_activa == 'taquillas_ln' %}show active{% endif %}" id="tab-taquillas-ln" role="tabpanel">
+                <div class="card card-custom p-4 bg-white mb-3 shadow-sm border-start border-4 border-dark">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <div>
+                            <h5 class="fw-bold text-dark m-0"><i class="fas fa-user-shield text-danger me-2"></i>Taquillas de Lista Negra</h5>
+                            <small class="text-muted">Usuarios con permiso único para revisar y denunciar en la lista negra. No tienen acceso a reportes ni cuentas de venta.</small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-success fw-bold rounded-pill px-3 shadow-sm" onclick="copiarLinkInvitacionLN()">
+                                <i class="fab fa-whatsapp me-1"></i> Link de Invitación
+                            </button>
+                            <button type="button" class="btn btn-dark fw-bold rounded-pill px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCrearTaquillaLNAdmin">
+                                <i class="fas fa-user-plus me-1"></i> Crear Taquilla Lista Negra
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0" style="font-size: 13px;">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Responsable</th>
+                                    <th>Cédula</th>
+                                    <th>Teléfono</th>
+                                    <th>Usuario / Agencia</th>
+                                    <th>Contraseña</th>
+                                    <th>Rol Asignado</th>
+                                    <th class="text-center">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% set count_ln = namespace(valor=0) %}
+                                {% for ag in agencias %}
+                                    {% if ag.rol == 'SOLO_LISTA_NEGRA' %}
+                                    {% set count_ln.valor = count_ln.valor + 1 %}
+                                    <tr>
+                                        <td>{{ ag.id }}</td>
+                                        <td class="fw-bold text-dark">{{ ag.nombre_real or ag.agencia }}</td>
+                                        <td>{{ ag.cedula or 'N/A' }}</td>
+                                        <td>{{ ag.telefono or 'N/A' }}</td>
+                                        <td class="fw-bold text-primary">{{ ag.agencia }}</td>
+                                        <td><code>{{ ag.clave }}</code></td>
+                                        <td><span class="badge bg-danger rounded-pill"><i class="fas fa-shield me-1"></i>SOLO LISTA NEGRA</span></td>
+                                        <td class="text-center">
+                                            <form action="/admin/eliminar-agencia" method="POST" class="d-inline" onsubmit="return confirm('¿Quitar el acceso a esta taquilla de Lista Negra?');">
+                                                <input type="hidden" name="agencia_id" value="{{ ag.id }}">
+                                                <input type="hidden" name="redirect_to" value="/admin?tab=taquillas_ln">
+                                                <button type="submit" class="btn btn-outline-danger btn-sm py-0" title="Eliminar Acceso">
+                                                    <i class="fas fa-trash-can"></i>
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                {% endfor %}
+
+                                {% if count_ln.valor == 0 %}
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted py-4">
+                                        <i class="fas fa-user-slash fs-4 d-block mb-2 text-secondary"></i>
+                                        No hay taquillas exclusivas de Lista Negra creadas todavía.
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- PESTAÑA: LISTA NEGRA GLOBAL ADMIN -->
             <div class="tab-pane fade {% if tab_activa == 'listanegra' %}show active{% endif %}" id="tab-listanegra" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-3 shadow-sm border-start border-4 border-danger">
@@ -225,6 +302,9 @@
                             <small class="text-muted">Registro colectivo inmutable en tiempo real. Protege a todas las agencias y banqueros contra estafas.</small>
                         </div>
                         <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-success fw-bold rounded-pill px-3 shadow-sm" onclick="copiarLinkInvitacionLN()">
+                                <i class="fab fa-whatsapp me-1"></i> Invitar a Registrarse
+                            </button>
                             <button type="button" class="btn btn-outline-dark fw-bold rounded-pill px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCrearTaquillaLNAdmin">
                                 <i class="fas fa-user-shield me-1"></i> Crear Taquilla Lista Negra
                             </button>
@@ -364,10 +444,10 @@
                 </div>
             </div>
 
-            <!-- 1. TAQUILLAS CREADAS -->
-            <div class="tab-pane fade {% if tab_activa == 'taquillas' %}show active{% endif %}" id="tab-taquillas" role="tabpanel">
+            <!-- 1. TAQUILLAS CREADAS (VENTAS) -->
+            <div class="tab-pane fade {% if tab_activa == 'taquillas' or not tab_activa %}show active{% endif %}" id="tab-taquillas" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-3">
-                    <h5 class="fw-bold text-tema mb-3"><i class="fas fa-store me-2"></i>Gestión de Taquillas y Agencias</h5>
+                    <h5 class="fw-bold text-tema mb-3"><i class="fas fa-store me-2"></i>Gestión de Taquillas y Agencias de Venta</h5>
                     <form action="/admin/crear-taquilla" method="POST" class="row g-2 mb-4 bg-light p-3 rounded-3 border">
                         <div class="col-md-4">
                             <input type="text" name="agencia" class="form-control form-control-sm" placeholder="Nombre de la Agencia" required>
@@ -568,7 +648,7 @@
             </div>
 
             <!-- 4. BALANCES GLOBALES (+ / -) -->
-            <div class="tab-pane fade {% if tab_activa == 'balances' or not tab_activa %}show active{% endif %}" id="tab-balances" role="tabpanel">
+            <div class="tab-pane fade {% if tab_activa == 'balances' %}show active{% endif %}" id="tab-balances" role="tabpanel">
                 <div class="card card-custom p-3 bg-white mb-3">
                     <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-3">
                         <form method="GET" action="/admin" class="row g-2 align-items-end flex-grow-1 m-0">
@@ -1659,7 +1739,7 @@
             <div class="modal-content border-0 shadow">
                 <div class="modal-header bg-warning text-dark py-2">
                     <h6 class="modal-title fw-bold">
-                        <i class="fas fa-edit me-1"></i> Fijar / Ajustar Último Saldo Pendiente
+                        <i class="fas fa-edit me-1"></i> Fijar / Ajustar Saldo Pendiente
                     </h6>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
@@ -1860,7 +1940,6 @@
                     var nombreSistema = (tr.querySelector(".col-sistema").innerText || "").trim();
                     var regla = obtenerReglaSistema(nombreSistema);
 
-                    // Si en la base de datos viene configurado su propio porcentaje, respetarlo
                     var pctBanqueroAttr = tr.getAttribute("data-pct-banquero");
                     var pctTaquillaAttr = tr.getAttribute("data-pct-taquilla");
                     var pctExcedenteAttr = tr.getAttribute("data-pct-excedente");
@@ -1877,7 +1956,6 @@
 
                     var esManual = tr.getAttribute("data-manual") === "1";
 
-                    // Si no tiene comisión calculada o viene en 0, calcularla con el porcentaje completo del banquero
                     if ((c === 0 || !esManual) && v > 0) {
                         c = v * (pct_banquero / 100);
                         tr.querySelector(".col-comision").innerText = formatoBs(c);
@@ -1886,7 +1964,6 @@
                     var t = v - p - c;
                     tr.querySelector(".col-total").innerText = formatoBs(t);
 
-                    // Participación según la regla estricta
                     var part = 0;
                     if (pct_part > 0) {
                         part = t * (pct_part / 100);
@@ -1899,7 +1976,6 @@
                     var finalRow = t - part;
                     tr.querySelector(".col-total-final").innerText = formatoBs(finalRow);
 
-                    // Excedente estricto: Venta * % Ganancia Privada (Excedente)
                     var exc = v * (pct_excedente / 100);
                     mapaExcedentes[nombreSistema.toUpperCase()] = exc;
 
@@ -1911,7 +1987,6 @@
                     totFinal += finalRow;
                 });
 
-                // Deducción Cashea
                 var casheaDeducido = 0;
                 if (banqueroNombre.includes("NYS")) {
                     casheaDeducido = totalCasheaGeneral > 0 ? totalCasheaGeneral : parseMonto(document.getElementById("tfootTotalCashea") ? document.getElementById("tfootTotalCashea").innerText : 0);
@@ -1935,7 +2010,6 @@
                     }
                 }
 
-                // Ajustes Adelantos y Pendientes
                 var inputAdelantos = b.querySelector("input[name='adelantos']");
                 var inputPendientes = b.querySelector("input[name='pendientes']");
                 var valAdelanto = inputAdelantos ? (parseFloat(inputAdelantos.value) || 0) : 0;
@@ -1943,7 +2017,6 @@
 
                 var tfootRefGeneral = tabla.querySelector("tfoot");
 
-                // Fila Pendientes
                 var filaPend = tabla.querySelector(".fila-pendientes-extra");
                 if (Math.abs(valPendiente) > 0.01) {
                     var signoPend = valPendiente > 0 ? "+ " : "";
@@ -1964,7 +2037,6 @@
                     filaPend.remove();
                 }
 
-                // Fila Adelantos
                 var filaAdel = tabla.querySelector(".fila-adelantos-extra");
                 if (Math.abs(valAdelanto) > 0.01) {
                     if (!filaAdel) {
@@ -2000,7 +2072,6 @@
                 granTotalBanqueros += totFinalBanquero;
                 granTotalPartGlobal += totPart;
 
-                // RECALCULO DE LA TARJETA MI GANANCIA PRIVADA
                 var box = b.querySelector(".tarjeta-mi-ganancia-banca");
                 var difFilas = box.querySelectorAll(".fila-dif-sistema");
                 var gananciaExcedente = 0;
@@ -2219,6 +2290,23 @@
 
             var modal = new bootstrap.Modal(document.getElementById("modalVerEvidenciasAdmin"));
             modal.show();
+        }
+
+        function copiarLinkInvitacionLN() {
+            var urlInvitacion = window.location.origin + "/registro-lista-negra";
+            var mensaje = "🚨 *REGISTRO DE SEGURIDAD - LISTA NEGRA* 🚨\n\n" +
+                          "Accede al siguiente enlace para solicitar tu usuario de verificación en la base de datos de estafadores:\n\n" +
+                          "👉 " + urlInvitacion + "\n\n" +
+                          "🍀 *Los Ángeles del Dinero* 🍀";
+
+            navigator.clipboard.writeText(mensaje).then(function() {
+                var irWhatsapp = confirm("¡Mensaje y enlace de registro copiados al portapapeles!\n\n¿Quieres abrir WhatsApp ahora para compartirlo?");
+                if (irWhatsapp) {
+                    window.open("https://api.whatsapp.com/send?text=" + encodeURIComponent(mensaje), "_blank");
+                }
+            }).catch(function() {
+                prompt("Copia este enlace de invitación:", urlInvitacion);
+            });
         }
 
         document.addEventListener("DOMContentLoaded", function() {
