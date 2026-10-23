@@ -20,14 +20,8 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 app = FastAPI()
 
-# ==============================================================================
-# COMPRESIÓN DE ALTA VELOCIDAD (OPTIMIZACIÓN MÓVIL)
-# ==============================================================================
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# ==============================================================================
-# BANQUEROS FIJOS EN CÓDIGO (USUARIOS, CLAVES Y SU CUADRO ASIGNADO)
-# ==============================================================================
 BANQUEROS_FIJOS = {
     "LIDER": {
         "clave": "lider123",
@@ -47,9 +41,6 @@ BANQUEROS_FIJOS = {
     }
 }
 
-# ==============================================================================
-# CONFIGURACIÓN ONESIGNAL PUSH NOTIFICATIONS
-# ==============================================================================
 ONESIGNAL_APP_ID = "88b4cb90-08ed-4ef3-8852-c45316493190"
 ONESIGNAL_REST_KEY = os.environ.get("ONESIGNAL_REST_KEY", "os_v2_app_xxxxxxxxxxxxxxxxxxxxxxxx")
 
@@ -58,7 +49,7 @@ def disparar_notificacion(agencia_destino: str, titulo: str, mensaje: str):
     
     api_key = ONESIGNAL_REST_KEY.strip()
     if not api_key or "xxxxxxxx" in api_key:
-        print("⚠️ AVISO: ONESIGNAL_REST_KEY no está configurada. Agrega la clave en Render > Environment Variables.")
+        print("⚠️ AVISO: ONESIGNAL_REST_KEY no está configurada.")
         return
 
     headers = {
@@ -87,11 +78,9 @@ def disparar_notificacion(agencia_destino: str, titulo: str, mensaje: str):
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=data, headers=headers, method="POST")
         with urllib.request.urlopen(req, timeout=8) as resp:
-            print(f"✅ Notificación enviada con éxito a {agencia_destino}: Código {resp.status}")
-    except urllib.error.HTTPError as e:
-        print(f"❌ Error HTTP al enviar notificación OneSignal: {e.code} - {e.read().decode('utf-8')}")
+            print(f"✅ Notificación enviada a {agencia_destino}: Código {resp.status}")
     except Exception as e:
-        print("❌ Error general enviando notificación push:", e)
+        print("❌ Error enviando notificación push:", e)
 
 @app.get("/OneSignalSDKWorker.js")
 def onesignal_worker():
@@ -105,9 +94,6 @@ def get_manifest():
         return FileResponse(ruta_manifest, media_type="application/manifest+json")
     return FileResponse("manifest.json", media_type="application/manifest+json")
 
-# ==============================================================================
-# CONFIGURACIÓN GENERAL Y HORARIA
-# ==============================================================================
 TZ_VENEZUELA = ZoneInfo("America/Caracas")
 
 def obtener_fecha_venezuela() -> str:
@@ -132,14 +118,13 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 templates = Jinja2Templates(directory="templates")
 
 # ==============================================================================
-# LISTA EXACTA DE SISTEMAS OFICIALES (EN ORDEN VISUAL ESTRICTO)
+# 19 SISTEMAS OFICIALES EN EL ORDEN IDÉNTICO AL CUADRO AZUL
 # ==============================================================================
 SISTEMAS_OFICIALES = [
     "LA IMAGINARIA", "BETSOL", "GATO", "LOTIPOS", "LOTTIPLAY", 
     "LOTTOLUCKY", "MAXPLAY", "SRQ", "POSNET", "POZO", 
     "PREMIER", "SRQ POLLA", "WINBIG VENTAS", "WINBIG BINGO", 
-    "WINBIG POLLAS", "VENTA ACTIVA", "PARLEY", "CALAMAR", "GUACA",
-    "PATRONUS", "MASTER ACTIVO"
+    "WINBIG POLLAS", "VENTA ACTIVA", "PARLEY", "PATRONUS", "MASTER ACTIVO"
 ]
 
 ALIAS_AGENCIAS = {
@@ -180,8 +165,8 @@ def normalizar_sistema(sistema: str) -> str:
     if not sistema:
         return ""
     s_clean = normalizar(sistema)
-    if "VENTA ACTIVA" in s_clean:
-        return "MATRIX"
+    if "MATRIX" in s_clean:
+        return "VENTA ACTIVA"
     return s_clean
 
 def formatear_monto(valor):
@@ -373,25 +358,6 @@ def init_db():
         except Exception:
             pass
 
-    # Eliminación de duplicados en banqueros
-    cursor.execute("""
-        DELETE FROM configuracion_banqueros 
-        WHERE banquero IN (
-            'DUBAI', 'LOTTOLUCKY', 'COMERCIALIZADORA LOTTOLUCKY', 'LUCKY',
-            'LIDER', 'SUPER APUESTAS', 'BETSOL', 'NYS'
-        );
-    """)
-
-    cursor.execute("UPDATE ajustes_globales_banqueros SET banquero = 'COMERCIALIZADORA DUBAI' WHERE banquero IN ('DUBAI', 'LOTTOLUCKY', 'COMERCIALIZADORA LOTTOLUCKY', 'LUCKY');")
-    cursor.execute("UPDATE ajustes_globales_banqueros SET banquero = 'COMERCIALIZADORA LIDER' WHERE banquero IN ('LIDER');")
-    cursor.execute("UPDATE ajustes_globales_banqueros SET banquero = 'COMERCIALIZADORA NYS' WHERE banquero IN ('NYS');")
-    cursor.execute("UPDATE ajustes_globales_banqueros SET banquero = 'COMERCIALIZADORA SUPER APUESTAS' WHERE banquero IN ('SUPER APUESTAS', 'BETSOL');")
-
-    cursor.execute("UPDATE ajustes_banqueros_manuales SET banquero = 'COMERCIALIZADORA DUBAI' WHERE banquero IN ('DUBAI', 'LOTTOLUCKY', 'COMERCIALIZADORA LOTTOLUCKY', 'LUCKY');")
-    cursor.execute("UPDATE ajustes_banqueros_manuales SET banquero = 'COMERCIALIZADORA LIDER' WHERE banquero IN ('LIDER');")
-    cursor.execute("UPDATE ajustes_banqueros_manuales SET banquero = 'COMERCIALIZADORA NYS' WHERE banquero IN ('NYS');")
-    cursor.execute("UPDATE ajustes_banqueros_manuales SET banquero = 'COMERCIALIZADORA SUPER APUESTAS' WHERE banquero IN ('SUPER APUESTAS', 'BETSOL');")
-
     cursor.execute("""
         INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
         VALUES ('COMERCIALIZADORA LIDER', 'PATRONUS', 0.16, 0.12, 0.20, FALSE)
@@ -408,24 +374,6 @@ def init_db():
         SET pct_banquero = EXCLUDED.pct_banquero,
             pct_taquilla = EXCLUDED.pct_taquilla,
             pct_participacion = EXCLUDED.pct_participacion;
-    """)
-
-    cursor.execute("""
-        INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
-        VALUES ('COMERCIALIZADORA DUBAI', 'LOTTOLUCKY', 0.17, 0.13, 0.0, FALSE)
-        ON CONFLICT (banquero, sistema) DO UPDATE
-        SET pct_banquero = 0.17,
-            pct_taquilla = 0.13,
-            pct_participacion = 0.0;
-    """)
-
-    cursor.execute("""
-        INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
-        VALUES ('COMERCIALIZADORA SUPER APUESTAS', 'BETSOL', 0.16, 0.12, 0.0, FALSE)
-        ON CONFLICT (banquero, sistema) DO UPDATE
-        SET pct_banquero = 0.16,
-            pct_taquilla = 0.12,
-            pct_participacion = 0.0;
     """)
 
     conn.commit()
@@ -458,16 +406,13 @@ def extraer_neto_de_html(detalle_html: str) -> float:
             cols = re.findall(r'<t[dh][^>]*>(.*?)<\/t[dh]>', fila, re.DOTALL | re.IGNORECASE)
             if len(cols) >= 5:
                 texto_0 = re.sub(r'<[^>]+>', '', cols[0]).strip().upper()
-                if texto_0 and "TOTALES" not in texto_0 and "SISTEMA" not in texto_0:
+                if texto_0 and "TOTALES" not in texto_0 and "SISTEMA" not in texto_0 and "TRIPLETA" not in texto_0:
                     try:
                         neto_acumulado += float(re.sub(r'[^\d.-]', '', cols[4]))
                     except Exception:
                         pass
     return neto_acumulado
 
-# ==============================================================================
-# MOTOR CONTABLE NORMALIZADO (CON ARRASTRE DE CIERRE EXACTO)
-# ==============================================================================
 def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = None):
     ag_norm = normalizar(agencia_raw)
     fecha_hoy_contable = fecha_corte if fecha_corte else obtener_fecha_venezuela()
@@ -629,7 +574,6 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
     cursor.execute("SELECT * FROM reportes WHERE fecha >= %s AND fecha <= %s", (f_desde, f_hasta))
     reps_db = cursor.fetchall()
 
-    # Pre-cargar los 21 sistemas oficiales siempre en orden
     sistemas_consolidados = {
         s: {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
         for s in SISTEMAS_OFICIALES
@@ -652,7 +596,6 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
                     if len(cols) >= 5:
                         sys_raw = re.sub(r'<[^>]+>', '', cols[0]).strip()
                         
-                        # ELIMINAR TEXTOS BASURA, TOTALES Y TRIPLETAS
                         if not sys_raw or "SISTEMA" in sys_raw.upper() or "TOTALES" in sys_raw.upper() or "TRIPLETA" in sys_raw.upper():
                             continue
                         
@@ -1091,44 +1034,6 @@ def post_guardar_ajustes_banquero_global(
     url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
-@app.post("/api/cargar-totales-lider-nys")
-async def cargar_totales_lider_nys(request: Request):
-    data = await request.form()
-    fecha = data.get("fecha", obtener_fecha_venezuela())
-    
-    venta_lider = float(data.get("venta_lider", 0.0) or 0.0)
-    premios_lider = float(data.get("premios_lider", 0.0) or 0.0)
-    
-    venta_nys = float(data.get("venta_nys", 0.0) or 0.0)
-    premios_nys = float(data.get("premios_nys", 0.0) or 0.0)
-
-    conn = get_db()
-    cursor = conn.cursor()
-
-    if venta_lider > 0 or premios_lider > 0:
-        comis_lider = venta_lider * 0.17
-        cursor.execute(
-            """INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
-               VALUES ('COMERCIALIZADORA LIDER', 'GUACA', %s, %s, %s, %s)
-               ON CONFLICT (banquero, sistema, fecha)
-               DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
-            (fecha, venta_lider, comis_lider, premios_lider)
-        )
-
-    if venta_nys > 0 or premios_nys > 0:
-        comis_nys = venta_nys * 0.18
-        cursor.execute(
-            """INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
-               VALUES ('COMERCIALIZADORA NYS', 'CALAMAR', %s, %s, %s, %s)
-               ON CONFLICT (banquero, sistema, fecha)
-               DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
-            (fecha, venta_nys, comis_nys, premios_nys)
-        )
-
-    conn.commit()
-    conn.close()
-    return {"status": "ok", "mensaje": "Guaca y Calamar cargados con éxito"}
-
 @app.post("/api/guardar-reporte-colab")
 async def guardar_reporte_colab(request: Request):
     data = await request.form()
@@ -1297,9 +1202,6 @@ def obtener_historico_semana(agencia: str, desde: str, hasta: str):
 
     return {"sistemas": sistemas_cobrados}
 
-# ==============================================================================
-# ENDPOINTS LISTA NEGRA (TIEMPO REAL, EVIDENCIAS INMUTABLES Y BÚSQUEDA)
-# ==============================================================================
 @app.get("/api/lista-negra")
 def api_obtener_lista_negra(q: Optional[str] = None):
     conn = get_db()
@@ -1549,9 +1451,6 @@ def post_aprobar_taquilla_ln(usuario_id: int = Form(...), accion: str = Form(...
     conn.close()
     return RedirectResponse(url="/admin?tab=listanegra", status_code=status.HTTP_303_SEE_OTHER)
 
-# ==============================================================================
-# LOGIN INTELIGENTE
-# ==============================================================================
 @app.get("/", response_class=HTMLResponse)
 @app.get("/login", response_class=HTMLResponse)
 def get_login(request: Request):
@@ -1677,9 +1576,6 @@ def get_banquero(
         "tab_activa": tab or "liquidacion"
     })
 
-# ==============================================================================
-# ÁREA PRIVADA DE AGENCIA / TAQUILLA (CON AUDITORÍA CONSOLIDADA CORREGIDA)
-# ==============================================================================
 @app.get("/agencia", response_class=HTMLResponse)
 def get_agencia(
     request: Request, 
@@ -1747,7 +1643,7 @@ def get_agencia(
     reps_rango = cursor.fetchall()
     
     # --------------------------------------------------------------------------
-    # AUDITORÍA CONSOLIDADA: INICIALIZADA CON LOS 21 SISTEMAS OFICIALES EN ORDEN
+    # AUDITORÍA CONSOLIDADA: 19 SISTEMAS OFICIALES EN EL ORDEN DEL CUADRO AZUL
     # --------------------------------------------------------------------------
     auditoria_sistemas_agencia = {
         s: {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
@@ -1766,7 +1662,6 @@ def get_agencia(
                     if len(cols_s) >= 5:
                         s_raw = re.sub(r'<[^>]+>', '', cols_s[0]).strip()
                         
-                        # FILTRO ESTRICTO: IGNORAR ENCABEZADOS, TOTALES Y TRIPLETAS
                         if not s_raw or "SISTEMA" in s_raw.upper() or "TOTALES" in s_raw.upper() or "TRIPLETA" in s_raw.upper():
                             continue
                         
@@ -2190,9 +2085,6 @@ def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), mo
     disparar_notificacion("ADMIN", "💵 Adelanto Registrado", f"La taquilla {agencia_norm} registró un adelanto de Bs. {monto:,.2f}.")
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-# ==============================================================================
-# ACTUALIZACIÓN DE SISTEMA (CON INSERCIÓN AUTOMÁTICA EN LA TABLA HTML)
-# ==============================================================================
 @app.post("/actualizar-reporte-sistema")
 def post_actualizar_reporte_sistema(
     agencia: str = Form(...),
@@ -2258,7 +2150,7 @@ def post_actualizar_reporte_sistema(
             cols = re.findall(r'<td[^>]*>(.*?)<\/td>', f, re.DOTALL | re.IGNORECASE)
             if len(cols) >= 5:
                 texto_col0 = re.sub(r'<[^>]+>', '', cols[0]).strip().upper()
-                if texto_col0 and "TOTALES" not in texto_col0 and "SISTEMA" not in texto_col0:
+                if texto_col0 and "TOTALES" not in texto_col0 and "SISTEMA" not in texto_col0 and "TRIPLETA" not in texto_col0:
                     try:
                         sum_v += float(re.sub(r'[^\d.-]', '', cols[1]))
                         sum_c += float(re.sub(r'[^\d.-]', '', cols[2]))
@@ -2515,7 +2407,7 @@ def post_actualizar_regla_banquero(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/guardar-ajuste-banquero-sistema")
-def post_guardar_ajuste_banquero_sistema(
+def post_guardar_ajuste_banquero-sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     fecha: str = Form(...),
@@ -2542,7 +2434,7 @@ def post_guardar_ajuste_banquero_sistema(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/restablecer-ajuste-banquero-sistema")
-def post_restablecer_ajuste_banquero_sistema(
+def post_restablecer_ajuste_banquero-sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     desde_fecha: Optional[str] = Form(None),
@@ -2614,9 +2506,6 @@ def post_eliminar_agencia(agencia_id: int = Form(...)):
     conn.close()
     return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
 
-# ==============================================================================
-# PANEL DE ADMINISTRACIÓN
-# ==============================================================================
 @app.get("/admin", response_class=HTMLResponse)
 def get_admin(
     request: Request, 
@@ -2718,9 +2607,6 @@ def get_admin(
                 datos_desglose_neg["monto"] = abs(balance_contable)
                 negativos.append(datos_desglose_neg)
 
-        # -------------------------------------------------------------
-        # CONSULTA CONCILIACIÓN SEMANAL PARA ADMIN (SOLO DISCREPANCIAS)
-        # -------------------------------------------------------------
         if agencia_filtro:
             cursor.execute("""
                 SELECT * FROM conciliaciones_semanales 
