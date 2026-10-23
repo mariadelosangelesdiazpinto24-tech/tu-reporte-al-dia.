@@ -7,6 +7,18 @@
     <link rel="icon" type="image/png" href="/templates/logo.png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- OneSignal Web Push SDK para disparar la notificación al Admin -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({
+          appId: "88b4cb90-08ed-4ef3-8852-c45316493190",
+        });
+      });
+    </script>
+
     <style>
         body {
             background-color: #fdf2f4;
@@ -51,42 +63,65 @@
                     </div>
                     {% endif %}
 
-                    <form action="/registro-lista-negra" method="POST">
+                    {% if mensaje_exito %}
+                    <div class="alert alert-success border-0 shadow-sm rounded-3 text-center mb-3">
+                        <i class="fas fa-circle-check fs-4 text-success d-block mb-1"></i>
+                        <h6 class="fw-bold mb-1">¡Solicitud Enviada con Éxito!</h6>
+                        <small class="d-block text-muted">Tu registro fue enviado a la administración para aprobación.</small>
+                        <div class="p-2 bg-white rounded mt-2 border small">
+                            <strong>Usuario:</strong> {{ agencia_creada }}<br>
+                            <strong>Clave Asignada:</strong> <code>123456</code>
+                        </div>
+                        <small class="text-muted d-block mt-2">Podrás ingresar en cuanto el Administrador autorice tu taquilla.</small>
+                        <a href="/login" class="btn btn-sm btn-outline-dark fw-bold mt-2 rounded-pill px-3">Ir al Inicio de Sesión</a>
+                    </div>
+                    {% else %}
+
+                    <form action="/registro-lista-negra" method="POST" id="formRegistroLN">
                         <input type="hidden" name="recomendado_por" value="{{ ref or 'DIRECTO' }}">
+                        <!-- Contraseña predeterminada automática 123456 -->
+                        <input type="hidden" name="clave" value="123456">
 
                         <div class="mb-2">
                             <label class="form-label small fw-bold text-muted mb-1">Nombre y Apellido del Encargado:</label>
                             <input type="text" name="nombre_real" class="form-control form-control-sm" placeholder="Ej: María Pérez" required>
                         </div>
 
-                        <div class="mb-2">
-                            <label class="form-label small fw-bold text-muted mb-1">Cédula de Identidad:</label>
-                            <input type="text" name="cedula" class="form-control form-control-sm" placeholder="V-12345678" required>
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label small fw-bold text-muted mb-1">Cédula de Identidad:</label>
+                                <input type="text" name="cedula" class="form-control form-control-sm" placeholder="V-12345678" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold text-muted mb-1">WhatsApp de Contacto:</label>
+                                <input type="tel" name="telefono" class="form-control form-control-sm" placeholder="0412-1234567" required>
+                            </div>
                         </div>
 
                         <div class="mb-2">
-                            <label class="form-label small fw-bold text-muted mb-1">Nombre de la Agencia / Taquilla (Usuario de acceso):</label>
+                            <label class="form-label small fw-bold text-muted mb-1">Nombre de la Agencia / Taquilla (Usuario Login):</label>
                             <input type="text" name="agencia" class="form-control form-control-sm" placeholder="Ej: Inversiones La Fortuna" required>
-                        </div>
-
-                        <div class="mb-2">
-                            <label class="form-label small fw-bold text-muted mb-1">WhatsApp de Contacto:</label>
-                            <input type="tel" name="telefono" class="form-control form-control-sm" placeholder="0412-1234567" required>
+                            <small class="text-muted" style="font-size: 11px;">Este será tu usuario para entrar al sistema.</small>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label small fw-bold text-muted mb-1">Contraseña:</label>
-                            <input type="password" name="clave" class="form-control form-control-sm" placeholder="Crea tu clave de acceso" required>
+                            <label class="form-label small fw-bold text-muted mb-1">Contraseña Inicial:</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light"><i class="fas fa-key text-secondary"></i></span>
+                                <input type="text" class="form-control form-control-sm bg-light fw-bold text-muted" value="123456" readonly>
+                                <span class="input-group-text bg-white text-success small"><i class="fas fa-lock me-1"></i> Predeterminada</span>
+                            </div>
                         </div>
 
                         <div class="p-2 bg-light border rounded-3 mb-3 text-muted" style="font-size: 11px;">
-                            <i class="fas fa-info-circle text-primary me-1"></i> <strong>Aviso:</strong> Esta cuenta es de acceso restringido únicamente para verificación y reporte de estafadores. Requiere aprobación administrativa antes de poder ingresar.
+                            <i class="fas fa-shield-halved text-danger me-1"></i> <strong>Aviso de seguridad:</strong> El acceso está restringido únicamente a la consulta y fichaje de estafadores. La administración recibirá una alerta inmediata para validar tu identidad y activar tu usuario.
                         </div>
 
-                        <button type="submit" class="btn btn-registro w-100 fw-bold py-2 rounded-pill shadow-sm">
-                            <i class="fas fa-paper-plane me-1"></i> Enviar Solicitud de Acceso
+                        <button type="submit" class="btn btn-registro w-100 fw-bold py-2 rounded-pill shadow-sm" id="btnSubmitRegistro">
+                            <i class="fas fa-paper-plane me-1"></i> Solicitar Acceso Inmediato
                         </button>
                     </form>
+                    {% endif %}
 
                     <div class="text-center mt-3 border-top pt-2">
                         <a href="/login" class="text-muted small text-decoration-none">¿Ya fue aprobada tu cuenta? Iniciar Sesión</a>
