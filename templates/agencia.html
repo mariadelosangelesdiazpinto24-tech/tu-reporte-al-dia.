@@ -26,6 +26,13 @@
             serviceWorkerPath: "/OneSignalSDKWorker.js"
           });
           await OneSignal.login("{{ nombre_agencia }}");
+
+          // Clasificación de rol en OneSignal para filtrar notificaciones
+          {% if (agencia and agencia.rol == 'SOLO_LISTA_NEGRA') or genero_agencia == 'SOLO_LISTA_NEGRA' %}
+            await OneSignal.User.addTag("rol", "solo_lista_negra");
+          {% else %}
+            await OneSignal.User.addTag("rol", "taquilla");
+          {% endif %}
         } catch (e) {
           console.error("Error iniciando OneSignal:", e);
         }
@@ -46,6 +53,14 @@
           try {
             await OneSignal.Notifications.requestPermission();
             await OneSignal.login("{{ nombre_agencia }}");
+
+            // Refuerzo de etiqueta al activar manualmente
+            {% if (agencia and agencia.rol == 'SOLO_LISTA_NEGRA') or genero_agencia == 'SOLO_LISTA_NEGRA' %}
+              await OneSignal.User.addTag("rol", "solo_lista_negra");
+            {% else %}
+              await OneSignal.User.addTag("rol", "taquilla");
+            {% endif %}
+
             alert("¡Notificaciones activadas con éxito para {{ nombre_agencia }}! 🍀");
           } catch (err) {
             alert("Permiso de notificaciones procesado.");
