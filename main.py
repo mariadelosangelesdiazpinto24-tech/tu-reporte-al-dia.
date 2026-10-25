@@ -113,13 +113,11 @@ def obtener_rango_semana_actual():
 
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("templates", exist_ok=True)
+os.makedirs("static", exist_ok=True)
 
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 templates = Jinja2Templates(directory="templates")
 
-# ==============================================================================
-# 19 SISTEMAS OFICIALES EN EL ORDEN IDÉNTICO AL CUADRO AZUL
-# ==============================================================================
 SISTEMAS_OFICIALES = [
     "LA IMAGINARIA", "BETSOL", "GATO", "LOTIPOS", "LOTTIPLAY", 
     "LOTTOLUCKY", "MAXPLAY", "SRQ", "POSNET", "POZO", 
@@ -347,6 +345,34 @@ def init_db():
         )
     ''')
 
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS metodos_pago (
+            id SERIAL PRIMARY KEY,
+            agencia TEXT UNIQUE,
+            pm1_banco TEXT,
+            pm1_telefono TEXT,
+            pm1_cedula TEXT,
+            pm2_banco TEXT,
+            pm2_telefono TEXT,
+            pm2_cedula TEXT,
+            pm3_banco TEXT,
+            pm3_telefono TEXT,
+            pm3_cedula TEXT,
+            cta1_banco TEXT,
+            cta1_numero TEXT,
+            cta1_cedula TEXT,
+            cta1_titular TEXT,
+            cta2_banco TEXT,
+            cta2_numero TEXT,
+            cta2_cedula TEXT,
+            cta2_titular TEXT,
+            cta3_banco TEXT,
+            cta3_numero TEXT,
+            cta3_cedula TEXT,
+            cta3_titular TEXT
+        )
+    ''')
+
     agencias_base = [
         "MILA", "ANA MARIA", "NABEL", "VIP23", "DESTINO SUERTE", 
         "VALLEMIL", "ALEXA", "PALOMITA", "GEGE", "LILI LA LOBA", 
@@ -380,6 +406,131 @@ def init_db():
     conn.close()
 
 init_db()
+
+@app.post("/agencia/guardar-metodos-pago")
+def post_guardar_metodos_pago(
+    agencia: str = Form(...),
+    pm1_banco: Optional[str] = Form(""),
+    pm1_telefono: Optional[str] = Form(""),
+    pm1_cedula: Optional[str] = Form(""),
+    pm2_banco: Optional[str] = Form(""),
+    pm2_telefono: Optional[str] = Form(""),
+    pm2_cedula: Optional[str] = Form(""),
+    pm3_banco: Optional[str] = Form(""),
+    pm3_telefono: Optional[str] = Form(""),
+    pm3_cedula: Optional[str] = Form(""),
+    cta1_banco: Optional[str] = Form(""),
+    cta1_numero: Optional[str] = Form(""),
+    cta1_cedula: Optional[str] = Form(""),
+    cta1_titular: Optional[str] = Form(""),
+    cta2_banco: Optional[str] = Form(""),
+    cta2_numero: Optional[str] = Form(""),
+    cta2_cedula: Optional[str] = Form(""),
+    cta2_titular: Optional[str] = Form(""),
+    cta3_banco: Optional[str] = Form(""),
+    cta3_numero: Optional[str] = Form(""),
+    cta3_cedula: Optional[str] = Form(""),
+    cta3_titular: Optional[str] = Form("")
+):
+    agencia_norm = normalizar(agencia)
+    conn = get_db()
+    cursor = conn.cursor()
+
+    is_postgres = bool(os.environ.get("DATABASE_URL"))
+
+    if is_postgres:
+        cursor.execute("""
+            INSERT INTO metodos_pago (
+                agencia, pm1_banco, pm1_telefono, pm1_cedula,
+                pm2_banco, pm2_telefono, pm2_cedula,
+                pm3_banco, pm3_telefono, pm3_cedula,
+                cta1_banco, cta1_numero, cta1_cedula, cta1_titular,
+                cta2_banco, cta2_numero, cta2_cedula, cta2_titular,
+                cta3_banco, cta3_numero, cta3_cedula, cta3_titular
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            )
+            ON CONFLICT (agencia) DO UPDATE SET
+                pm1_banco = EXCLUDED.pm1_banco,
+                pm1_telefono = EXCLUDED.pm1_telefono,
+                pm1_cedula = EXCLUDED.pm1_cedula,
+                pm2_banco = EXCLUDED.pm2_banco,
+                pm2_telefono = EXCLUDED.pm2_telefono,
+                pm2_cedula = EXCLUDED.pm2_cedula,
+                pm3_banco = EXCLUDED.pm3_banco,
+                pm3_telefono = EXCLUDED.pm3_telefono,
+                pm3_cedula = EXCLUDED.pm3_cedula,
+                cta1_banco = EXCLUDED.cta1_banco,
+                cta1_numero = EXCLUDED.cta1_numero,
+                cta1_cedula = EXCLUDED.cta1_cedula,
+                cta1_titular = EXCLUDED.cta1_titular,
+                cta2_banco = EXCLUDED.cta2_banco,
+                cta2_numero = EXCLUDED.cta2_numero,
+                cta2_cedula = EXCLUDED.cta2_cedula,
+                cta2_titular = EXCLUDED.cta2_titular,
+                cta3_banco = EXCLUDED.cta3_banco,
+                cta3_numero = EXCLUDED.cta3_numero,
+                cta3_cedula = EXCLUDED.cta3_cedula,
+                cta3_titular = EXCLUDED.cta3_titular
+        """, (
+            agencia_norm,
+            pm1_banco.strip(), pm1_telefono.strip(), pm1_cedula.strip(),
+            pm2_banco.strip(), pm2_telefono.strip(), pm2_cedula.strip(),
+            pm3_banco.strip(), pm3_telefono.strip(), pm3_cedula.strip(),
+            cta1_banco.strip(), cta1_numero.strip(), cta1_cedula.strip(), cta1_titular.strip(),
+            cta2_banco.strip(), cta2_numero.strip(), cta2_cedula.strip(), cta2_titular.strip(),
+            cta3_banco.strip(), cta3_numero.strip(), cta3_cedula.strip(), cta3_titular.strip()
+        ))
+    else:
+        cursor.execute("""
+            INSERT INTO metodos_pago (
+                agencia, pm1_banco, pm1_telefono, pm1_cedula,
+                pm2_banco, pm2_telefono, pm2_cedula,
+                pm3_banco, pm3_telefono, pm3_cedula,
+                cta1_banco, cta1_numero, cta1_cedula, cta1_titular,
+                cta2_banco, cta2_numero, cta2_cedula, cta2_titular,
+                cta3_banco, cta3_numero, cta3_cedula, cta3_titular
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )
+            ON CONFLICT (agencia) DO UPDATE SET
+                pm1_banco = excluded.pm1_banco,
+                pm1_telefono = excluded.pm1_telefono,
+                pm1_cedula = excluded.pm1_cedula,
+                pm2_banco = excluded.pm2_banco,
+                pm2_telefono = excluded.pm2_telefono,
+                pm2_cedula = excluded.pm2_cedula,
+                pm3_banco = excluded.pm3_banco,
+                pm3_telefono = excluded.pm3_telefono,
+                pm3_cedula = excluded.pm3_cedula,
+                cta1_banco = excluded.cta1_banco,
+                cta1_numero = excluded.cta1_numero,
+                cta1_cedula = excluded.cta1_cedula,
+                cta1_titular = excluded.cta1_titular,
+                cta2_banco = excluded.cta2_banco,
+                cta2_numero = excluded.cta2_numero,
+                cta2_cedula = excluded.cta2_cedula,
+                cta2_titular = excluded.cta2_titular,
+                cta3_banco = excluded.cta3_banco,
+                cta3_numero = excluded.cta3_numero,
+                cta3_cedula = excluded.cta3_cedula,
+                cta3_titular = excluded.cta3_titular
+        """, (
+            agencia_norm,
+            pm1_banco.strip(), pm1_telefono.strip(), pm1_cedula.strip(),
+            pm2_banco.strip(), pm2_telefono.strip(), pm2_cedula.strip(),
+            pm3_banco.strip(), pm3_telefono.strip(), pm3_cedula.strip(),
+            cta1_banco.strip(), cta1_numero.strip(), cta1_cedula.strip(), cta1_titular.strip(),
+            cta2_banco.strip(), cta2_numero.strip(), cta2_cedula.strip(), cta2_titular.strip(),
+            cta3_banco.strip(), cta3_numero.strip(), cta3_cedula.strip(), cta3_titular.strip()
+        ))
+
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=mispagos", status_code=status.HTTP_303_SEE_OTHER)
 
 def extraer_neto_de_html(detalle_html: str) -> float:
     if not detalle_html:
@@ -1642,9 +1793,6 @@ def get_agencia(
     )
     reps_rango = cursor.fetchall()
     
-    # --------------------------------------------------------------------------
-    # AUDITORÍA CONSOLIDADA: 19 SISTEMAS OFICIALES EN EL ORDEN DEL CUADRO AZUL
-    # --------------------------------------------------------------------------
     auditoria_sistemas_agencia = {
         s: {"venta": 0.0, "comision": 0.0, "premio": 0.0, "neto": 0.0}
         for s in SISTEMAS_OFICIALES
@@ -1765,6 +1913,10 @@ def get_agencia(
         }
         detalle_conciliacion = []
 
+    cursor.execute("SELECT * FROM metodos_pago WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
+    datos_pago_row = cursor.fetchone()
+    datos_pago = dict(datos_pago_row) if datos_pago_row else {}
+
     conn.close()
     
     return templates.TemplateResponse(request=request, name="agencia.html", context={
@@ -1790,7 +1942,8 @@ def get_agencia(
         "detalle_conciliacion": detalle_conciliacion,
         "desde_fecha": f_desde,
         "hasta_fecha": f_hasta,
-        "tab_activa": tab or "pendiente"
+        "tab_activa": tab or "pendiente",
+        "datos_pago": datos_pago
     })
 
 @app.post("/admin/registrar-pago-rapido")
@@ -2665,6 +2818,13 @@ def get_admin(
             "diferencia": tot_dif_admin
         }
 
+        cursor.execute("SELECT * FROM metodos_pago")
+        rows_metodos = cursor.fetchall()
+        metodos_pago_agencias = {}
+        for r_mp in rows_metodos:
+            dict_mp = dict(r_mp)
+            metodos_pago_agencias[dict_mp['agencia']] = dict_mp
+
         conn.close()
 
         (
@@ -2708,7 +2868,8 @@ def get_admin(
             "agencia_filtro": agencia_filtro,
             "tipo_transaccion": tipo_transaccion or "",
             "tab_activa": tab,
-            "tab": tab
+            "tab": tab,
+            "metodos_pago_agencias": metodos_pago_agencias
         })
 
     except Exception as e:
@@ -2717,5 +2878,10 @@ def get_admin(
         return HTMLResponse(content=f"Error interno en admin: {e}", status_code=500)
 
 @app.get("/templates/logo.png")
+@app.get("/static/logo.png")
 def get_logo():
-    return FileResponse("templates/logo.png", media_type="image/png")
+    if os.path.exists("templates/logo.png"):
+        return FileResponse("templates/logo.png", media_type="image/png")
+    if os.path.exists("static/logo.png"):
+        return FileResponse("static/logo.png", media_type="image/png")
+    return HTMLResponse(status_code=404)
