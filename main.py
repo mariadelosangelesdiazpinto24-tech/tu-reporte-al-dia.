@@ -67,10 +67,6 @@ def disparar_notificacion(agencia_destino: str, titulo: str, mensaje: str):
 
     if agencia_destino == "TODAS":
         payload["included_segments"] = ["Total Subscriptions"]
-    elif agencia_destino == "SOLO_EQUIPO":
-        payload["filters"] = [
-            {"field": "tag", "key": "rol", "relation": "!=", "value": "solo_lista_negra"}
-        ]
     elif agencia_destino.upper() == "ADMIN":
         payload["include_aliases"] = {"external_id": ["ADMIN"]}
         payload["target_channel"] = "push"
@@ -1601,12 +1597,8 @@ def get_agencia(
     agencia_info = cursor.fetchone()
     
     genero_agencia = "FEMENINO"
-    rol_agencia = "TAQUILLA"
-    if agencia_info:
-        if agencia_info.get('genero'):
-            genero_agencia = str(agencia_info['genero']).strip().upper()
-        if agencia_info.get('rol'):
-            rol_agencia = str(agencia_info['rol']).strip().upper()
+    if agencia_info and agencia_info.get('genero'):
+        genero_agencia = str(agencia_info['genero']).strip().upper()
     
     cursor.execute("SELECT fecha FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC LIMIT 1", (agencia_norm,))
     row_ult = cursor.fetchone()
@@ -1703,23 +1695,19 @@ def get_agencia(
     facturas_cashea_auditoria = [dict(r) for r in cursor.fetchall()]
     auditoria_cashea_monto = sum(float(c['monto'] or 0.0) for c in facturas_cashea_auditoria)
 
-    # Filtrar comunicados según rol
-    if rol_agencia == 'SOLO_LISTA_NEGRA' or genero_agencia == 'SOLO_LISTA_NEGRA':
-        comunicados = []
-    else:
-        try:
-            cursor.execute(
-                """SELECT c.* FROM comunicados c
-                   LEFT JOIN lecturas_comunicados l ON c.id = l.comunicado_id AND UPPER(TRIM(l.agencia)) = %s
-                   WHERE (c.agencia_destino IN ('TODAS', 'EQUIPO') OR UPPER(TRIM(c.agencia_destino)) = %s)
-                     AND l.id IS NULL
-                   ORDER BY c.id DESC""",
-                (agencia_norm, agencia_norm)
-            )
-            comunicados = [dict(row) for row in cursor.fetchall()]
-        except Exception:
-            cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
-            comunicados = [dict(row) for row in cursor.fetchall()]
+    try:
+        cursor.execute(
+            """SELECT c.* FROM comunicados c
+               LEFT JOIN lecturas_comunicados l ON c.id = l.comunicado_id AND UPPER(TRIM(l.agencia)) = %s
+               WHERE (c.agencia_destino = 'TODAS' OR UPPER(TRIM(c.agencia_destino)) = %s)
+                 AND l.id IS NULL
+               ORDER BY c.id DESC""",
+            (agencia_norm, agencia_norm)
+        )
+        comunicados = [dict(row) for row in cursor.fetchall()]
+    except Exception:
+        cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
+        comunicados = [dict(row) for row in cursor.fetchall()]
 
     cuenta_ag = obtener_cuenta_agencia_corte(agencia_norm)
 
@@ -1761,7 +1749,7 @@ def get_agencia(
             "total_premio_cobrado": tot_p_cob,
             "total_reportado": float(row_concil["total_reportado"] or 0.0),
             "total_venta_real": tot_v_rea,
-            "total_premio_real": tot_prea_admin,
+            "total_premio_real": tot_p_rea,
             "total_sistema": float(row_concil["total_sistema"] or 0.0),
             "diferencia": float(row_concil["diferencia"] or 0.0)
         }
@@ -2476,12 +2464,12 @@ def post_comunicado(mensaje: str = Form(...)):
         conn = get_db()
         cursor = conn.cursor()
         try:
-            cursor.execute("INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, 'EQUIPO')", (mensaje.strip(),))
+            cursor.execute("INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, 'TODAS')", (mensaje.strip(),))
         except Exception:
             cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje.strip(),))
         conn.commit()
         conn.close()
-        disparar_notificacion("SOLO_EQUIPO", "📢 Comunicado Los Ángeles del Dinero", mensaje.strip())
+        disparar_notificacion("TODAS", "📢 Comunicado Los Ángeles del Dinero", mensaje.strip())
     return RedirectResponse(url="/admin?tab=notificaciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/eliminar-comunicado")
@@ -2558,7 +2546,7 @@ def get_admin(
         solicitudes_ln_pendientes = [dict(r) for r in cursor.fetchall()]
         
         try:
-            cursor.execute("SELECT * FROM comunicados WHERE agencia_destino IN ('TODAS', 'EQUIPO') ORDER BY id DESC")
+            cursor.execute("SELECT * FROM comunicados WHERE agencia_destino = 'TODAS' ORDER BY id DESC")
             comunicados = [dict(row) for row in cursor.fetchall()]
         except Exception:
             cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
