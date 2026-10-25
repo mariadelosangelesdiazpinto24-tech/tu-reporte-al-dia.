@@ -1884,11 +1884,51 @@
             return "Bs. " + Number(val).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
+        // COPIAR UN SOLO DATO
         function copiarTextoRapido(texto, campo) {
             navigator.clipboard.writeText(texto).then(function() {
                 alert("¡" + campo + " copiado!: " + texto);
             }).catch(function() {
                 prompt("Copia el siguiente dato:", texto);
+            });
+        }
+
+        // COPIAR PAGO MÓVIL COMPLETO EN LÍNEAS SEPARADAS
+        function copiarPagoMovilCompleto(bancoRaw, tlfRaw, cedulaRaw) {
+            // Extraer solo dígitos del código del banco (por ejemplo "Banesco (0134)" o "0134" -> "0134")
+            var codigoBanco = "";
+            var matchBanco = (bancoRaw || "").match(/\d{4}/);
+            if (matchBanco) {
+                codigoBanco = matchBanco[0];
+            } else {
+                codigoBanco = (bancoRaw || "").trim();
+            }
+
+            // Limpiar teléfono (solo dígitos)
+            var tlf = (tlfRaw || "").replace(/\D/g, '').trim();
+
+            // Limpiar cédula (solo dígitos numéricos)
+            var cedula = (cedulaRaw || "").replace(/\D/g, '').trim();
+
+            var textoCompleto = codigoBanco + "\n" + tlf + "\n" + cedula;
+
+            navigator.clipboard.writeText(textoCompleto).then(function() {
+                alert("✅ ¡Pago Móvil Copiado Completo!:\n\n" + textoCompleto);
+            }).catch(function() {
+                prompt("Copia los datos de Pago Móvil:", textoCompleto);
+            });
+        }
+
+        // COPIAR CUENTA BANCARIA COMPLETA EN LÍNEAS SEPARADAS
+        function copiarCuentaCompleta(banco, numeroRaw, cedulaRaw, titular) {
+            var numero = (numeroRaw || "").replace(/\s+/g, '').trim();
+            var cedula = (cedulaRaw || "").trim();
+            var textoCompleto = numero + "\n" + cedula + "\n" + (titular || "").trim() + "\n" + (banco || "").trim();
+
+            navigator.clipboard.writeText(textoCompleto).then(function() {
+                alert("✅ ¡Datos de Cuenta Copiados!:\n\n" + textoCompleto);
+            }).catch(function() {
+                prompt("Copia los datos de la cuenta:", textoCompleto);
             });
         }
 
@@ -1915,16 +1955,19 @@
                         <div class="card p-2 bg-white border rounded-3 shadow-sm h-100">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <span class="badge bg-primary">Pago Móvil ${i}</span>
-                                <small class="fw-bold text-dark">${banco || 'Banco No Ind.'}</small>
+                                <small class="fw-bold text-dark font-monospace">${banco || 'S/N'}</small>
                             </div>
                             <div class="small text-muted mb-1">
                                 <i class="fas fa-phone me-1"></i> <strong>${tlf || 'S/N'}</strong>
-                                ${tlf ? `<button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 ms-1" onclick="copiarTextoRapido('${tlf}', 'Teléfono')"><i class="fas fa-copy"></i></button>` : ''}
+                                ${tlf ? `<button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 ms-1" title="Copiar Teléfono" onclick="copiarTextoRapido('${tlf}', 'Teléfono')"><i class="fas fa-copy"></i></button>` : ''}
                             </div>
-                            <div class="small text-muted">
+                            <div class="small text-muted mb-2">
                                 <i class="fas fa-id-card me-1"></i> <strong>${ced || 'S/N'}</strong>
-                                ${ced ? `<button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 ms-1" onclick="copiarTextoRapido('${ced}', 'Cédula')"><i class="fas fa-copy"></i></button>` : ''}
+                                ${ced ? `<button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 ms-1" title="Copiar Cédula" onclick="copiarTextoRapido('${ced}', 'Cédula')"><i class="fas fa-copy"></i></button>` : ''}
                             </div>
+                            <button type="button" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill py-1 mt-auto" onclick="copiarPagoMovilCompleto('${banco || ''}', '${tlf || ''}', '${ced || ''}')">
+                                <i class="fas fa-copy me-1"></i> Copiar Completo
+                            </button>
                         </div>
                     `;
                     contPM.appendChild(col);
@@ -1954,13 +1997,16 @@
                             </div>
                             <div class="small fw-bold text-dark font-monospace mb-1 text-break">
                                 ${ctaNumero || 'Sin número'}
-                                ${ctaNumero ? `<button type="button" class="btn btn-outline-success btn-sm py-0 px-1 ms-1" onclick="copiarTextoRapido('${ctaNumero}', 'Número de Cuenta')"><i class="fas fa-copy"></i></button>` : ''}
+                                ${ctaNumero ? `<button type="button" class="btn btn-outline-success btn-sm py-0 px-1 ms-1" title="Copiar Número" onclick="copiarTextoRapido('${ctaNumero}', 'Número de Cuenta')"><i class="fas fa-copy"></i></button>` : ''}
                             </div>
-                            <div class="small text-muted">
+                            <div class="small text-muted mb-2">
                                 <strong>Titular:</strong> ${ctaTitular || 'N/A'}<br>
                                 <strong>Cédula:</strong> ${ctaCed || 'N/A'}
-                                ${ctaCed ? `<button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 ms-1" onclick="copiarTextoRapido('${ctaCed}', 'Cédula Titular')"><i class="fas fa-copy"></i></button>` : ''}
+                                ${ctaCed ? `<button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 ms-1" title="Copiar Cédula" onclick="copiarTextoRapido('${ctaCed}', 'Cédula Titular')"><i class="fas fa-copy"></i></button>` : ''}
                             </div>
+                            <button type="button" class="btn btn-success btn-sm w-100 fw-bold rounded-pill py-1 mt-auto" onclick="copiarCuentaCompleta('${ctaBanco || ''}', '${ctaNumero || ''}', '${ctaCed || ''}', '${ctaTitular || ''}')">
+                                <i class="fas fa-copy me-1"></i> Copiar Completo
+                            </button>
                         </div>
                     `;
                     contCuentas.appendChild(colC);
