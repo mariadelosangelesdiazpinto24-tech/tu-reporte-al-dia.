@@ -221,7 +221,7 @@
 
         <div class="tab-content" id="adminTabsContent">
 
-            <!-- PESTAÑA: TAQUILLAS DE LISTA NEGRA (INDEPENDIENTE) -->
+            <!-- PESTAÑA: TAQUILLAS DE LISTA NEGRA -->
             <div class="tab-pane fade {% if tab_activa == 'taquillas_ln' %}show active{% endif %}" id="tab-taquillas-ln" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-3 shadow-sm border-start border-4 border-dark">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
@@ -314,7 +314,7 @@
                         </div>
                     </div>
 
-                    <!-- SOLICITUDES PENDIENTES DE ACCESO A LISTA NEGRA -->
+                    <!-- SOLICITUDES PENDIENTES -->
                     {% if solicitudes_ln_pendientes and solicitudes_ln_pendientes | length > 0 %}
                     <div class="alert alert-warning border-0 p-3 mb-3 rounded-4 shadow-sm">
                         <h6 class="fw-bold text-dark mb-2"><i class="fas fa-user-clock text-danger me-2"></i> Solicitudes Externas de Acceso a Lista Negra</h6>
@@ -491,6 +491,9 @@
                                         Bs. {{ (ag.saldo_pendiente or 0) | dinero }}
                                     </td>
                                     <td class="text-center">
+                                        <button type="button" class="btn btn-outline-info btn-sm py-0 me-1" title="Ver Datos Bancarios" onclick="abrirModalVerPagosAgencia('{{ ag.agencia }}')">
+                                            <i class="fas fa-wallet"></i>
+                                        </button>
                                         <button type="button" class="btn btn-outline-warning btn-sm py-0 me-1" title="Ajustar Saldo Anterior" 
                                                 data-bs-toggle="modal" 
                                                 data-bs-target="#modalAjustarSaldoAnterior" 
@@ -855,7 +858,12 @@
 
                     <div class="col-md-6">
                         <div class="card card-custom p-4 bg-white h-100 shadow-sm">
-                            <h5 class="fw-bold text-danger mb-2"><i class="fas fa-arrow-up me-2"></i>Registrar Salida de Dinero</h5>
+                            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-1">
+                                <h5 class="fw-bold text-danger m-0"><i class="fas fa-arrow-up me-2"></i>Registrar Salida de Dinero</h5>
+                                <button type="button" class="btn btn-outline-dark btn-sm rounded-pill fw-bold" id="btnVerDatosPagoCaja" onclick="abrirModalPagoDesdeCaja()" style="display: none;">
+                                    <i class="fas fa-wallet me-1 text-primary"></i> Ver Datos Bancarios
+                                </button>
+                            </div>
                             <p class="text-muted small mb-3">Paga saldo a favor o adelanta efectivo para premios/operatividad.</p>
                             <form action="/admin/ajustes/salida-dinero" method="POST" enctype="multipart/form-data">
                                 <div class="mb-3">
@@ -1687,7 +1695,7 @@
         </div>
     </div>
 
-    <!-- MODAL DESGLOSE CON JUSTIFICACIÓN EXACTA -->
+    <!-- MODAL DESGLOSE CON JUSTIFICACIÓN EXACTA Y BOTÓN DE TRANSFERIR -->
     <div class="modal fade" id="modalDesgloseAgencia" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow">
@@ -1727,7 +1735,47 @@
                             <span id="mdlTotal">Bs. 0,00</span>
                         </div>
                     </div>
-                    <small class="text-muted d-block text-center">Fórmula: <code>Saldo Anterior + Reporte - Cashea - Abonos + Liquidaciones + Adelantos</code></small>
+                    <small class="text-muted d-block text-center mb-3">Fórmula: <code>Saldo Anterior + Reporte - Cashea - Abonos + Liquidaciones + Adelantos</code></small>
+                    
+                    <!-- BOTÓN TRANSFERIR CON DATOS DE PAGO -->
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-success fw-bold py-2 shadow-sm rounded-pill" id="btnMdlTransferirAgencia" onclick="transferirDesdeDesglose()">
+                            <i class="fas fa-money-bill-transfer me-2"></i> Transferir / Ver Datos de Pago 💳
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PARA VER Y COPIAR DATOS BANCARIOS / MIS PAGOS DE UNA AGENCIA -->
+    <div class="modal fade" id="modalVerDatosPago" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-dark text-white py-2">
+                    <h6 class="modal-title fw-bold" id="tituloModalDatosPago">
+                        <i class="fas fa-wallet me-2 text-warning"></i> Cuentas y Pago Móvil de la Agencia
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-3 bg-light">
+                    <div class="alert alert-light border small py-2 mb-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            Agencia: <strong id="lblAgenciaDatosPago" class="text-primary fs-6"></strong>
+                        </div>
+                        <span class="badge bg-secondary">Datos registrados por la agencia</span>
+                    </div>
+
+                    <!-- PAGO MÓVIL (HASTA 3) -->
+                    <h6 class="fw-bold text-dark mb-2"><i class="fas fa-mobile-screen-button me-2 text-primary"></i>Cuentas Pago Móvil</h6>
+                    <div class="row g-2 mb-3" id="contenedorPM"></div>
+
+                    <!-- CUENTAS BANCARIAS (HASTA 3) -->
+                    <h6 class="fw-bold text-dark mb-2"><i class="fas fa-building-columns me-2 text-success"></i>Cuentas Bancarias / Transferencias</h6>
+                    <div class="row g-2" id="contenedorCuentas"></div>
+                </div>
+                <div class="modal-footer bg-white py-2">
+                    <button type="button" class="btn btn-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">Cerrar</button>
                 </div>
             </div>
         </div>
@@ -1781,6 +1829,10 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // METODOS DE PAGO EN CACHE PARA CONSULTA INSTANTANEA
+        var METODOS_PAGO_AGENCIAS = {{ metodos_pago_agencias | tojson if metodos_pago_agencias is defined and metodos_pago_agencias else '{}' }};
+        var agenciaSeleccionadaDesglose = "";
+
         // CONFIGURACIÓN OFICIAL DE REGLAS POR SISTEMA
         var TABLA_REGLAS_SISTEMAS = {
             "MAXPLAY":        { pct_agencia: 12, pct_ganancia: 4, pct_part: 20 },
@@ -1830,6 +1882,114 @@
 
         function formatoBs(val) {
             return "Bs. " + Number(val).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function copiarTextoRapido(texto, campo) {
+            navigator.clipboard.writeText(texto).then(function() {
+                alert("¡" + campo + " copiado!: " + texto);
+            }).catch(function() {
+                prompt("Copia el siguiente dato:", texto);
+            });
+        }
+
+        function abrirModalVerPagosAgencia(nombreAgencia) {
+            var datos = METODOS_PAGO_AGENCIAS[nombreAgencia] || {};
+            document.getElementById("lblAgenciaDatosPago").innerText = nombreAgencia;
+
+            var contPM = document.getElementById("contenedorPM");
+            var contCuentas = document.getElementById("contenedorCuentas");
+            contPM.innerHTML = "";
+            contCuentas.innerHTML = "";
+
+            var tienePM = false;
+            for (var i = 1; i <= 3; i++) {
+                var banco = datos["pm" + i + "_banco"];
+                var tlf = datos["pm" + i + "_telefono"];
+                var ced = datos["pm" + i + "_cedula"];
+
+                if (banco || tlf || ced) {
+                    tienePM = true;
+                    var col = document.createElement("div");
+                    col.className = "col-md-4";
+                    col.innerHTML = `
+                        <div class="card p-2 bg-white border rounded-3 shadow-sm h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="badge bg-primary">Pago Móvil ${i}</span>
+                                <small class="fw-bold text-dark">${banco || 'Banco No Ind.'}</small>
+                            </div>
+                            <div class="small text-muted mb-1">
+                                <i class="fas fa-phone me-1"></i> <strong>${tlf || 'S/N'}</strong>
+                                ${tlf ? `<button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 ms-1" onclick="copiarTextoRapido('${tlf}', 'Teléfono')"><i class="fas fa-copy"></i></button>` : ''}
+                            </div>
+                            <div class="small text-muted">
+                                <i class="fas fa-id-card me-1"></i> <strong>${ced || 'S/N'}</strong>
+                                ${ced ? `<button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 ms-1" onclick="copiarTextoRapido('${ced}', 'Cédula')"><i class="fas fa-copy"></i></button>` : ''}
+                            </div>
+                        </div>
+                    `;
+                    contPM.appendChild(col);
+                }
+            }
+
+            if (!tienePM) {
+                contPM.innerHTML = '<div class="col-12"><div class="alert alert-light border py-2 small text-muted text-center m-0">No tiene cuentas de Pago Móvil registradas.</div></div>';
+            }
+
+            var tieneCuentas = false;
+            for (var j = 1; j <= 3; j++) {
+                var ctaBanco = datos["cta" + j + "_banco"];
+                var ctaNumero = datos["cta" + j + "_numero"];
+                var ctaCed = datos["cta" + j + "_cedula"];
+                var ctaTitular = datos["cta" + j + "_titular"];
+
+                if (ctaBanco || ctaNumero || ctaCed || ctaTitular) {
+                    tieneCuentas = true;
+                    var colC = document.createElement("div");
+                    colC.className = "col-md-4";
+                    colC.innerHTML = `
+                        <div class="card p-2 bg-white border rounded-3 shadow-sm h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="badge bg-success">Cuenta ${j}</span>
+                                <small class="fw-bold text-dark">${ctaBanco || 'Banco'}</small>
+                            </div>
+                            <div class="small fw-bold text-dark font-monospace mb-1 text-break">
+                                ${ctaNumero || 'Sin número'}
+                                ${ctaNumero ? `<button type="button" class="btn btn-outline-success btn-sm py-0 px-1 ms-1" onclick="copiarTextoRapido('${ctaNumero}', 'Número de Cuenta')"><i class="fas fa-copy"></i></button>` : ''}
+                            </div>
+                            <div class="small text-muted">
+                                <strong>Titular:</strong> ${ctaTitular || 'N/A'}<br>
+                                <strong>Cédula:</strong> ${ctaCed || 'N/A'}
+                                ${ctaCed ? `<button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 ms-1" onclick="copiarTextoRapido('${ctaCed}', 'Cédula Titular')"><i class="fas fa-copy"></i></button>` : ''}
+                            </div>
+                        </div>
+                    `;
+                    contCuentas.appendChild(colC);
+                }
+            }
+
+            if (!tieneCuentas) {
+                contCuentas.innerHTML = '<div class="col-12"><div class="alert alert-light border py-2 small text-muted text-center m-0">No tiene cuentas bancarias registradas.</div></div>';
+            }
+
+            var modal = new bootstrap.Modal(document.getElementById("modalVerDatosPago"));
+            modal.show();
+        }
+
+        function transferirDesdeDesglose() {
+            if (agenciaSeleccionadaDesglose) {
+                var modalDesgloseEl = document.getElementById("modalDesgloseAgencia");
+                var modalDesglose = bootstrap.Modal.getInstance(modalDesgloseEl);
+                if (modalDesglose) modalDesglose.hide();
+
+                abrirModalVerPagosAgencia(agenciaSeleccionadaDesglose);
+            }
+        }
+
+        function abrirModalPagoDesdeCaja() {
+            var selectAg = document.getElementById("selectCajaSalidaAgencia");
+            if (selectAg && selectAg.value) {
+                abrirModalVerPagosAgencia(selectAg.value);
+            }
         }
 
         var casheaAgrupadoGlobal = {};
@@ -2156,6 +2316,13 @@
             var inputMonto = document.getElementById('inputMontoSalida');
             var selectTipo = document.getElementById('selectTipoSalida');
             var infoSaldo = document.getElementById('infoSaldoSalida');
+            var btnVerPagos = document.getElementById('btnVerDatosPagoCaja');
+
+            if (selectElem.value && selectElem.value !== "") {
+                if (btnVerPagos) btnVerPagos.style.display = "inline-block";
+            } else {
+                if (btnVerPagos) btnVerPagos.style.display = "none";
+            }
 
             if (saldo < -0.009) {
                 var saldoAbs = Math.abs(saldo);
@@ -2195,9 +2362,7 @@
             modal.show();
         }
 
-        // ==========================================
         // MOTOR EN TIEMPO REAL: LISTA NEGRA (ADMIN)
-        // ==========================================
         function cargarListaNegraAdmin(query = "") {
             var url = "/api/lista-negra";
             if (query && query.trim() !== "") {
@@ -2510,6 +2675,7 @@
         }
 
         function abrirModalDesglose(agencia, saldoAnterior, reportes, cashea, adelantos, liquidaciones, abonos, totalBackend) {
+            agenciaSeleccionadaDesglose = agencia;
             document.getElementById("modalDesgloseTitulo").innerText = "Justificación de Cuenta: " + agencia;
             
             var antNum = parseMonto(saldoAnterior);
