@@ -1815,7 +1815,6 @@ def get_agencia(
 ):
     if not nombre:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-    
     agencia_norm = normalizar(nombre)
     hoy_vzla = obtener_fecha_venezuela()
 
@@ -1940,31 +1939,40 @@ def get_agencia(
     cursor.execute("SELECT id, fecha, monto, detalle_html FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
     reportes_agencia = [dict(row) for row in cursor.fetchall()]
 
+# ----------------------------------------------------------------------
+    # 1. RANGO OFICIAL FIJO: ÚLTIMA SEMANA COMPLETA CERRADA (LUNES A DOMINGO)
     # ----------------------------------------------------------------------
-    # CARGA EXACTA DE CONCILIACIÓN SEMANAL POR RANGO PARA LA TAQUILLA
+    hoy_date = datetime.now(TZ_VENEZUELA).date()
+    lunes_pasado = hoy_date - timedelta(days=hoy_date.weekday() + 7)
+    domingo_pasado = lunes_pasado + timedelta(days=6)
+    sem_cerrada_desde = lunes_pasado.strftime('%Y-%m-%d')
+    sem_cerrada_hasta = domingo_pasado.strftime('%Y-%m-%d')
+
+    # Si no se filtra manualmente, se fija la última semana cerrada
+    rango_concil_desde = desde_fecha if desde_fecha else sem_cerrada_desde
+    rango_concil_hasta = hasta_fecha if hasta_fecha else sem_cerrada_hasta
+
     # ----------------------------------------------------------------------
-    query_concil_taquilla = """
+    # 2. CONSULTAR EL CUADRE SEMANAL EXACTO DE ESA SEMANA
+    # ----------------------------------------------------------------------
+    cursor.execute("""
         SELECT * FROM conciliaciones_semanales 
-        WHERE UPPER(TRIM(agencia)) = %s
-    """
-    params_ct = [agencia_norm]
-
-    # Si hay fechas en el filtro, buscar el cierre exacto de ese período
-    if f_desde and f_hasta:
-        query_concil_taquilla += " AND desde_fecha <= %s AND hasta_fecha >= %s"
-        params_ct.extend([f_hasta, f_desde])
-
-    query_concil_taquilla += " ORDER BY id DESC LIMIT 1"
-    cursor.execute(query_concil_taquilla, tuple(params_ct))
+        WHERE UPPER(TRIM(agencia)) = %s 
+          AND desde_fecha <= %s AND hasta_fecha >= %s
+        ORDER BY id DESC LIMIT 1
+    """, (agencia_norm, rango_concil_hasta, rango_concil_desde))
     row_concil = cursor.fetchone()
 
-    # Fallback si no coincide el filtro
     if not row_concil:
-        cursor.execute(
-            "SELECT * FROM conciliaciones_semanales WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC LIMIT 1",
-            (agencia_norm,)
-        )
+        cursor.execute("""
+            SELECT * FROM conciliaciones_semanales 
+            WHERE UPPER(TRIM(agencia)) = %s 
+            ORDER BY id DESC LIMIT 1
+        """, (agencia_norm,))
         row_concil = cursor.fetchone()
+
+    dif_semanal_original = 0.0
+    detalle_conciliacion = []
 
     if row_concil:
         try:
@@ -1972,53 +1980,56 @@ def get_agencia(
         except Exception:
             detalle_conciliacion = []
 
-        # Recalcular unificando todos los sistemas de la semana
-        tot_v_cob = sum(float(item.get("venta_cobrada", 0) or 0) for item in detalle_conciliacion)
-        tot_p_cob = sum(float(item.get("premio_cobrado", 0) or 0) for item in detalle_conciliacion)
-        tot_rep_cob = sum(float(item.get("neto_cobrado", 0) or 0) for item in detalle_conciliacion)
+        # Suma neta de los ajustes de los sistemas de esa semana
+        dif_semanal_original = sum(float(item.get("dif_neto", 0) or 0) for item in detalle_conciliacion)
+        dif_semanal_original = round(dif_semanal_original, 2)
 
-        tot_v_rea = sum(float(item.get("venta_real", 0) or 0) for item in detalle_conciliacion)
-        tot_p_rea = sum(float(item.get("premio_real", 0) or 0) for item in detalle_conciliacion)
-        tot_sis_rea = sum(float(item.get("neto_real", 0) or 0) for item in detalle_conciliacion)
+        # ------------------------------------------------------------------
+        # 3. VERIFICAR SI YA FUE PAGADO / SALDADO PARA QUE SALGA SOLVENTE
+        # ------------------------------------------------------------------
+        cursor.execute("""
+            SELECT COALESCE(SUM(monto), 0) as pagado 
+            FROM pagos 
+            WHERE UPPER(TRIM(agencia)) = %s 
+              AND estado = 'APROBADO' 
+              AND (factura LIKE %s OR comprobante LIKE %s)
+        """, (agencia_norm, f"%{row_concil['desde_fecha']}%", f"%{row_concil['desde_fecha']}%"))
+        pago_concil = cursor.fetchone()
+        monto_ya_pagado = float(pago_concil['pagado'] or 0.0) if pago_concil else 0.0
 
-        # Suma consolidada neta de todos los descuadres
-        diferencia_unificada = round(tot_sis_rea - tot_rep_cob, 2)
-
-        # Filtrar para mostrar en la tabla únicamente los sistemas con movimiento o descuadre
-        detalle_filtrado = []
-        for it in detalle_conciliacion:
-            dn = float(it.get("dif_neto", 0) or 0)
-            dv = float(it.get("dif_venta", 0) or 0)
-            vr = float(it.get("venta_real", 0) or 0)
-            vc = float(it.get("venta_cobrada", 0) or 0)
-            if abs(dn) > 0.01 or abs(dv) > 0.01 or vr > 0 or vc > 0:
-                detalle_filtrado.append(it)
+        if abs(dif_semanal_original) > 0 and monto_ya_pagado >= abs(dif_semanal_original) - 0.05:
+            dif_semanal_activa = 0.0
+            esta_solvente = True
+        else:
+            dif_semanal_activa = dif_semanal_original
+            esta_solvente = abs(dif_semanal_original) < 0.05
 
         conciliacion_resumen = {
-            "total_venta_cobrada": tot_v_cob,
-            "total_premio_cobrado": tot_p_cob,
-            "total_reportado": tot_rep_cob,
-            "total_venta_real": tot_v_rea,
-            "total_premio_real": tot_p_rea,
-            "total_sistema": tot_sis_rea,
-            "diferencia": diferencia_unificada
+            "total_reportado": float(row_concil["total_reportado"] or 0.0),
+            "total_sistema": float(row_concil["total_sistema"] or 0.0),
+            "diferencia": dif_semanal_activa,
+            "diferencia_original": dif_semanal_original,
+            "solvente": esta_solvente,
+            "desde_fecha": row_concil["desde_fecha"],
+            "hasta_fecha": row_concil["hasta_fecha"]
         }
-        detalle_conciliacion = detalle_filtrado
     else:
+        dif_semanal_activa = 0.0
         conciliacion_resumen = {
-            "total_venta_cobrada": 0.0,
-            "total_premio_cobrado": 0.0,
             "total_reportado": 0.0,
-            "total_venta_real": 0.0,
-            "total_premio_real": 0.0,
             "total_sistema": 0.0,
-            "diferencia": 0.0
+            "diferencia": 0.0,
+            "diferencia_original": 0.0,
+            "solvente": True,
+            "desde_fecha": sem_cerrada_desde,
+            "hasta_fecha": sem_cerrada_hasta
         }
-        detalle_conciliacion = []
 
-    # Impacto de la diferencia semanal unificada en el saldo actual de la taquilla
-    dif_semanal_val = float(conciliacion_resumen.get("diferencia", 0.0) or 0.0)
-    saldo_actual = cuenta_ag["saldo_final"] + dif_semanal_val
+    # ----------------------------------------------------------------------
+    # 4. SALDO GLOBAL CON IMPACTO EXACTO
+    # ----------------------------------------------------------------------
+    cuenta_ag = obtener_cuenta_agencia_corte(agencia_norm)
+    saldo_actual = cuenta_ag["saldo_final"] + dif_semanal_activa
 
     desglose_cuenta = {
         "fecha": hoy_vzla,
@@ -2028,7 +2039,7 @@ def get_agencia(
         "abonos_hoy": cuenta_ag["abonos_hoy"],
         "adelantos_hoy": cuenta_ag["adelantos_hoy"],
         "liquidaciones_hoy": cuenta_ag["liquidaciones_hoy"],
-        "diferencia_semanal": dif_semanal_val,
+        "diferencia_semanal": dif_semanal_activa,
         "saldo_final": saldo_actual
     }
 
@@ -2036,8 +2047,7 @@ def get_agencia(
     datos_pago_row = cursor.fetchone()
     datos_pago = dict(datos_pago_row) if datos_pago_row else {}
 
-    conn.close()
-    
+    conn.close()    
     return templates.TemplateResponse(request=request, name="agencia.html", context={
         "agencia": agencia_info,
         "nombre_agencia": agencia_norm,
