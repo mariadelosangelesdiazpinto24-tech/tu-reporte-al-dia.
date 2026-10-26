@@ -2888,29 +2888,63 @@ def get_admin(
             
             cuenta_taquilla = obtener_cuenta_agencia_corte(ag_nombre)
             
-           # 1. Buscar la diferencia de la semana cerrada para esta taquilla
+           # 1. Buscar la diferencia EXACTA de la semana auditada (19 al 25 de octubre)
             nombre_raiz = ag_nombre.replace("BABY", "").strip()
 
             cursor.execute("""
-                SELECT desde_fecha, hasta_fecha, detalle_dias, diferencia 
+                SELECT desde_fecha, hasta_fecha, detalle_dias 
                 FROM conciliaciones_semanales 
                 WHERE (
                     UPPER(TRIM(agencia)) = %s 
-                    OR UPPER(TRIM(agencia)) = %s
+                    OR UPPER(TRIM(agencia)) = %s 
                     OR UPPER(TRIM(agencia)) LIKE %s
                 )
+                AND desde_fecha <= %s AND hasta_fecha >= %s
                 ORDER BY id DESC LIMIT 1
-            """, (ag_nombre, nombre_raiz, f"%{nombre_raiz}%"))
+            """, (ag_nombre, nombre_raiz, f"%{nombre_raiz}%", sem_cerrada_hasta, sem_cerrada_desde))
             row_c_ag = cursor.fetchone()
+
             if not row_c_ag:
+                # Fallback secundario si la fecha exacta está invertida en la BD
                 cursor.execute("""
                     SELECT desde_fecha, hasta_fecha, detalle_dias 
                     FROM conciliaciones_semanales 
-                    WHERE UPPER(TRIM(agencia)) = %s 
+                    WHERE (
+                        UPPER(TRIM(agencia)) = %s 
+                        OR UPPER(TRIM(agencia)) = %s 
+                        OR UPPER(TRIM(agencia)) LIKE %s
+                    )
+                    AND (desde_fecha = %s OR hasta_fecha = %s)
                     ORDER BY id DESC LIMIT 1
-                """, (ag_nombre,))
+                """, (ag_nombre, nombre_raiz, f"%{nombre_raiz}%", sem_cerrada_desde, sem_cerrada_hasta))
                 row_c_ag = cursor.fetchone()
 
+            dif_sem_taquilla = 0.0
+            if row_c_ag and row_c_ag.get("detalle_dias"):
+                try:
+                    items_dias_ag = json.loads(row_c_ag["detalle_dias"] or "[]")
+                except Exception:
+                    items_dias_ag = []
+                
+                # Sumar estrictamente el ajuste neto real calculado por sistema
+                dif_calculada = sum(float(it.get("dif_neto", 0) or 0) for it in items_dias_ag)
+                dif_original = round(dif_calculada, 2)
+
+                # Verificar si ya fue saldado o pagado
+                cursor.execute("""
+                    SELECT COALESCE(SUM(monto), 0) as pagado 
+                    FROM pagos 
+                    WHERE UPPER(TRIM(agencia)) = %s 
+                      AND estado = 'APROBADO' 
+                      AND (factura LIKE %s OR comprobante LIKE %s)
+                """, (ag_nombre, f"%{row_c_ag['desde_fecha']}%", f"%{row_c_ag['desde_fecha']}%"))
+                p_concil = cursor.fetchone()
+                m_pagado = float(p_concil['pagado'] or 0.0) if p_concil else 0.0
+
+                if abs(dif_original) > 0 and m_pagado >= abs(dif_original) - 0.05:
+                    dif_sem_taquilla = 0.0
+                else:
+                    dif_sem_taquilla = dif_original
             dif_sem_taquilla = 0.0
             if row_c_ag:
                 try:
