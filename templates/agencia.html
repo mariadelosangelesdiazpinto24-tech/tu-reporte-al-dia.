@@ -424,14 +424,14 @@
                                 </div>
                                 {% endif %}
 
-                                <!-- FILA DINÁMICA DE DIFERENCIA SEMANAL (SI EXISTE) -->
-                                {% if conciliacion_resumen and conciliacion_resumen.diferencia and conciliacion_resumen.diferencia|abs > 0.01 %}
+                                <!-- FILA DINÁMICA DE DIFERENCIA SEMANAL (CONECTADA AL BALANCE DEL MAIN) -->
+                                {% if desglose_cuenta and desglose_cuenta.diferencia_semanal and desglose_cuenta.diferencia_semanal|abs > 0.01 %}
                                 <div class="col-12 d-flex justify-content-between border-bottom py-1 bg-white px-2 rounded">
-                                    <span class="{% if conciliacion_resumen.diferencia > 0 %}text-danger{% else %}text-success{% endif %} fw-bold">
+                                    <span class="{% if desglose_cuenta.diferencia_semanal > 0 %}text-danger{% else %}text-success{% endif %} fw-bold">
                                         <i class="fas fa-balance-scale me-1"></i> Ajuste por Cierre Semanal Auditado:
                                     </span>
-                                    <strong class="{% if conciliacion_resumen.diferencia > 0 %}text-danger{% else %}text-success{% endif %}">
-                                        {% if conciliacion_resumen.diferencia > 0 %}+{% endif %} Bs. {{ conciliacion_resumen.diferencia | dinero }}
+                                    <strong class="{% if desglose_cuenta.diferencia_semanal > 0 %}text-danger{% else %}text-success{% endif %}">
+                                        {% if desglose_cuenta.diferencia_semanal > 0 %}+{% endif %} Bs. {{ desglose_cuenta.diferencia_semanal | dinero }}
                                     </strong>
                                 </div>
                                 {% endif %}
