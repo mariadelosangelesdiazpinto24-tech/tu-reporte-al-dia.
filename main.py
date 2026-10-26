@@ -2873,38 +2873,30 @@ def get_admin(
         sem_cerrada_desde = lunes_pasado.strftime('%Y-%m-%d')
         sem_cerrada_hasta = domingo_pasado.strftime('%Y-%m-%d')
 
-       # ----------------------------------------------------------------------
+        # ----------------------------------------------------------------------
         # MAPA EXACTO DE AJUSTES SEMANALES AUDITADOS (Directo de la conciliación)
         # ----------------------------------------------------------------------
         cursor.execute("""
-            SELECT DISTINCT ON (UPPER(TRIM(agencia))) agencia, desde_fecha, hasta_fecha, detalle_dias, diferencia 
+            SELECT DISTINCT ON (UPPER(TRIM(agencia))) agencia, desde_fecha, hasta_fecha, detalle_dias 
             FROM conciliaciones_semanales 
+            WHERE desde_fecha <= %s AND hasta_fecha >= %s
             ORDER BY UPPER(TRIM(agencia)), id DESC
-        """)
+        """, (sem_cerrada_hasta, sem_cerrada_desde))
         rows_todas_concil = cursor.fetchall()
 
         mapa_ajustes_semanales = {}
         for r_c in rows_todas_concil:
-            ag_c_raw = str(r_c['agencia'] or '').strip().upper()
-            ag_c_norm = normalizar(ag_c_raw)
+            ag_c_norm = normalizar(r_c['agencia'])
             try:
                 items_d = json.loads(r_c['detalle_dias'] or "[]")
             except Exception:
                 items_d = []
             
-            # Sumar estrictamente el descuadre neto real de los sistemas
             dif_neto_total = sum(float(it.get("dif_neto", 0) or 0) for it in items_d)
-            
-            datos_item = {
+            mapa_ajustes_semanales[ag_c_norm] = {
                 "diferencia": round(dif_neto_total, 2),
                 "desde_fecha": r_c['desde_fecha']
             }
-            mapa_ajustes_semanales[ag_c_norm] = datos_item
-            mapa_ajustes_semanales[ag_c_raw] = datos_item
-            
-            if "GRACHI" in ag_c_raw:
-                mapa_ajustes_semanales["GRACHI"] = datos_item
-                mapa_ajustes_semanales["GRACHIBABY"] = datos_item
 
         positivos = []
         negativos = []
@@ -2923,14 +2915,11 @@ def get_admin(
             
             # Obtener el ajuste exacto del mapa de la semana
             info_ajuste = mapa_ajustes_semanales.get(ag_nombre)
-            if not info_ajuste:
-                if "GRACHI" in ag_nombre:
-                    info_ajuste = mapa_ajustes_semanales.get("GRACHIBABY") or mapa_ajustes_semanales.get("GRACHI")
-                else:
-                    for k, v in mapa_ajustes_semanales.items():
-                        if k in ag_nombre or ag_nombre in k:
-                            info_ajuste = v
-                            break
+            if not info_ajuste and "GRACHI" in ag_nombre:
+                for k, v in mapa_ajustes_semanales.items():
+                    if "GRACHI" in k:
+                        info_ajuste = v
+                        break
 
             dif_sem_taquilla = 0.0
             if info_ajuste:
@@ -2941,10 +2930,10 @@ def get_admin(
                 cursor.execute("""
                     SELECT COALESCE(SUM(monto), 0) as pagado 
                     FROM pagos 
-                    WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) LIKE %s)
+                    WHERE UPPER(TRIM(agencia)) = %s 
                       AND estado = 'APROBADO' 
                       AND (factura LIKE %s OR comprobante LIKE %s)
-                """, (ag_nombre, f"%{ag_nombre}%", f"%{desde_f_concil}%", f"%{desde_f_concil}%"))
+                """, (ag_nombre, f"%{desde_f_concil}%", f"%{desde_f_concil}%"))
                 p_concil = cursor.fetchone()
                 m_pagado = float(p_concil['pagado'] or 0.0) if p_concil else 0.0
 
