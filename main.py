@@ -1951,7 +1951,7 @@ def get_agencia(
     rango_concil_hasta = hasta_fecha if hasta_fecha else sem_cerrada_hasta
 
     # ----------------------------------------------------------------------
-    # 2. CONSULTAR EL CUADRE SEMANAL EXACTO DE ESA SEMANA (CON ALIAS)
+    # 2. CONSULTAR EL CUADRE SEMANAL EXACTO DE ESA SEMANA
     # ----------------------------------------------------------------------
     nombre_raiz = agencia_norm.replace("BABY", "").strip()
 
@@ -1975,13 +1975,8 @@ def get_agencia(
         except Exception:
             detalle_conciliacion = []
 
-        # Suma neta de los ajustes de los sistemas de esa semana
+        # Sumar ESTRICTAMENTE los descuadres netos de los sistemas auditados (dif_neto)
         dif_semanal_original = sum(float(item.get("dif_neto", 0) or 0) for item in detalle_conciliacion)
-        
-        # Respaldo si no vino en detalle_dias pero sí en la columna directa
-        if abs(dif_semanal_original) < 0.01 and row_concil.get("diferencia"):
-            dif_semanal_original = float(row_concil["diferencia"] or 0.0)
-
         dif_semanal_original = round(dif_semanal_original, 2)
 
         # ------------------------------------------------------------------
@@ -2024,7 +2019,6 @@ def get_agencia(
             "desde_fecha": sem_cerrada_desde,
             "hasta_fecha": sem_cerrada_hasta
         }
-
     # ----------------------------------------------------------------------
     # 4. SALDO GLOBAL CON IMPACTO EXACTO
     # ----------------------------------------------------------------------
