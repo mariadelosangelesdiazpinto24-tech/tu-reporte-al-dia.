@@ -1951,23 +1951,20 @@ def get_agencia(
     rango_concil_hasta = hasta_fecha if hasta_fecha else sem_cerrada_hasta
 
     # ----------------------------------------------------------------------
-    # 2. CONSULTAR EL CUADRE SEMANAL EXACTO DE ESA SEMANA
+    # 2. CONSULTAR EL CUADRE SEMANAL EXACTO DE ESA SEMANA (CON ALIAS)
     # ----------------------------------------------------------------------
+    nombre_raiz = agencia_norm.replace("BABY", "").strip()
+
     cursor.execute("""
         SELECT * FROM conciliaciones_semanales 
-        WHERE UPPER(TRIM(agencia)) = %s 
-          AND desde_fecha <= %s AND hasta_fecha >= %s
+        WHERE (
+            UPPER(TRIM(agencia)) = %s 
+            OR UPPER(TRIM(agencia)) = %s 
+            OR UPPER(TRIM(agencia)) LIKE %s
+        )
         ORDER BY id DESC LIMIT 1
-    """, (agencia_norm, rango_concil_hasta, rango_concil_desde))
+    """, (agencia_norm, nombre_raiz, f"%{nombre_raiz}%"))
     row_concil = cursor.fetchone()
-
-    if not row_concil:
-        cursor.execute("""
-            SELECT * FROM conciliaciones_semanales 
-            WHERE UPPER(TRIM(agencia)) = %s 
-            ORDER BY id DESC LIMIT 1
-        """, (agencia_norm,))
-        row_concil = cursor.fetchone()
 
     dif_semanal_original = 0.0
     detalle_conciliacion = []
@@ -1980,6 +1977,11 @@ def get_agencia(
 
         # Suma neta de los ajustes de los sistemas de esa semana
         dif_semanal_original = sum(float(item.get("dif_neto", 0) or 0) for item in detalle_conciliacion)
+        
+        # Respaldo si no vino en detalle_dias pero sí en la columna directa
+        if abs(dif_semanal_original) < 0.01 and row_concil.get("diferencia"):
+            dif_semanal_original = float(row_concil["diferencia"] or 0.0)
+
         dif_semanal_original = round(dif_semanal_original, 2)
 
         # ------------------------------------------------------------------
@@ -1988,10 +1990,10 @@ def get_agencia(
         cursor.execute("""
             SELECT COALESCE(SUM(monto), 0) as pagado 
             FROM pagos 
-            WHERE UPPER(TRIM(agencia)) = %s 
+            WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) = %s)
               AND estado = 'APROBADO' 
               AND (factura LIKE %s OR comprobante LIKE %s)
-        """, (agencia_norm, f"%{row_concil['desde_fecha']}%", f"%{row_concil['desde_fecha']}%"))
+        """, (agencia_norm, nombre_raiz, f"%{row_concil['desde_fecha']}%", f"%{row_concil['desde_fecha']}%"))
         pago_concil = cursor.fetchone()
         monto_ya_pagado = float(pago_concil['pagado'] or 0.0) if pago_concil else 0.0
 
