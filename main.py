@@ -2857,6 +2857,13 @@ def get_admin(
         casheas_generales = [dict(row) for row in cursor.fetchall()]
         total_cashea_filtrado = sum(float(c.get('monto') or 0.0) for c in casheas_generales)
 
+       # Rango de la última semana completa cerrada para el Admin
+        hoy_date = datetime.now(TZ_VENEZUELA).date()
+        lunes_pasado = hoy_date - timedelta(days=hoy_date.weekday() + 7)
+        domingo_pasado = lunes_pasado + timedelta(days=6)
+        sem_cerrada_desde = lunes_pasado.strftime('%Y-%m-%d')
+        sem_cerrada_hasta = domingo_pasado.strftime('%Y-%m-%d')
+
         positivos = []
         negativos = []
         for ag in agencias:
@@ -2865,7 +2872,76 @@ def get_admin(
             ag_nombre = ag['agencia']
             
             cuenta_taquilla = obtener_cuenta_agencia_corte(ag_nombre)
-            balance_contable = cuenta_taquilla["saldo_final"]
+            
+            # 1. Buscar la diferencia de la semana cerrada para esta taquilla
+            cursor.execute("""
+                SELECT desde_fecha, hasta_fecha, detalle_dias 
+                FROM conciliaciones_semanales 
+                WHERE UPPER(TRIM(agencia)) = %s 
+                  AND desde_fecha <= %s AND hasta_fecha >= %s
+                ORDER BY id DESC LIMIT 1
+            """, (normalizar(ag_nombre), sem_cerrada_hasta, sem_cerrada_desde))
+            row_c_ag = cursor.fetchone()
+
+            if not row_c_ag:
+                cursor.execute("""
+                    SELECT desde_fecha, hasta_fecha, detalle_dias 
+                    FROM conciliaciones_semanales 
+                    WHERE UPPER(TRIM(agencia)) = %s 
+                    ORDER BY id DESC LIMIT 1
+                """, (normalizar(ag_nombre),))
+                row_c_ag = cursor.fetchone()
+
+            dif_sem_taquilla = 0.0
+            if row_c_ag:
+                try:
+                    items_dias_ag = json.loads(row_c_ag["detalle_dias"] or "[]")
+                except Exception:
+                    items_dias_ag = []
+                
+                dif_original = sum(float(it.get("dif_neto", 0) or 0) for it in items_dias_ag)
+                dif_original = round(dif_original, 2)
+
+                # Verificar si ya fue saldado/pagado
+                cursor.execute("""
+                    SELECT COALESCE(SUM(monto), 0) as pagado 
+                    FROM pagos 
+                    WHERE UPPER(TRIM(agencia)) = %s 
+                      AND estado = 'APROBADO' 
+                      AND (factura LIKE %s OR comprobante LIKE %s)
+                """, (normalizar(ag_nombre), f"%{row_c_ag['desde_fecha']}%", f"%{row_c_ag['desde_fecha']}%"))
+                p_concil = cursor.fetchone()
+                m_pagado = float(p_concil['pagado'] or 0.0) if p_concil else 0.0
+
+                if abs(dif_original) > 0 and m_pagado >= abs(dif_original) - 0.05:
+                    dif_sem_taquilla = 0.0
+                else:
+                    dif_sem_taquilla = dif_original
+
+            # 2. Balance real unificado (Corte Diario + Ajuste Semanal Auditado)
+            balance_contable = round(cuenta_taquilla["saldo_final"] + dif_sem_taquilla, 2)
+            ag['saldo_pendiente'] = balance_contable
+            
+            datos_desglose = {
+                "agencia": ag_nombre,
+                "fecha": cuenta_taquilla["fecha"],
+                "monto": balance_contable,
+                "balance_total": balance_contable,
+                "saldo_anterior": cuenta_taquilla["saldo_anterior"],
+                "reporte_neto": cuenta_taquilla["neto_hoy"],
+                "abonos": cuenta_taquilla["abonos_hoy"],
+                "cashea": cuenta_taquilla["cashea_hoy"],
+                "adelantos": cuenta_taquilla["adelantos_hoy"],
+                "liquidaciones": cuenta_taquilla["liquidaciones_hoy"],
+                "diferencia_semanal": dif_sem_taquilla
+            }
+
+            if balance_contable > 0.009:
+                positivos.append(datos_desglose)
+            elif balance_contable < -0.009:
+                datos_desglose_neg = dict(datos_desglose)
+                datos_desglose_neg["monto"] = abs(balance_contable)
+                negativos.append(datos_desglose_neg)
 
             ag['saldo_pendiente'] = balance_contable
             
@@ -2890,8 +2966,26 @@ def get_admin(
                 negativos.append(datos_desglose_neg)
 
         # ----------------------------------------------------------------------
-        # FILTRADO DINÁMICO DE CUADRE SEMANAL (CONCILIACIÓN) POR RANGO Y AGENCIA
+        # FILTRADO EXACTO DE CUADRE SEMANAL (CONCILIACIÓN)
         # ----------------------------------------------------------------------
+        # Calcular siempre la última semana completa cerrada (Lunes a Domingo pasados)
+        hoy_date = datetime.now(TZ_VENEZUELA).date()
+        lunes_pasado = hoy_date - timedelta(days=hoy_date.weekday() + 7)
+        domingo_pasado = lunes_pasado + timedelta(days=6)
+        sem_cerrada_desde = lunes_pasado.strftime('%Y-%m-%d')
+        sem_cerrada_hasta = domingo_pasado.strftime('%Y-%m-%d')
+
+        # Si estamos en la pestaña de cuadre semanal y las fechas coinciden con hoy (26/10),
+        # fijar por defecto el rango de la semana cerrada pasada para no mostrar errores
+        if tab == 'conciliacion_admin':
+            if not desde_fecha and not hasta_fecha:
+                f_desde = sem_cerrada_desde
+                f_hasta = sem_cerrada_hasta
+            elif f_desde == f_hasta and f_desde == hoy_vzla:
+                # Si filtraron solo el día de hoy, fijar la semana cerrada
+                f_desde = sem_cerrada_desde
+                f_hasta = sem_cerrada_hasta
+
         query_concil = """
             SELECT DISTINCT ON (UPPER(TRIM(agencia))) * 
             FROM conciliaciones_semanales 
@@ -2903,32 +2997,18 @@ def get_admin(
             query_concil += " AND UPPER(TRIM(agencia)) = %s"
             params_concil.append(normalizar(agencia_filtro))
 
+        # Coincidencia con el rango semanal cargado en Colab
         if f_desde and f_hasta:
-            query_concil += """ AND (
-                (desde_fecha >= %s AND hasta_fecha <= %s) OR
-                (desde_fecha <= %s AND hasta_fecha >= %s) OR
-                (hasta_fecha >= %s AND desde_fecha <= %s)
-            )"""
-            params_concil.extend([f_desde, f_hasta, f_hasta, f_desde, f_desde, f_hasta])
+            query_concil += " AND desde_fecha <= %s AND hasta_fecha >= %s"
+            params_concil.extend([f_hasta, f_desde])
 
         query_concil += " ORDER BY UPPER(TRIM(agencia)), id DESC"
-
         cursor.execute(query_concil, tuple(params_concil))
         rows_concil_admin = cursor.fetchall()
 
-        if not rows_concil_admin:
-            query_ultimo = """
-                SELECT DISTINCT ON (UPPER(TRIM(agencia))) * 
-                FROM conciliaciones_semanales 
-                WHERE 1=1
-            """
-            params_ult = []
-            if agencia_filtro:
-                query_ultimo += " AND UPPER(TRIM(agencia)) = %s"
-                params_ult.append(normalizar(agencia_filtro))
-            query_ultimo += " ORDER BY UPPER(TRIM(agencia)), id DESC"
-            cursor.execute(query_ultimo, tuple(params_ult))
-            rows_concil_admin = cursor.fetchall()
+        # Si no hay cierre cargado para esa fecha o rango, NO forzar fallbacks con datos viejos:
+        if not rows_concil_admin and (f_desde > sem_cerrada_hasta):
+            rows_concil_admin = []
 
         if not rows_concil_admin and f_desde and f_hasta:
             query_fallback = """
