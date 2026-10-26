@@ -46,6 +46,7 @@ BANQUEROS_FIJOS = {
         "comercializadora": "COMERCIALIZADORA DUBAI"
     }
 }
+
 ONESIGNAL_APP_ID = "88b4cb90-08ed-4ef3-8852-c45316493190"
 ONESIGNAL_REST_KEY = os.environ.get("ONESIGNAL_REST_KEY", "os_v2_app_xxxxxxxxxxxxxxxxxxxxxxxx")
 
@@ -440,7 +441,6 @@ def post_guardar_metodos_pago(
     agencia_norm = normalizar(agencia)
     conn = get_db()
     cursor = conn.cursor()
-
     is_postgres = bool(os.environ.get("DATABASE_URL"))
 
     if is_postgres:
@@ -1324,7 +1324,6 @@ async def api_cargar_totales_lider_nys(
 ):
     fecha_limpia = fecha.strip()
     
-    # Comisiones oficiales: Guaca 13% y Calamar 14%
     pct_lider_guaca = 0.13
     comision_lider = float(venta_lider) * pct_lider_guaca
 
@@ -1333,11 +1332,9 @@ async def api_cargar_totales_lider_nys(
 
     conn = get_db()
     cursor = conn.cursor()
-
     is_postgres = bool(os.environ.get("DATABASE_URL"))
 
     if is_postgres:
-        # 1. Registrar o actualizar LÍDER (Sistema GUACA)
         cursor.execute("""
             INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
             VALUES ('COMERCIALIZADORA LIDER', 'GUACA', %s, %s, %s, %s)
@@ -1348,7 +1345,6 @@ async def api_cargar_totales_lider_nys(
                 premios = EXCLUDED.premios
         """, (fecha_limpia, float(venta_lider), comision_lider, float(premios_lider)))
 
-        # 2. Registrar o actualizar NYS (Sistema CALAMAR)
         cursor.execute("""
             INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
             VALUES ('COMERCIALIZADORA NYS', 'CALAMAR', %s, %s, %s, %s)
@@ -1941,27 +1937,34 @@ def get_agencia(
 
     cuenta_ag = obtener_cuenta_agencia_corte(agencia_norm)
 
-    desglose_cuenta = {
-        "fecha": hoy_vzla,
-        "saldo_anterior": cuenta_ag["saldo_anterior"],
-        "neto_hoy": cuenta_ag["neto_hoy"],
-        "cashea_hoy": cuenta_ag["cashea_hoy"],
-        "abonos_hoy": cuenta_ag["abonos_hoy"],
-        "adelantos_hoy": cuenta_ag["adelantos_hoy"],
-        "liquidaciones_hoy": cuenta_ag["liquidaciones_hoy"],
-        "saldo_final": cuenta_ag["saldo_final"]
-    }
-    saldo_actual = cuenta_ag["saldo_final"]
-
     cursor.execute("SELECT id, fecha, monto, detalle_html FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
     reportes_agencia = [dict(row) for row in cursor.fetchall()]
 
-    cursor.execute("""
+    # ----------------------------------------------------------------------
+    # CARGA EXACTA DE CONCILIACIÓN SEMANAL POR RANGO PARA LA TAQUILLA
+    # ----------------------------------------------------------------------
+    query_concil_taquilla = """
         SELECT * FROM conciliaciones_semanales 
-        WHERE UPPER(TRIM(agencia)) = %s 
-        ORDER BY id DESC LIMIT 1
-    """, (agencia_norm,))
+        WHERE UPPER(TRIM(agencia)) = %s
+    """
+    params_ct = [agencia_norm]
+
+    # Si hay fechas en el filtro, buscar el cierre exacto de ese período
+    if f_desde and f_hasta:
+        query_concil_taquilla += " AND desde_fecha <= %s AND hasta_fecha >= %s"
+        params_ct.extend([f_hasta, f_desde])
+
+    query_concil_taquilla += " ORDER BY id DESC LIMIT 1"
+    cursor.execute(query_concil_taquilla, tuple(params_ct))
     row_concil = cursor.fetchone()
+
+    # Fallback si no coincide el filtro
+    if not row_concil:
+        cursor.execute(
+            "SELECT * FROM conciliaciones_semanales WHERE UPPER(TRIM(agencia)) = %s ORDER BY id DESC LIMIT 1",
+            (agencia_norm,)
+        )
+        row_concil = cursor.fetchone()
 
     if row_concil:
         try:
@@ -1969,20 +1972,38 @@ def get_agencia(
         except Exception:
             detalle_conciliacion = []
 
-        tot_v_cob = sum(float(item.get("venta_cobrada", 0)) for item in detalle_conciliacion)
-        tot_p_cob = sum(float(item.get("premio_cobrado", 0)) for item in detalle_conciliacion)
-        tot_v_rea = sum(float(item.get("venta_real", 0)) for item in detalle_conciliacion)
-        tot_p_rea = sum(float(item.get("premio_real", 0)) for item in detalle_conciliacion)
+        # Recalcular unificando todos los sistemas de la semana
+        tot_v_cob = sum(float(item.get("venta_cobrada", 0) or 0) for item in detalle_conciliacion)
+        tot_p_cob = sum(float(item.get("premio_cobrado", 0) or 0) for item in detalle_conciliacion)
+        tot_rep_cob = sum(float(item.get("neto_cobrado", 0) or 0) for item in detalle_conciliacion)
+
+        tot_v_rea = sum(float(item.get("venta_real", 0) or 0) for item in detalle_conciliacion)
+        tot_p_rea = sum(float(item.get("premio_real", 0) or 0) for item in detalle_conciliacion)
+        tot_sis_rea = sum(float(item.get("neto_real", 0) or 0) for item in detalle_conciliacion)
+
+        # Suma consolidada neta de todos los descuadres
+        diferencia_unificada = round(tot_sis_rea - tot_rep_cob, 2)
+
+        # Filtrar para mostrar en la tabla únicamente los sistemas con movimiento o descuadre
+        detalle_filtrado = []
+        for it in detalle_conciliacion:
+            dn = float(it.get("dif_neto", 0) or 0)
+            dv = float(it.get("dif_venta", 0) or 0)
+            vr = float(it.get("venta_real", 0) or 0)
+            vc = float(it.get("venta_cobrada", 0) or 0)
+            if abs(dn) > 0.01 or abs(dv) > 0.01 or vr > 0 or vc > 0:
+                detalle_filtrado.append(it)
 
         conciliacion_resumen = {
             "total_venta_cobrada": tot_v_cob,
             "total_premio_cobrado": tot_p_cob,
-            "total_reportado": float(row_concil["total_reportado"] or 0.0),
+            "total_reportado": tot_rep_cob,
             "total_venta_real": tot_v_rea,
             "total_premio_real": tot_p_rea,
-            "total_sistema": float(row_concil["total_sistema"] or 0.0),
-            "diferencia": float(row_concil["diferencia"] or 0.0)
+            "total_sistema": tot_sis_rea,
+            "diferencia": diferencia_unificada
         }
+        detalle_conciliacion = detalle_filtrado
     else:
         conciliacion_resumen = {
             "total_venta_cobrada": 0.0,
@@ -1994,6 +2015,22 @@ def get_agencia(
             "diferencia": 0.0
         }
         detalle_conciliacion = []
+
+    # Impacto de la diferencia semanal unificada en el saldo actual de la taquilla
+    dif_semanal_val = float(conciliacion_resumen.get("diferencia", 0.0) or 0.0)
+    saldo_actual = cuenta_ag["saldo_final"] + dif_semanal_val
+
+    desglose_cuenta = {
+        "fecha": hoy_vzla,
+        "saldo_anterior": cuenta_ag["saldo_anterior"],
+        "neto_hoy": cuenta_ag["neto_hoy"],
+        "cashea_hoy": cuenta_ag["cashea_hoy"],
+        "abonos_hoy": cuenta_ag["abonos_hoy"],
+        "adelantos_hoy": cuenta_ag["adelantos_hoy"],
+        "liquidaciones_hoy": cuenta_ag["liquidaciones_hoy"],
+        "diferencia_semanal": dif_semanal_val,
+        "saldo_final": saldo_actual
+    }
 
     cursor.execute("SELECT * FROM metodos_pago WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
     datos_pago_row = cursor.fetchone()
@@ -2642,7 +2679,7 @@ def post_actualizar_regla_banquero(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/guardar-ajuste-banquero-sistema")
-def post_guardar_ajuste_banquero_sistema(
+def post_guardar_ajuste_banquero-sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     fecha: str = Form(...),
@@ -2669,7 +2706,7 @@ def post_guardar_ajuste_banquero_sistema(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/restablecer-ajuste-banquero-sistema")
-def post_restablecer_ajuste_banquero_sistema(
+def post_restablecer_ajuste_banquero-sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     desde_fecha: Optional[str] = Form(None),
@@ -2856,7 +2893,6 @@ def get_admin(
             query_concil += " AND UPPER(TRIM(agencia)) = %s"
             params_concil.append(normalizar(agencia_filtro))
 
-        # Si se especifican fechas, buscar coincidencia en el periodo
         if f_desde and f_hasta:
             query_concil += """ AND (
                 (desde_fecha >= %s AND hasta_fecha <= %s) OR
@@ -2870,7 +2906,6 @@ def get_admin(
         cursor.execute(query_concil, tuple(params_concil))
         rows_concil_admin = cursor.fetchall()
 
-        # Si el filtro por fecha no arroja resultados, cargar el último cierre registrado
         if not rows_concil_admin:
             query_ultimo = """
                 SELECT DISTINCT ON (UPPER(TRIM(agencia))) * 
@@ -2884,6 +2919,7 @@ def get_admin(
             query_ultimo += " ORDER BY UPPER(TRIM(agencia)), id DESC"
             cursor.execute(query_ultimo, tuple(params_ult))
             rows_concil_admin = cursor.fetchall()
+
         if not rows_concil_admin and f_desde and f_hasta:
             query_fallback = """
                 SELECT DISTINCT ON (UPPER(TRIM(agencia))) * 
