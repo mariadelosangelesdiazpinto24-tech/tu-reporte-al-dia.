@@ -2686,8 +2686,8 @@ def post_actualizar_regla_banquero(
     url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
-@app.post("/admin/guardar-ajuste-banquero-sistema")
-def post_guardar_ajuste_banquero-sistema(
+@app.post("/admin/guardar-ajuste-banquero_sistema")
+def post_guardar_ajuste_banquero_sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     fecha: str = Form(...),
