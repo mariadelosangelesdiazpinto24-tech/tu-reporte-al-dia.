@@ -18,7 +18,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.gzip import GZipMiddleware
 
+# Importar el módulo de conciliación semanal
+import conciliacion
+
 app = FastAPI()
+
+# Registrar las rutas del módulo de conciliación
+app.include_router(conciliacion.router)
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
@@ -40,7 +46,6 @@ BANQUEROS_FIJOS = {
         "comercializadora": "COMERCIALIZADORA DUBAI"
     }
 }
-
 ONESIGNAL_APP_ID = "88b4cb90-08ed-4ef3-8852-c45316493190"
 ONESIGNAL_REST_KEY = os.environ.get("ONESIGNAL_REST_KEY", "os_v2_app_xxxxxxxxxxxxxxxxxxxxxxxx")
 
