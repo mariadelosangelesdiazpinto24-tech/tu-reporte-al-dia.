@@ -2888,16 +2888,20 @@ def get_admin(
             
             cuenta_taquilla = obtener_cuenta_agencia_corte(ag_nombre)
             
-            # 1. Buscar la diferencia de la semana cerrada para esta taquilla
-            cursor.execute("""
-                SELECT desde_fecha, hasta_fecha, detalle_dias 
-                FROM conciliaciones_semanales 
-                WHERE UPPER(TRIM(agencia)) = %s 
-                  AND desde_fecha <= %s AND hasta_fecha >= %s
-                ORDER BY id DESC LIMIT 1
-            """, (ag_nombre, sem_cerrada_hasta, sem_cerrada_desde))
-            row_c_ag = cursor.fetchone()
+           # 1. Buscar la diferencia de la semana cerrada para esta taquilla
+            nombre_raiz = ag_nombre.replace("BABY", "").strip()
 
+            cursor.execute("""
+                SELECT desde_fecha, hasta_fecha, detalle_dias, diferencia 
+                FROM conciliaciones_semanales 
+                WHERE (
+                    UPPER(TRIM(agencia)) = %s 
+                    OR UPPER(TRIM(agencia)) = %s
+                    OR UPPER(TRIM(agencia)) LIKE %s
+                )
+                ORDER BY id DESC LIMIT 1
+            """, (ag_nombre, nombre_raiz, f"%{nombre_raiz}%"))
+            row_c_ag = cursor.fetchone()
             if not row_c_ag:
                 cursor.execute("""
                     SELECT desde_fecha, hasta_fecha, detalle_dias 
