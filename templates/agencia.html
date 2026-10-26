@@ -20,7 +20,7 @@
       OneSignalDeferred.push(async function(OneSignal) {
         try {
           await OneSignal.init({
-            appId: "88b4cb90-08ed-4ef3-8852-c45316493190",
+            app_id: "88b4cb90-08ed-4ef3-8852-c45316493190",
             allowLocalhostAsSecureOrigin: true,
             serviceWorkerParam: { scope: "/" },
             serviceWorkerPath: "/OneSignalSDKWorker.js"
@@ -54,7 +54,6 @@
             await OneSignal.Notifications.requestPermission();
             await OneSignal.login("{{ nombre_agencia }}");
 
-            // Refuerzo de etiqueta al activar manualmente
             {% if (agencia and agencia.rol == 'SOLO_LISTA_NEGRA') or genero_agencia == 'SOLO_LISTA_NEGRA' %}
               await OneSignal.User.addTag("rol", "solo_lista_negra");
             {% else %}
@@ -294,7 +293,7 @@
             </li>
             <li class="nav-item">
                 <button class="nav-link {% if tab_activa == 'conciliacion' %}active{% endif %}" id="btn-tab-conciliacion" data-bs-toggle="tab" data-bs-target="#tab-conciliacion" type="button" onclick="setTab('conciliacion')">
-                    <i class="fas fa-balance-scale me-1"></i> Cuadre Semanal 🍀
+                    <i class="fas fa-scale-balanced me-1"></i> Cuadre Semanal 🍀
                 </button>
             </li>
             <li class="nav-item">
@@ -328,7 +327,7 @@
 
         <div class="tab-content" id="agenciaTabsContent">
 
-            <!-- PESTAÑA: LISTA NEGRA COLECTIVA (EN TIEMPO REAL E INMUTABLE) -->
+            <!-- PESTAÑA: LISTA NEGRA COLECTIVA -->
             <div class="tab-pane fade {% if tab_activa == 'listanegra' or es_solo_ln %}show active{% endif %}" id="tab-listanegra" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-4 border-start border-4 border-danger">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
@@ -346,7 +345,7 @@
                         </div>
                     </div>
 
-                    <!-- BUSCADOR INSTANTÁNEO POR CÉDULA O NÚMERO DE TELÉFONO -->
+                    <!-- BUSCADOR INSTANTÁNEO -->
                     <div class="p-3 bg-light rounded-4 mb-4 border">
                         <div class="input-group">
                             <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-danger"></i></span>
@@ -424,6 +423,19 @@
                                     <strong class="text-warning">+ Bs. {{ (desglose_cuenta.adelantos_hoy or 0) | dinero }}</strong>
                                 </div>
                                 {% endif %}
+
+                                <!-- FILA DINÁMICA DE DIFERENCIA SEMANAL (SI EXISTE) -->
+                                {% if conciliacion_resumen and conciliacion_resumen.diferencia and conciliacion_resumen.diferencia|abs > 0.01 %}
+                                <div class="col-12 d-flex justify-content-between border-bottom py-1 bg-white px-2 rounded">
+                                    <span class="{% if conciliacion_resumen.diferencia > 0 %}text-danger{% else %}text-success{% endif %} fw-bold">
+                                        <i class="fas fa-balance-scale me-1"></i> Ajuste por Cierre Semanal Auditado:
+                                    </span>
+                                    <strong class="{% if conciliacion_resumen.diferencia > 0 %}text-danger{% else %}text-success{% endif %}">
+                                        {% if conciliacion_resumen.diferencia > 0 %}+{% endif %} Bs. {{ conciliacion_resumen.diferencia | dinero }}
+                                    </strong>
+                                </div>
+                                {% endif %}
+
                                 <div class="col-12 d-flex justify-content-between border-top py-2 bg-white rounded px-2 mt-2">
                                     <strong>💰 TOTAL PENDIENTE EXACTO:</strong>
                                     <strong class="{% if saldo_actual < 0 %}text-success{% elif saldo_actual > 0 %}text-danger{% else %}text-dark{% endif %} fs-6">
@@ -613,69 +625,129 @@
                 </div>
             </div>
 
-            <!-- 4. CUADRE SEMANAL / CONCILIACIÓN -->
+            <!-- 4. CUADRE SEMANAL / CONCILIACIÓN AUDITADA -->
             <div class="tab-pane fade {% if tab_activa == 'conciliacion' %}show active{% endif %}" id="tab-conciliacion" role="tabpanel">
-                <div class="card card-custom p-4 bg-white mb-4">
-                    <h5 class="fw-bold text-tema mb-3"><i class="fas fa-balance-scale me-1"></i> Conciliación y Cuadre Semanal 🍀</h5>
-                    <p class="small text-muted mb-3">Revisa las diferencias entre lo cobrado diariamente y las auditorías de los sistemas oficiales.</p>
+                <div class="card card-custom p-4 bg-white mb-4 border-0 shadow-sm" style="border-radius: 16px;">
                     
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 pb-2 border-bottom">
+                        <div>
+                            <h4 class="fw-bold text-tema m-0">
+                                <i class="fas fa-scale-balanced me-2"></i>Conciliación y Cuadre Semanal 🍀
+                            </h4>
+                            <small class="text-muted">Comparativa oficial entre lo cobrado día a día y el reporte maestro emitido por los sistemas.</small>
+                        </div>
+                        <span class="badge rounded-pill {% if conciliacion_resumen.diferencia|abs < 0.05 %}bg-success text-white{% elif conciliacion_resumen.diferencia > 0 %}bg-danger text-white{% else %}bg-primary text-white{% endif %} px-3 py-2 fs-6">
+                            {% if conciliacion_resumen.diferencia|abs < 0.05 %}
+                                <i class="fas fa-check-circle me-1"></i> Semana Cuadrada
+                            {% elif conciliacion_resumen.diferencia > 0 %}
+                                <i class="fas fa-triangle-exclamation me-1"></i> Diferencia a Favor Banca: Bs. {{ conciliacion_resumen.diferencia | dinero }}
+                            {% else %}
+                                <i class="fas fa-hand-holding-dollar me-1"></i> Saldo a Favor Taquilla: Bs. {{ (conciliacion_resumen.diferencia|abs) | dinero }}
+                            {% endif %}
+                        </span>
+                    </div>
+
+                    <!-- TARJETAS TOTALIZADORAS DE IMPACTO -->
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
-                            <div class="p-3 border rounded-3 bg-light text-center">
-                                <span class="small fw-bold text-muted d-block">TOTAL REPORTADO DIARIOS</span>
-                                <h4 class="fw-bold text-dark m-0">Bs. {{ (conciliacion_resumen.total_reportado or 0) | dinero }}</h4>
+                            <div class="p-3 rounded-4 bg-light border shadow-sm text-center">
+                                <small class="text-muted fw-bold text-uppercase d-block mb-1">
+                                    <i class="fas fa-calendar-day text-secondary me-1"></i> Cobrado Día a Día (App)
+                                </small>
+                                <h3 class="fw-bold text-dark m-0">Bs. {{ (conciliacion_resumen.total_reportado or 0) | dinero }}</h3>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div class="p-3 border rounded-3 bg-light text-center">
-                                <span class="small fw-bold text-muted d-block">TOTAL AUDITORÍA SISTEMA</span>
-                                <h4 class="fw-bold text-primary m-0">Bs. {{ (conciliacion_resumen.total_sistema or 0) | dinero }}</h4>
+                            <div class="p-3 rounded-4 bg-light border border-primary-subtle shadow-sm text-center">
+                                <small class="text-primary fw-bold text-uppercase d-block mb-1">
+                                    <i class="fas fa-server me-1"></i> Cierre Real (Sistemas)
+                                </small>
+                                <h3 class="fw-bold text-primary m-0">Bs. {{ (conciliacion_resumen.total_sistema or 0) | dinero }}</h3>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div class="p-3 border rounded-3 bg-light text-center">
-                                <span class="small fw-bold text-muted d-block">DIFERENCIA (AJUSTE)</span>
-                                <h4 class="fw-bold m-0 {% if conciliacion_resumen.diferencia > 0 %}text-danger{% elif conciliacion_resumen.diferencia < 0 %}text-success{% else %}text-muted{% endif %}">
+                            <div class="p-3 rounded-4 shadow-sm text-center border {% if conciliacion_resumen.diferencia > 0 %}border-danger bg-danger-subtle{% elif conciliacion_resumen.diferencia < 0 %}border-success bg-success-subtle{% else %}bg-light{% endif %}">
+                                <small class="fw-bold text-uppercase d-block mb-1 {% if conciliacion_resumen.diferencia > 0 %}text-danger{% elif conciliacion_resumen.diferencia < 0 %}text-success{% else %}text-muted{% endif %}">
+                                    <i class="fas fa-coins me-1"></i> Diferencia Total
+                                </small>
+                                <h3 class="fw-bold m-0 {% if conciliacion_resumen.diferencia > 0 %}text-danger{% elif conciliacion_resumen.diferencia < 0 %}text-success{% else %}text-muted{% endif %}">
                                     Bs. {{ (conciliacion_resumen.diferencia or 0) | dinero }}
-                                </h4>
+                                </h3>
                             </div>
                         </div>
                     </div>
 
-                    <div class="table-responsive">
-                        <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 12.5px;">
-                            <thead class="table-dark">
+                    <!-- TABLA DETALLADA POR SISTEMA -->
+                    <div class="table-responsive rounded-3 border">
+                        <table class="table table-hover align-middle mb-0 text-center" style="font-size: 13px;">
+                            <thead class="table-dark" style="background: #1e1e2d;">
                                 <tr>
-                                    <th>Sistema</th>
-                                    <th class="text-end">Venta Cobrada</th>
-                                    <th class="text-end">Premio Cobrado</th>
-                                    <th class="text-end">Neto Cobrado</th>
-                                    <th class="text-end">Venta Real</th>
-                                    <th class="text-end">Premio Real</th>
-                                    <th class="text-end">Neto Real</th>
-                                    <th class="text-end">Diferencia</th>
+                                    <th class="text-start ps-3 py-3">SISTEMA</th>
+                                    <th class="py-3">COBRADO EN DIARIO</th>
+                                    <th class="py-3">REAL SEMANAL</th>
+                                    <th class="py-3">DIF. VENTA</th>
+                                    <th class="py-3">AJUSTE NETO</th>
+                                    <th class="py-3 pe-3">ESTADO</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for det in detalle_conciliacion %}
                                 <tr>
-                                    <td class="fw-bold">{{ det.sistema }}</td>
-                                    <td class="text-end">Bs. {{ (det.venta_cobrada or 0) | dinero }}</td>
-                                    <td class="text-end">Bs. {{ (det.premio_cobrado or 0) | dinero }}</td>
-                                    <td class="text-end text-primary">Bs. {{ (det.neto_cobrado or 0) | dinero }}</td>
-                                    <td class="text-end">Bs. {{ (det.venta_real or 0) | dinero }}</td>
-                                    <td class="text-end">Bs. {{ (det.premio_real or 0) | dinero }}</td>
-                                    <td class="text-end fw-bold">Bs. {{ (det.neto_real or 0) | dinero }}</td>
-                                    <td class="text-end fw-bold {% if (det.dif_neto or 0) > 0 %}text-danger{% elif (det.dif_neto or 0) < 0 %}text-success{% else %}text-muted{% endif %}">
-                                        Bs. {{ (det.dif_neto or 0) | dinero }}
+                                    <td class="text-start ps-3 fw-bold text-dark">
+                                        <i class="fas fa-dice text-tema me-1"></i> {{ det.sistema }}
+                                    </td>
+                                    <td class="text-muted">Bs. {{ (det.neto_cobrado or 0) | dinero }}</td>
+                                    <td class="fw-bold text-dark">Bs. {{ (det.neto_real or 0) | dinero }}</td>
+                                    
+                                    <!-- Diferencia en Venta -->
+                                    <td>
+                                        {% if (det.dif_venta or 0)|abs > 0.01 %}
+                                            <span class="badge bg-light text-danger border border-danger-subtle">
+                                                {% if det.dif_venta > 0 %}+{% endif %}Bs. {{ det.dif_venta | dinero }}
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">Bs. 0.00</span>
+                                        {% endif %}
+                                    </td>
+
+                                    <!-- Ajuste Neto -->
+                                    <td class="fw-bold {% if (det.dif_neto or 0) > 0 %}text-danger{% elif (det.dif_neto or 0) < 0 %}text-success{% else %}text-muted{% endif %}">
+                                        {% if (det.dif_neto or 0) > 0 %}+{% endif %}Bs. {{ (det.dif_neto or 0) | dinero }}
+                                    </td>
+
+                                    <!-- Etiqueta de Motivo / Estado -->
+                                    <td class="pe-3">
+                                        {% if (det.dif_neto or 0)|abs < 0.05 %}
+                                            <span class="badge rounded-pill bg-light text-success border border-success-subtle px-2 py-1">
+                                                <i class="fas fa-check me-1"></i> Exacto
+                                            </span>
+                                        {% elif (det.dif_neto or 0) > 0 %}
+                                            <span class="badge rounded-pill bg-danger px-2 py-1">
+                                                <i class="fas fa-clock me-1"></i> Venta no cobrada
+                                            </span>
+                                        {% else %}
+                                            <span class="badge rounded-pill bg-success px-2 py-1">
+                                                <i class="fas fa-award me-1"></i> Premio tardío
+                                            </span>
+                                        {% endif %}
                                     </td>
                                 </tr>
                                 {% else %}
-                                <tr><td colspan="8" class="text-center text-muted py-3">No hay conciliación cargada para este rango.</td></tr>
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        <i class="fas fa-folder-open fs-3 mb-2 d-block"></i>
+                                        No hay registros de conciliación cargados para este período.
+                                    </td>
+                                </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
+
+                    <div class="mt-3 p-3 bg-light rounded-3 border-start border-3 border-warning small text-muted">
+                        <i class="fas fa-circle-info text-warning me-1"></i> <strong>Nota:</strong> Los ajustes de color rojo representan ventas o tickets que entraron fuera del cierre diario y quedan pendientes por liquidar. Los de color verde representan premios validados después del reporte que se acreditan a tu favor.
+                    </div>
+
                 </div>
             </div>
 
@@ -717,13 +789,13 @@
                 </div>
             </div>
 
-            <!-- NUEVA PESTAÑA: MIS PAGOS -->
+            <!-- 6. MIS PAGOS -->
             <div class="tab-pane fade {% if tab_activa == 'mispagos' %}show active{% endif %}" id="tab-mispagos" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-4">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                         <div>
                             <h4 class="fw-bold text-tema m-0"><i class="fas fa-wallet me-2"></i>Mis Métodos de Pago Registrados</h4>
-                            <small class="text-muted">Configura tus datos para recibir transferencias y liquidaciones de la banca. Estos datos son permanentes y solo editables.</small>
+                            <small class="text-muted">Configura tus datos para recibir transferencias y liquidaciones de la banca. Estos datos son permanentes y editables.</small>
                         </div>
                     </div>
 
@@ -873,7 +945,7 @@
                 </div>
             </div>
 
-            <!-- 6. SOLICITAR AVANCE -->
+            <!-- 7. SOLICITAR AVANCE -->
             <div class="tab-pane fade {% if tab_activa == 'adelanto' %}show active{% endif %}" id="tab-adelanto" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-4">
                     <h5 class="fw-bold text-tema mb-2"><i class="fas fa-hand-holding-dollar me-1"></i> Solicitud de Avance de Dinero</h5>
@@ -900,7 +972,7 @@
                 </div>
             </div>
 
-            <!-- 7. MODIFICACIONES -->
+            <!-- 8. MODIFICACIONES -->
             <div class="tab-pane fade {% if tab_activa == 'modificaciones' %}show active{% endif %}" id="tab-modificaciones" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-4">
                     <h5 class="fw-bold text-tema mb-2"><i class="fas fa-pen-to-square me-1"></i> Actualizar Sistema del Día</h5>
@@ -941,7 +1013,7 @@
             </div>
             {% endif %}
 
-            <!-- PESTAÑA: MI CUENTA -->
+            <!-- 9. MI CUENTA -->
             <div class="tab-pane fade {% if tab_activa == 'cuenta' %}show active{% endif %}" id="tab-cuenta" role="tabpanel">
                 <div class="card card-custom p-4 bg-white mb-4" style="max-width: 500px; margin: 0 auto;">
                     <h5 class="fw-bold text-tema mb-3 text-center"><i class="fas fa-lock me-1"></i> Seguridad y Acceso</h5>
