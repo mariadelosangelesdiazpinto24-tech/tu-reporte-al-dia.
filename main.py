@@ -2851,15 +2851,34 @@ def get_admin(
             query_concil += " AND UPPER(TRIM(agencia)) = %s"
             params_concil.append(normalizar(agencia_filtro))
 
+        # Si se especifican fechas, buscar coincidencia en el periodo
         if f_desde and f_hasta:
-            query_concil += " AND (desde_fecha <= %s AND hasta_fecha >= %s)"
-            params_concil.extend([f_hasta, f_desde])
+            query_concil += """ AND (
+                (desde_fecha >= %s AND hasta_fecha <= %s) OR
+                (desde_fecha <= %s AND hasta_fecha >= %s) OR
+                (hasta_fecha >= %s AND desde_fecha <= %s)
+            )"""
+            params_concil.extend([f_desde, f_hasta, f_hasta, f_desde, f_desde, f_hasta])
 
         query_concil += " ORDER BY UPPER(TRIM(agencia)), id DESC"
 
         cursor.execute(query_concil, tuple(params_concil))
         rows_concil_admin = cursor.fetchall()
 
+        # Si el filtro por fecha no arroja resultados, cargar el último cierre registrado
+        if not rows_concil_admin:
+            query_ultimo = """
+                SELECT DISTINCT ON (UPPER(TRIM(agencia))) * 
+                FROM conciliaciones_semanales 
+                WHERE 1=1
+            """
+            params_ult = []
+            if agencia_filtro:
+                query_ultimo += " AND UPPER(TRIM(agencia)) = %s"
+                params_ult.append(normalizar(agencia_filtro))
+            query_ultimo += " ORDER BY UPPER(TRIM(agencia)), id DESC"
+            cursor.execute(query_ultimo, tuple(params_ult))
+            rows_concil_admin = cursor.fetchall()
         if not rows_concil_admin and f_desde and f_hasta:
             query_fallback = """
                 SELECT DISTINCT ON (UPPER(TRIM(agencia))) * 
