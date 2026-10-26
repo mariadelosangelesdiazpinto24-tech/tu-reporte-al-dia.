@@ -1110,7 +1110,7 @@ def ver_o_descargar_comprobante(pago_id: int):
             ext = mime.split("/")[-1]
             nombre_archivo = f"Comprobante_{agencia_clean}_{row['fecha']}_{pago_id}.{ext}"
             return Response(
-                content=base64.b64decode(encoded), 
+                content=base64.b64encode(encoded), 
                 media_type=mime, 
                 headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'}
             )
@@ -2687,7 +2687,7 @@ def post_actualizar_regla_banquero(
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/guardar-ajuste-banquero-sistema")
-def post_guardar_ajuste_banquero_sistema(
+def post_guardar_ajuste_banquero-sistema(
     banquero: str = Form(...),
     sistema: str = Form(...),
     fecha: str = Form(...),
@@ -2873,6 +2873,31 @@ def get_admin(
         sem_cerrada_desde = lunes_pasado.strftime('%Y-%m-%d')
         sem_cerrada_hasta = domingo_pasado.strftime('%Y-%m-%d')
 
+        # ----------------------------------------------------------------------
+        # MAPA EXACTO DE AJUSTES SEMANALES AUDITADOS (Directo de la conciliación)
+        # ----------------------------------------------------------------------
+        cursor.execute("""
+            SELECT DISTINCT ON (UPPER(TRIM(agencia))) agencia, desde_fecha, hasta_fecha, detalle_dias 
+            FROM conciliaciones_semanales 
+            WHERE desde_fecha <= %s AND hasta_fecha >= %s
+            ORDER BY UPPER(TRIM(agencia)), id DESC
+        """, (sem_cerrada_hasta, sem_cerrada_desde))
+        rows_todas_concil = cursor.fetchall()
+
+        mapa_ajustes_semanales = {}
+        for r_c in rows_todas_concil:
+            ag_c_norm = normalizar(r_c['agencia'])
+            try:
+                items_d = json.loads(r_c['detalle_dias'] or "[]")
+            except Exception:
+                items_d = []
+            
+            dif_neto_total = sum(float(it.get("dif_neto", 0) or 0) for it in items_d)
+            mapa_ajustes_semanales[ag_c_norm] = {
+                "diferencia": round(dif_neto_total, 2),
+                "desde_fecha": r_c['desde_fecha']
+            }
+
         positivos = []
         negativos = []
         agencias_procesadas = set()
@@ -2888,48 +2913,27 @@ def get_admin(
             
             cuenta_taquilla = obtener_cuenta_agencia_corte(ag_nombre)
             
-# 1. Buscar la diferencia EXACTA de la semana auditada (19 al 25 de octubre)
-            cursor.execute("""
-                SELECT desde_fecha, hasta_fecha, detalle_dias, diferencia 
-                FROM conciliaciones_semanales 
-                WHERE (
-                    UPPER(TRIM(agencia)) = %s 
-                    OR UPPER(TRIM(agencia)) LIKE %s
-                    OR UPPER(TRIM(agencia)) LIKE %s
-                )
-                AND (
-                    (desde_fecha <= %s AND hasta_fecha >= %s)
-                    OR (desde_fecha = %s AND hasta_fecha = %s)
-                )
-                ORDER BY id DESC LIMIT 1
-            """, (ag_nombre, f"%{ag_nombre}%", "%GRACHI%", sem_cerrada_hasta, sem_cerrada_desde, sem_cerrada_desde, sem_cerrada_hasta))
-            row_c_ag = cursor.fetchone()
+            # Obtener el ajuste exacto del mapa de la semana
+            info_ajuste = mapa_ajustes_semanales.get(ag_nombre)
+            if not info_ajuste and "GRACHI" in ag_nombre:
+                for k, v in mapa_ajustes_semanales.items():
+                    if "GRACHI" in k:
+                        info_ajuste = v
+                        break
 
             dif_sem_taquilla = 0.0
-            if row_c_ag:
-                items_dias_ag = []
-                try:
-                    items_dias_ag = json.loads(row_c_ag.get("detalle_dias") or "[]")
-                except Exception:
-                    items_dias_ag = []
-                
-                # Sumar estrictamente el ajuste neto real calculado por sistema
-                dif_calculada = sum(float(it.get("dif_neto", 0) or 0) for it in items_dias_ag)
-                
-                # Caso específico si el JSON de Grachi vino estructurado diferente
-                if abs(dif_calculada) < 0.01 and "GRACHI" in ag_nombre:
-                    dif_calculada = 12460.0
-
-                dif_original = round(dif_calculada, 2)
+            if info_ajuste:
+                dif_original = info_ajuste["diferencia"]
+                desde_f_concil = info_ajuste["desde_fecha"]
 
                 # Verificar si ya fue saldado o pagado
                 cursor.execute("""
                     SELECT COALESCE(SUM(monto), 0) as pagado 
                     FROM pagos 
-                    WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) LIKE %s)
+                    WHERE UPPER(TRIM(agencia)) = %s 
                       AND estado = 'APROBADO' 
                       AND (factura LIKE %s OR comprobante LIKE %s)
-                """, (ag_nombre, f"%{ag_nombre}%", f"%{row_c_ag['desde_fecha']}%", f"%{row_c_ag['desde_fecha']}%"))
+                """, (ag_nombre, f"%{desde_f_concil}%", f"%{desde_f_concil}%"))
                 p_concil = cursor.fetchone()
                 m_pagado = float(p_concil['pagado'] or 0.0) if p_concil else 0.0
 
@@ -2937,7 +2941,8 @@ def get_admin(
                     dif_sem_taquilla = 0.0
                 else:
                     dif_sem_taquilla = dif_original
-            # 2. Balance real unificado (Corte Diario + Ajuste Semanal Auditado)
+
+            # Balance real unificado
             balance_contable = round(cuenta_taquilla["saldo_final"] + dif_sem_taquilla, 2)
             ag['saldo_pendiente'] = balance_contable
             
