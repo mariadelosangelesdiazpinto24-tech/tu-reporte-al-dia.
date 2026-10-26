@@ -19,7 +19,7 @@
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       OneSignalDeferred.push(async function(OneSignal) {
         await OneSignal.init({
-          appId: "88b4cb90-08ed-4ef3-8852-c45316493190",
+          app_id: "88b4cb90-08ed-4ef3-8852-c45316493190",
         });
         OneSignal.login("ADMIN");
       });
@@ -692,7 +692,7 @@
                                             <tr>
                                                 <td>
                                                     <a href="javascript:void(0)" class="fw-bold text-decoration-none text-dark" 
-                                                       onclick="abrirModalDesglose('{{ pos.agencia }}', '{{ pos.saldo_anterior or 0 }}', '{{ pos.reporte_neto or 0 }}', '{{ pos.cashea or 0 }}', '{{ pos.adelantos or 0 }}', '{{ pos.liquidaciones or 0 }}', '{{ pos.abonos or 0 }}', '{{ pos.monto }}')">
+                                                       onclick="abrirModalDesglose('{{ pos.agencia }}', '{{ pos.saldo_anterior or 0 }}', '{{ pos.reporte_neto or 0 }}', '{{ pos.cashea or 0 }}', '{{ pos.adelantos or 0 }}', '{{ pos.liquidaciones or 0 }}', '{{ pos.abonos or 0 }}', '{{ pos.monto }}', '{{ pos.diferencia_semanal or 0 }}')">
                                                         <i class="fas fa-circle-info text-primary me-1"></i>{{ pos.agencia }}
                                                     </a>
                                                 </td>
@@ -708,7 +708,7 @@
                                                             </button>
                                                         </form>
                                                         <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" title="Copiar Desglose" 
-                                                                onclick="copiarDesgloseIndividual('{{ pos.agencia }}', '{{ pos.saldo_anterior or 0 }}', '{{ pos.reporte_neto or 0 }}', '{{ pos.cashea or 0 }}', '{{ pos.adelantos or 0 }}', '{{ pos.liquidaciones or 0 }}', '{{ pos.abonos or 0 }}', '{{ pos.monto }}')">
+                                                                onclick="copiarDesgloseIndividual('{{ pos.agencia }}', '{{ pos.saldo_anterior or 0 }}', '{{ pos.reporte_neto or 0 }}', '{{ pos.cashea or 0 }}', '{{ pos.adelantos or 0 }}', '{{ pos.liquidaciones or 0 }}', '{{ pos.abonos or 0 }}', '{{ pos.monto }}', '{{ pos.diferencia_semanal or 0 }}')">
                                                             <i class="fas fa-copy"></i>
                                                         </button>
                                                     </div>
@@ -736,7 +736,7 @@
                                             <tr>
                                                 <td>
                                                     <a href="javascript:void(0)" class="fw-bold text-decoration-none text-dark" 
-                                                       onclick="abrirModalDesglose('{{ neg.agencia }}', '{{ neg.saldo_anterior or 0 }}', '{{ neg.reporte_neto or 0 }}', '{{ neg.cashea or 0 }}', '{{ neg.adelantos or 0 }}', '{{ neg.liquidaciones or 0 }}', '{{ neg.abonos or 0 }}', '{{ -neg.monto }}')">
+                                                       onclick="abrirModalDesglose('{{ neg.agencia }}', '{{ neg.saldo_anterior or 0 }}', '{{ neg.reporte_neto or 0 }}', '{{ neg.cashea or 0 }}', '{{ neg.adelantos or 0 }}', '{{ neg.liquidaciones or 0 }}', '{{ neg.abonos or 0 }}', '{{ -neg.monto }}', '{{ neg.diferencia_semanal or 0 }}')">
                                                         <i class="fas fa-circle-info text-danger me-1"></i>{{ neg.agencia }}
                                                     </a>
                                                 </td>
@@ -752,7 +752,7 @@
                                                             </button>
                                                         </form>
                                                         <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" title="Copiar Desglose" 
-                                                                onclick="copiarDesgloseIndividual('{{ neg.agencia }}', '{{ neg.saldo_anterior or 0 }}', '{{ neg.reporte_neto or 0 }}', '{{ neg.cashea or 0 }}', '{{ neg.adelantos or 0 }}', '{{ neg.liquidaciones or 0 }}', '{{ neg.abonos or 0 }}', '{{ -neg.monto }}')">
+                                                                onclick="copiarDesgloseIndividual('{{ neg.agencia }}', '{{ neg.saldo_anterior or 0 }}', '{{ neg.reporte_neto or 0 }}', '{{ neg.cashea or 0 }}', '{{ neg.adelantos or 0 }}', '{{ neg.liquidaciones or 0 }}', '{{ neg.abonos or 0 }}', '{{ -neg.monto }}', '{{ neg.diferencia_semanal or 0 }}')">
                                                             <i class="fas fa-copy"></i>
                                                         </button>
                                                     </div>
@@ -1729,17 +1729,20 @@
                             <span>🤝 (+) Adelantos Entregados:</span>
                             <strong id="mdlAdelantos">Bs. 0,00</strong>
                         </div>
+                        
+                        <!-- FILA DEL AJUSTE SEMANAL AUDITADO -->
                         <div class="d-flex justify-content-between mb-1 py-1 px-2 rounded bg-white border" id="mdlRowAjusteSemanal" style="display: none;">
                             <span class="fw-bold" id="mdlLblAjusteSemanal">⚖️ Ajuste Cierre Semanal:</span>
                             <strong id="mdlAjusteSemanal">Bs. 0,00</strong>
                         </div>
+                        
                         <hr>
                         <div class="d-flex justify-content-between fs-6 fw-bold">
                             <span>💰 Total Pendiente Exacto:</span>
                             <span id="mdlTotal">Bs. 0,00</span>
                         </div>
                     </div>
-                    <small class="text-muted d-block text-center mb-3">Fórmula: <code>Saldo Anterior + Reporte - Cashea - Abonos + Liquidaciones + Adelantos</code></small>
+                    <small class="text-muted d-block text-center mb-3">Fórmula: <code>Saldo Anterior + Reporte - Cashea - Abonos + Liquidaciones + Adelantos + Ajuste Semanal</code></small>
                     
                     <!-- BOTÓN TRANSFERIR CON DATOS DE PAGO -->
                     <div class="d-grid gap-2">
@@ -1833,11 +1836,9 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // METODOS DE PAGO EN CACHE PARA CONSULTA INSTANTANEA
         var METODOS_PAGO_AGENCIAS = {{ metodos_pago_agencias | tojson if metodos_pago_agencias is defined and metodos_pago_agencias else '{}' }};
         var agenciaSeleccionadaDesglose = "";
 
-        // CONFIGURACIÓN OFICIAL DE REGLAS POR SISTEMA
         var TABLA_REGLAS_SISTEMAS = {
             "MAXPLAY":        { pct_agencia: 12, pct_ganancia: 4, pct_part: 20 },
             "MATRIX":         { pct_agencia: 12, pct_ganancia: 4, pct_part: 20 },
@@ -1888,7 +1889,6 @@
             return "Bs. " + Number(val).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
-        // COPIAR UN SOLO DATO
         function copiarTextoRapido(texto, campo) {
             navigator.clipboard.writeText(texto).then(function() {
                 alert("¡" + campo + " copiado!: " + texto);
@@ -1897,9 +1897,7 @@
             });
         }
 
-        // COPIAR PAGO MÓVIL COMPLETO EN LÍNEAS SEPARADAS
         function copiarPagoMovilCompleto(bancoRaw, tlfRaw, cedulaRaw) {
-            // Extraer solo dígitos del código del banco (por ejemplo "Banesco (0134)" o "0134" -> "0134")
             var codigoBanco = "";
             var matchBanco = (bancoRaw || "").match(/\d{4}/);
             if (matchBanco) {
@@ -1908,12 +1906,8 @@
                 codigoBanco = (bancoRaw || "").trim();
             }
 
-            // Limpiar teléfono (solo dígitos)
             var tlf = (tlfRaw || "").replace(/\D/g, '').trim();
-
-            // Limpiar cédula (solo dígitos numéricos)
             var cedula = (cedulaRaw || "").replace(/\D/g, '').trim();
-
             var textoCompleto = codigoBanco + "\n" + tlf + "\n" + cedula;
 
             navigator.clipboard.writeText(textoCompleto).then(function() {
@@ -1923,7 +1917,6 @@
             });
         }
 
-        // COPIAR CUENTA BANCARIA COMPLETA EN LÍNEAS SEPARADAS
         function copiarCuentaCompleta(banco, numeroRaw, cedulaRaw, titular) {
             var numero = (numeroRaw || "").replace(/\s+/g, '').trim();
             var cedula = (cedulaRaw || "").trim();
@@ -2412,7 +2405,6 @@
             modal.show();
         }
 
-        // MOTOR EN TIEMPO REAL: LISTA NEGRA (ADMIN)
         function cargarListaNegraAdmin(query = "") {
             var url = "/api/lista-negra";
             if (query && query.trim() !== "") {
@@ -2724,7 +2716,7 @@
             });
         }
 
-        function abrirModalDesglose(agencia, saldoAnterior, reportes, cashea, adelantos, liquidaciones, abonos, totalBackend) {
+        function abrirModalDesglose(agencia, saldoAnterior, reportes, cashea, adelantos, liquidaciones, abonos, totalBackend, ajusteSemanal = 0) {
             agenciaSeleccionadaDesglose = agencia;
             document.getElementById("modalDesgloseTitulo").innerText = "Justificación de Cuenta: " + agencia;
             
@@ -2734,6 +2726,7 @@
             var adeNum = parseMonto(adelantos);
             var liqNum = parseMonto(liquidaciones);
             var aboNum = parseMonto(abonos);
+            var ajSemNum = parseMonto(ajusteSemanal);
 
             var elemAnt = document.getElementById("mdlSaldoAnterior");
             elemAnt.innerText = formatoBs(antNum);
@@ -2757,8 +2750,26 @@
             } else {
                 rowAdelantos.style.display = "none";
             }
+
+            // Mostrar el Ajuste Semanal Auditado en el modal de Admin
+            var rowAjuste = document.getElementById("mdlRowAjusteSemanal");
+            var lblAjuste = document.getElementById("mdlLblAjusteSemanal");
+            var valAjuste = document.getElementById("mdlAjusteSemanal");
+            if (rowAjuste && Math.abs(ajSemNum) > 0.01) {
+                rowAjuste.style.display = "flex";
+                valAjuste.innerText = (ajSemNum > 0 ? "+ " : "") + formatoBs(ajSemNum);
+                if (ajSemNum > 0) {
+                    lblAjuste.className = "fw-bold text-danger";
+                    valAjuste.className = "text-danger fw-bold";
+                } else {
+                    lblAjuste.className = "fw-bold text-success";
+                    valAjuste.className = "text-success fw-bold";
+                }
+            } else if (rowAjuste) {
+                rowAjuste.style.display = "none";
+            }
             
-            var totalFinal = antNum + repNum - casNum - aboNum + liqNum + adeNum;
+            var totalFinal = antNum + repNum - casNum - aboNum + liqNum + adeNum + ajSemNum;
 
             var elemTotal = document.getElementById("mdlTotal");
             elemTotal.innerText = formatoBs(totalFinal);
@@ -2775,15 +2786,16 @@
             modal.show();
         }
 
-        function copiarDesgloseIndividual(agencia, saldoAnterior, reportes, cashea, adelantos, liquidaciones, abonos, totalBackend) {
+        function copiarDesgloseIndividual(agencia, saldoAnterior, reportes, cashea, adelantos, liquidaciones, abonos, totalBackend, ajusteSemanal = 0) {
             var antNum = parseMonto(saldoAnterior);
             var repNum = parseMonto(reportes);
             var casNum = parseMonto(cashea);
             var adeNum = parseMonto(adelantos);
             var liqNum = parseMonto(liquidaciones);
             var aboNum = parseMonto(abonos);
+            var ajSemNum = parseMonto(ajusteSemanal);
 
-            var totalFinal = antNum + repNum - casNum - aboNum + liqNum + adeNum;
+            var totalFinal = antNum + repNum - casNum - aboNum + liqNum + adeNum + ajSemNum;
 
             var hoy = new Date();
             var dia = String(hoy.getDate()).padStart(2, '0');
@@ -2809,6 +2821,9 @@
             }
             if (adeNum > 0) {
                 texto += "🤝 *(+) Adelantos Recibidos:* " + formatoBs(adeNum) + "\n";
+            }
+            if (Math.abs(ajSemNum) > 0.01) {
+                texto += "⚖️ *(Ajuste Cierre Semanal):* " + (ajSemNum > 0 ? "+ " : "") + formatoBs(ajSemNum) + "\n";
             }
 
             texto += "----------------------------------------\n";
