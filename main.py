@@ -154,9 +154,7 @@ ALIAS_AGENCIAS = {
     "LAS VECINAS": "LAS VECINAS",
     "LA MOROCHA": "LA MOROCHA",
     "LOS LLANOS": "LOS LLANOS",
-    "LA BRUJITA": "LA BRUJITA",
-    "GRACHI": "GRACHIBABY",
-    "GRACHIBABY": "GRACHIBABY"
+    "LA BRUJITA": "LA BRUJITA"
 }
 
 def normalizar(texto: str) -> str:
@@ -384,8 +382,7 @@ def init_db():
     agencias_base = [
         "MILA", "ANA MARIA", "NABEL", "VIP23", "DESTINO SUERTE", 
         "VALLEMIL", "ALEXA", "PALOMITA", "GEGE", "LILI LA LOBA", 
-        "LAS VECINAS", "LA MOROCHA", "LOS LLANOS", "LA BRUJITA",
-        "GRACHIBABY", "LOS MOROCHOS"
+        "LAS VECINAS", "LA MOROCHA", "LOS LLANOS", "LA BRUJITA"
     ]
     for ag in agencias_base:
         try:
@@ -1949,70 +1946,52 @@ def get_agencia(
     sem_cerrada_desde = lunes_pasado.strftime('%Y-%m-%d')
     sem_cerrada_hasta = domingo_pasado.strftime('%Y-%m-%d')
 
+    # Si no se filtra manualmente, se fija la última semana cerrada
+    rango_concil_desde = desde_fecha if desde_fecha else sem_cerrada_desde
+    rango_concil_hasta = hasta_fecha if hasta_fecha else sem_cerrada_hasta
+
     # ----------------------------------------------------------------------
-    # 2. CONSULTAR EL CUADRE SEMANAL EXACTO (SIN ERRORES ACUMULADOS)
+    # 2. CONSULTAR EL CUADRE SEMANAL EXACTO DE ESA SEMANA
     # ----------------------------------------------------------------------
     cursor.execute("""
-        SELECT DISTINCT ON (UPPER(TRIM(agencia))) agencia, desde_fecha, hasta_fecha, detalle_dias 
-        FROM conciliaciones_semanales 
-        ORDER BY UPPER(TRIM(agencia)), id DESC
-    """)
-    rows_c_todas = cursor.fetchall()
+        SELECT * FROM conciliaciones_semanales 
+        WHERE UPPER(TRIM(agencia)) = %s 
+          AND desde_fecha <= %s AND hasta_fecha >= %s
+        ORDER BY id DESC LIMIT 1
+    """, (agencia_norm, rango_concil_hasta, rango_concil_desde))
+    row_concil = cursor.fetchone()
 
-    mapa_concil_agencia = {}
-    for r_ca in rows_c_todas:
-        ag_k_raw = str(r_ca['agencia'] or '').strip().upper()
-        ag_k_norm = normalizar(ag_k_raw)
-        try:
-            itms = json.loads(r_ca['detalle_dias'] or "[]")
-        except Exception:
-            itms = []
-        
-        # Sumar estrictamente el descuadre neto de los sistemas de la semana cerrada
-        dif_n = sum(float(it.get("dif_neto", 0) or 0) for it in itms)
-        
-        val_obj = {
-            "diferencia": round(dif_n, 2),
-            "desde_fecha": r_ca['desde_fecha'],
-            "hasta_fecha": r_ca['hasta_fecha'],
-            "detalle_dias": itms
-        }
-        mapa_concil_agencia[ag_k_norm] = val_obj
-        mapa_concil_agencia[ag_k_raw] = val_obj
-        if "GRACHI" in ag_k_raw:
-            mapa_concil_agencia["GRACHI"] = val_obj
-            mapa_concil_agencia["GRACHIBABY"] = val_obj
-        if "MOROCHO" in ag_k_raw:
-            mapa_concil_agencia["LOS MOROCHOS"] = val_obj
-
-    info_taquilla_c = mapa_concil_agencia.get(agencia_norm)
-    if not info_taquilla_c:
-        for k, v in mapa_concil_agencia.items():
-            if k in agencia_norm or agencia_norm in k:
-                info_taquilla_c = v
-                break
+    if not row_concil:
+        cursor.execute("""
+            SELECT * FROM conciliaciones_semanales 
+            WHERE UPPER(TRIM(agencia)) = %s 
+            ORDER BY id DESC LIMIT 1
+        """, (agencia_norm,))
+        row_concil = cursor.fetchone()
 
     dif_semanal_original = 0.0
     detalle_conciliacion = []
-    desde_concil_str = sem_cerrada_desde
-    hasta_concil_str = sem_cerrada_hasta
 
-    if info_taquilla_c:
-        dif_semanal_original = info_taquilla_c["diferencia"]
-        detalle_conciliacion = info_taquilla_c["detalle_dias"]
-        desde_concil_str = info_taquilla_c["desde_fecha"]
-        hasta_concil_str = info_taquilla_c["hasta_fecha"]
+    if row_concil:
+        try:
+            detalle_conciliacion = json.loads(row_concil["detalle_dias"] or "[]")
+        except Exception:
+            detalle_conciliacion = []
+
+        # Suma neta de los ajustes de los sistemas de esa semana
+        dif_semanal_original = sum(float(item.get("dif_neto", 0) or 0) for item in detalle_conciliacion)
+        dif_semanal_original = round(dif_semanal_original, 2)
 
         # ------------------------------------------------------------------
-        # 3. VERIFICAR SI YA FUE PAGADO / SALDADO
+        # 3. VERIFICAR SI YA FUE PAGADO / SALDADO PARA QUE SALGA SOLVENTE
         # ------------------------------------------------------------------
         cursor.execute("""
             SELECT COALESCE(SUM(monto), 0) as pagado 
             FROM pagos 
-            WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) LIKE %s)
+            WHERE UPPER(TRIM(agencia)) = %s 
               AND estado = 'APROBADO' 
               AND (factura LIKE %s OR comprobante LIKE %s)
-        """, (agencia_norm, f"%{agencia_norm}%", f"%{desde_concil_str}%", f"%{desde_concil_str}%"))
+        """, (agencia_norm, f"%{row_concil['desde_fecha']}%", f"%{row_concil['desde_fecha']}%"))
         pago_concil = cursor.fetchone()
         monto_ya_pagado = float(pago_concil['pagado'] or 0.0) if pago_concil else 0.0
 
@@ -2024,13 +2003,13 @@ def get_agencia(
             esta_solvente = abs(dif_semanal_original) < 0.05
 
         conciliacion_resumen = {
-            "total_reportado": 0.0,
-            "total_sistema": 0.0,
+            "total_reportado": float(row_concil["total_reportado"] or 0.0),
+            "total_sistema": float(row_concil["total_sistema"] or 0.0),
             "diferencia": dif_semanal_activa,
             "diferencia_original": dif_semanal_original,
             "solvente": esta_solvente,
-            "desde_fecha": desde_concil_str,
-            "hasta_fecha": hasta_concil_str
+            "desde_fecha": row_concil["desde_fecha"],
+            "hasta_fecha": row_concil["hasta_fecha"]
         }
     else:
         dif_semanal_activa = 0.0
@@ -2894,41 +2873,6 @@ def get_admin(
         sem_cerrada_desde = lunes_pasado.strftime('%Y-%m-%d')
         sem_cerrada_hasta = domingo_pasado.strftime('%Y-%m-%d')
 
-        # ----------------------------------------------------------------------
-        # MAPA EXACTO DE AJUSTES SEMANALES AUDITADOS (Directo de la conciliación)
-        # ----------------------------------------------------------------------
-        cursor.execute("""
-            SELECT DISTINCT ON (UPPER(TRIM(agencia))) agencia, desde_fecha, hasta_fecha, detalle_dias 
-            FROM conciliaciones_semanales 
-            ORDER BY UPPER(TRIM(agencia)), id DESC
-        """)
-        rows_todas_concil = cursor.fetchall()
-
-        mapa_ajustes_semanales = {}
-        for r_c in rows_todas_concil:
-            ag_c_raw = str(r_c['agencia'] or '').strip().upper()
-            ag_c_norm = normalizar(ag_c_raw)
-            try:
-                items_d = json.loads(r_c['detalle_dias'] or "[]")
-            except Exception:
-                items_d = []
-            
-            # Sumar estrictamente el descuadre neto real de los sistemas
-            dif_neto_total = sum(float(it.get("dif_neto", 0) or 0) for it in items_d)
-            
-            datos_item = {
-                "diferencia": round(dif_neto_total, 2),
-                "desde_fecha": r_c['desde_fecha']
-            }
-            mapa_ajustes_semanales[ag_c_norm] = datos_item
-            mapa_ajustes_semanales[ag_c_raw] = datos_item
-            
-            if "GRACHI" in ag_c_raw:
-                mapa_ajustes_semanales["GRACHI"] = datos_item
-                mapa_ajustes_semanales["GRACHIBABY"] = datos_item
-            if "MOROCHO" in ag_c_raw:
-                mapa_ajustes_semanales["LOS MOROCHOS"] = datos_item
-
         positivos = []
         negativos = []
         agencias_procesadas = set()
@@ -2944,30 +2888,43 @@ def get_admin(
             
             cuenta_taquilla = obtener_cuenta_agencia_corte(ag_nombre)
             
-            # Obtener el ajuste exacto del mapa de la semana
-            info_ajuste = mapa_ajustes_semanales.get(ag_nombre)
-            if not info_ajuste:
-                if "GRACHI" in ag_nombre:
-                    info_ajuste = mapa_ajustes_semanales.get("GRACHIBABY") or mapa_ajustes_semanales.get("GRACHI")
-                else:
-                    for k, v in mapa_ajustes_semanales.items():
-                        if k in ag_nombre or ag_nombre in k:
-                            info_ajuste = v
-                            break
+            # 1. Buscar la diferencia de la semana cerrada para esta taquilla
+            cursor.execute("""
+                SELECT desde_fecha, hasta_fecha, detalle_dias 
+                FROM conciliaciones_semanales 
+                WHERE UPPER(TRIM(agencia)) = %s 
+                  AND desde_fecha <= %s AND hasta_fecha >= %s
+                ORDER BY id DESC LIMIT 1
+            """, (ag_nombre, sem_cerrada_hasta, sem_cerrada_desde))
+            row_c_ag = cursor.fetchone()
+
+            if not row_c_ag:
+                cursor.execute("""
+                    SELECT desde_fecha, hasta_fecha, detalle_dias 
+                    FROM conciliaciones_semanales 
+                    WHERE UPPER(TRIM(agencia)) = %s 
+                    ORDER BY id DESC LIMIT 1
+                """, (ag_nombre,))
+                row_c_ag = cursor.fetchone()
 
             dif_sem_taquilla = 0.0
-            if info_ajuste:
-                dif_original = info_ajuste["diferencia"]
-                desde_f_concil = info_ajuste["desde_fecha"]
+            if row_c_ag:
+                try:
+                    items_dias_ag = json.loads(row_c_ag["detalle_dias"] or "[]")
+                except Exception:
+                    items_dias_ag = []
+                
+                dif_original = sum(float(it.get("dif_neto", 0) or 0) for it in items_dias_ag)
+                dif_original = round(dif_original, 2)
 
-                # Verificar si ya fue saldado o pagado
+                # Verificar si ya fue saldado/pagado
                 cursor.execute("""
                     SELECT COALESCE(SUM(monto), 0) as pagado 
                     FROM pagos 
-                    WHERE (UPPER(TRIM(agencia)) = %s OR UPPER(TRIM(agencia)) LIKE %s)
+                    WHERE UPPER(TRIM(agencia)) = %s 
                       AND estado = 'APROBADO' 
                       AND (factura LIKE %s OR comprobante LIKE %s)
-                """, (ag_nombre, f"%{ag_nombre}%", f"%{desde_f_concil}%", f"%{desde_f_concil}%"))
+                """, (ag_nombre, f"%{row_c_ag['desde_fecha']}%", f"%{row_c_ag['desde_fecha']}%"))
                 p_concil = cursor.fetchone()
                 m_pagado = float(p_concil['pagado'] or 0.0) if p_concil else 0.0
 
@@ -2976,7 +2933,7 @@ def get_admin(
                 else:
                     dif_sem_taquilla = dif_original
 
-            # Balance real unificado
+            # 2. Balance real unificado (Corte Diario + Ajuste Semanal Auditado)
             balance_contable = round(cuenta_taquilla["saldo_final"] + dif_sem_taquilla, 2)
             ag['saldo_pendiente'] = balance_contable
             
