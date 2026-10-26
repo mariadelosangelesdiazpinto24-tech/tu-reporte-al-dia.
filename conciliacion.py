@@ -15,13 +15,25 @@ TZ_VENEZUELA = ZoneInfo("America/Caracas")
 def obtener_fecha_venezuela() -> str:
     return datetime.now(TZ_VENEZUELA).strftime('%Y-%m-%d')
 
+ALIAS_CONCILIACION = {
+    "GRACHI": "GRACHIBABY",
+    "GRACHIBABY": "GRACHIBABY",
+    "JCPEREZ": "JC PEREZ",
+    "RUTA MILLONARIA": "ANA MARIA",
+    "LA SUERTE DE JANN": "NABEL",
+    "DESTINO FORTUNA": "DESTINO SUERTE",
+    "CAMINO DE LA SUERTE": "FERNANDO",
+    "AGENCIA VALLEMIL": "VALLEMIL"
+}
+
 def normalizar(texto: str) -> str:
     import unicodedata
     if not texto:
         return ""
     texto = unicodedata.normalize('NFD', texto)
     texto = ''.join(c for c in texto if unicodedata.category(c) != 'Mn')
-    return texto.strip().upper()
+    t_clean = texto.strip().upper()
+    return ALIAS_CONCILIACION.get(t_clean, t_clean)
 
 def get_db():
     database_url = os.environ.get("DATABASE_URL")
