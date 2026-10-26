@@ -2821,9 +2821,20 @@ def get_admin(
         cursor.execute(query_pagos, tuple(params_pagos))
         pagos = [dict(row) for row in cursor.fetchall()]
 
-        cursor.execute("SELECT * FROM usuarios ORDER BY id DESC")
+        is_postgres = bool(os.environ.get("DATABASE_URL"))
+        if is_postgres:
+            cursor.execute("""
+                SELECT DISTINCT ON (UPPER(TRIM(agencia))) * 
+                FROM usuarios 
+                ORDER BY UPPER(TRIM(agencia)), id DESC
+            """)
+        else:
+            cursor.execute("""
+                SELECT * FROM usuarios 
+                GROUP BY UPPER(TRIM(agencia)) 
+                ORDER BY id DESC
+            """)
         agencias = [dict(row) for row in cursor.fetchall()]
-
         cursor.execute("SELECT * FROM usuarios WHERE estado = 'PENDIENTE' AND rol = 'SOLO_LISTA_NEGRA' ORDER BY id DESC")
         solicitudes_ln_pendientes = [dict(r) for r in cursor.fetchall()]
         
