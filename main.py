@@ -2857,7 +2857,7 @@ def get_admin(
         casheas_generales = [dict(row) for row in cursor.fetchall()]
         total_cashea_filtrado = sum(float(c.get('monto') or 0.0) for c in casheas_generales)
 
-       # Rango de la última semana completa cerrada para el Admin
+     # Rango de la última semana completa cerrada para el Admin
         hoy_date = datetime.now(TZ_VENEZUELA).date()
         lunes_pasado = hoy_date - timedelta(days=hoy_date.weekday() + 7)
         domingo_pasado = lunes_pasado + timedelta(days=6)
@@ -2866,10 +2866,16 @@ def get_admin(
 
         positivos = []
         negativos = []
+        agencias_procesadas = set()
+
         for ag in agencias:
             if ag.get('rol') in ['BANQUERO', 'SOLO_LISTA_NEGRA']:
                 continue
-            ag_nombre = ag['agencia']
+            
+            ag_nombre = normalizar(ag['agencia'])
+            if not ag_nombre or ag_nombre in agencias_procesadas:
+                continue
+            agencias_procesadas.add(ag_nombre)
             
             cuenta_taquilla = obtener_cuenta_agencia_corte(ag_nombre)
             
@@ -2880,7 +2886,7 @@ def get_admin(
                 WHERE UPPER(TRIM(agencia)) = %s 
                   AND desde_fecha <= %s AND hasta_fecha >= %s
                 ORDER BY id DESC LIMIT 1
-            """, (normalizar(ag_nombre), sem_cerrada_hasta, sem_cerrada_desde))
+            """, (ag_nombre, sem_cerrada_hasta, sem_cerrada_desde))
             row_c_ag = cursor.fetchone()
 
             if not row_c_ag:
@@ -2889,7 +2895,7 @@ def get_admin(
                     FROM conciliaciones_semanales 
                     WHERE UPPER(TRIM(agencia)) = %s 
                     ORDER BY id DESC LIMIT 1
-                """, (normalizar(ag_nombre),))
+                """, (ag_nombre,))
                 row_c_ag = cursor.fetchone()
 
             dif_sem_taquilla = 0.0
@@ -2909,7 +2915,7 @@ def get_admin(
                     WHERE UPPER(TRIM(agencia)) = %s 
                       AND estado = 'APROBADO' 
                       AND (factura LIKE %s OR comprobante LIKE %s)
-                """, (normalizar(ag_nombre), f"%{row_c_ag['desde_fecha']}%", f"%{row_c_ag['desde_fecha']}%"))
+                """, (ag_nombre, f"%{row_c_ag['desde_fecha']}%", f"%{row_c_ag['desde_fecha']}%"))
                 p_concil = cursor.fetchone()
                 m_pagado = float(p_concil['pagado'] or 0.0) if p_concil else 0.0
 
@@ -2942,7 +2948,6 @@ def get_admin(
                 datos_desglose_neg = dict(datos_desglose)
                 datos_desglose_neg["monto"] = abs(balance_contable)
                 negativos.append(datos_desglose_neg)
-
             ag['saldo_pendiente'] = balance_contable
             
             datos_desglose = {
