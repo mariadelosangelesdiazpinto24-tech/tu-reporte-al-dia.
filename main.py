@@ -1934,12 +1934,10 @@ def get_agencia(
         cursor.execute("SELECT * FROM comunicados ORDER BY id DESC")
         comunicados = [dict(row) for row in cursor.fetchall()]
 
-    cuenta_ag = obtener_cuenta_agencia_corte(agencia_norm)
-
     cursor.execute("SELECT id, fecha, monto, detalle_html FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
     reportes_agencia = [dict(row) for row in cursor.fetchall()]
 
-# ----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
     # 1. RANGO OFICIAL FIJO: ÚLTIMA SEMANA COMPLETA CERRADA (LUNES A DOMINGO)
     # ----------------------------------------------------------------------
     hoy_date = datetime.now(TZ_VENEZUELA).date()
@@ -2868,7 +2866,7 @@ def get_admin(
         casheas_generales = [dict(row) for row in cursor.fetchall()]
         total_cashea_filtrado = sum(float(c.get('monto') or 0.0) for c in casheas_generales)
 
-     # Rango de la última semana completa cerrada para el Admin
+        # Rango de la última semana completa cerrada para el Admin
         hoy_date = datetime.now(TZ_VENEZUELA).date()
         lunes_pasado = hoy_date - timedelta(days=hoy_date.weekday() + 7)
         domingo_pasado = lunes_pasado + timedelta(days=6)
@@ -2959,46 +2957,15 @@ def get_admin(
                 datos_desglose_neg = dict(datos_desglose)
                 datos_desglose_neg["monto"] = abs(balance_contable)
                 negativos.append(datos_desglose_neg)
-            ag['saldo_pendiente'] = balance_contable
-            
-            datos_desglose = {
-                "agencia": ag_nombre,
-                "fecha": cuenta_taquilla["fecha"],
-                "monto": balance_contable,
-                "balance_total": balance_contable,
-                "saldo_anterior": cuenta_taquilla["saldo_anterior"],
-                "reporte_neto": cuenta_taquilla["neto_hoy"],
-                "abonos": cuenta_taquilla["abonos_hoy"],
-                "cashea": cuenta_taquilla["cashea_hoy"],
-                "adelantos": cuenta_taquilla["adelantos_hoy"],
-                "liquidaciones": cuenta_taquilla["liquidaciones_hoy"]
-            }
-
-            if balance_contable > 0.009:
-                positivos.append(datos_desglose)
-            elif balance_contable < -0.009:
-                datos_desglose_neg = dict(datos_desglose)
-                datos_desglose_neg["monto"] = abs(balance_contable)
-                negativos.append(datos_desglose_neg)
 
         # ----------------------------------------------------------------------
         # FILTRADO EXACTO DE CUADRE SEMANAL (CONCILIACIÓN)
         # ----------------------------------------------------------------------
-        # Calcular siempre la última semana completa cerrada (Lunes a Domingo pasados)
-        hoy_date = datetime.now(TZ_VENEZUELA).date()
-        lunes_pasado = hoy_date - timedelta(days=hoy_date.weekday() + 7)
-        domingo_pasado = lunes_pasado + timedelta(days=6)
-        sem_cerrada_desde = lunes_pasado.strftime('%Y-%m-%d')
-        sem_cerrada_hasta = domingo_pasado.strftime('%Y-%m-%d')
-
-        # Si estamos en la pestaña de cuadre semanal y las fechas coinciden con hoy (26/10),
-        # fijar por defecto el rango de la semana cerrada pasada para no mostrar errores
         if tab == 'conciliacion_admin':
             if not desde_fecha and not hasta_fecha:
                 f_desde = sem_cerrada_desde
                 f_hasta = sem_cerrada_hasta
             elif f_desde == f_hasta and f_desde == hoy_vzla:
-                # Si filtraron solo el día de hoy, fijar la semana cerrada
                 f_desde = sem_cerrada_desde
                 f_hasta = sem_cerrada_hasta
 
@@ -3013,7 +2980,6 @@ def get_admin(
             query_concil += " AND UPPER(TRIM(agencia)) = %s"
             params_concil.append(normalizar(agencia_filtro))
 
-        # Coincidencia con el rango semanal cargado en Colab
         if f_desde and f_hasta:
             query_concil += " AND desde_fecha <= %s AND hasta_fecha >= %s"
             params_concil.extend([f_hasta, f_desde])
@@ -3022,23 +2988,8 @@ def get_admin(
         cursor.execute(query_concil, tuple(params_concil))
         rows_concil_admin = cursor.fetchall()
 
-        # Si no hay cierre cargado para esa fecha o rango, NO forzar fallbacks con datos viejos:
         if not rows_concil_admin and (f_desde > sem_cerrada_hasta):
             rows_concil_admin = []
-
-        if not rows_concil_admin and f_desde and f_hasta:
-            query_fallback = """
-                SELECT DISTINCT ON (UPPER(TRIM(agencia))) * 
-                FROM conciliaciones_semanales 
-                WHERE hasta_fecha >= %s AND desde_fecha <= %s
-            """
-            params_fallback = [f_desde, f_hasta]
-            if agencia_filtro:
-                query_fallback += " AND UPPER(TRIM(agencia)) = %s"
-                params_fallback.append(normalizar(agencia_filtro))
-            query_fallback += " ORDER BY UPPER(TRIM(agencia)), id DESC"
-            cursor.execute(query_fallback, tuple(params_fallback))
-            rows_concil_admin = cursor.fetchall()
 
         conciliacion_admin_detalle = []
         tot_rep_admin = 0.0
