@@ -1306,6 +1306,83 @@ def guardar_conciliacion_colab(
 
     return {"status": "ok", "mensaje": f"Conciliación guardada para {agencia_norm}"}
 
+# ==============================================================================
+# CARGA AUTOMÁTICA DIARIA DE LIDER (GUACA) Y NYS (CALAMAR)
+# ==============================================================================
+@app.post("/api/cargar-totales-lider-nys")
+async def api_cargar_totales_lider_nys(
+    fecha: str = Form(...),
+    venta_lider: float = Form(0.0),
+    premios_lider: float = Form(0.0),
+    venta_nys: float = Form(0.0),
+    premios_nys: float = Form(0.0)
+):
+    fecha_limpia = fecha.strip()
+    
+    # Comisiones oficiales: Guaca 13% y Calamar 14%
+    pct_lider_guaca = 0.13
+    comision_lider = float(venta_lider) * pct_lider_guaca
+
+    pct_nys_calamar = 0.14
+    comision_nys = float(venta_nys) * pct_nys_calamar
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    is_postgres = bool(os.environ.get("DATABASE_URL"))
+
+    if is_postgres:
+        # 1. Registrar o actualizar LÍDER (Sistema GUACA)
+        cursor.execute("""
+            INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+            VALUES ('COMERCIALIZADORA LIDER', 'GUACA', %s, %s, %s, %s)
+            ON CONFLICT (banquero, sistema, fecha)
+            DO UPDATE SET 
+                venta = EXCLUDED.venta, 
+                comision = EXCLUDED.comision, 
+                premios = EXCLUDED.premios
+        """, (fecha_limpia, float(venta_lider), comision_lider, float(premios_lider)))
+
+        # 2. Registrar o actualizar NYS (Sistema CALAMAR)
+        cursor.execute("""
+            INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+            VALUES ('COMERCIALIZADORA NYS', 'CALAMAR', %s, %s, %s, %s)
+            ON CONFLICT (banquero, sistema, fecha)
+            DO UPDATE SET 
+                venta = EXCLUDED.venta, 
+                comision = EXCLUDED.comision, 
+                premios = EXCLUDED.premios
+        """, (fecha_limpia, float(venta_nys), comision_nys, float(premios_nys)))
+    else:
+        cursor.execute("""
+            INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+            VALUES ('COMERCIALIZADORA LIDER', 'GUACA', ?, ?, ?, ?)
+            ON CONFLICT (banquero, sistema, fecha)
+            DO UPDATE SET 
+                venta = excluded.venta, 
+                comision = excluded.comision, 
+                premios = excluded.premios
+        """, (fecha_limpia, float(venta_lider), comision_lider, float(premios_lider)))
+
+        cursor.execute("""
+            INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+            VALUES ('COMERCIALIZADORA NYS', 'CALAMAR', ?, ?, ?, ?)
+            ON CONFLICT (banquero, sistema, fecha)
+            DO UPDATE SET 
+                venta = excluded.venta, 
+                comision = excluded.comision, 
+                premios = excluded.premios
+        """, (fecha_limpia, float(venta_nys), comision_nys, float(premios_nys)))
+
+    conn.commit()
+    conn.close()
+
+    print(f"✅ [API] Totales sincronizados para {fecha_limpia}: LÍDER (V:{venta_lider}, P:{premios_lider}) | NYS (V:{venta_nys}, P:{premios_nys})")
+    return {
+        "status": "ok", 
+        "mensaje": f"Totales de Líder y NYS guardados exitosamente para {fecha_limpia}"
+    }
+
 @app.get("/api/obtener-historico-semana")
 def obtener_historico_semana(agencia: str, desde: str, hasta: str):
     ag_norm = normalizar(agencia)
@@ -2760,19 +2837,41 @@ def get_admin(
                 datos_desglose_neg["monto"] = abs(balance_contable)
                 negativos.append(datos_desglose_neg)
 
+        # ----------------------------------------------------------------------
+        # FILTRADO DINÁMICO DE CUADRE SEMANAL (CONCILIACIÓN) POR RANGO Y AGENCIA
+        # ----------------------------------------------------------------------
+        query_concil = """
+            SELECT DISTINCT ON (UPPER(TRIM(agencia))) * 
+            FROM conciliaciones_semanales 
+            WHERE 1=1
+        """
+        params_concil = []
+
         if agencia_filtro:
-            cursor.execute("""
-                SELECT * FROM conciliaciones_semanales 
-                WHERE UPPER(TRIM(agencia)) = %s 
-                ORDER BY id DESC LIMIT 1
-            """, (normalizar(agencia_filtro),))
-            rows_concil_admin = cursor.fetchall()
-        else:
-            cursor.execute("""
+            query_concil += " AND UPPER(TRIM(agencia)) = %s"
+            params_concil.append(normalizar(agencia_filtro))
+
+        if f_desde and f_hasta:
+            query_concil += " AND (desde_fecha <= %s AND hasta_fecha >= %s)"
+            params_concil.extend([f_hasta, f_desde])
+
+        query_concil += " ORDER BY UPPER(TRIM(agencia)), id DESC"
+
+        cursor.execute(query_concil, tuple(params_concil))
+        rows_concil_admin = cursor.fetchall()
+
+        if not rows_concil_admin and f_desde and f_hasta:
+            query_fallback = """
                 SELECT DISTINCT ON (UPPER(TRIM(agencia))) * 
                 FROM conciliaciones_semanales 
-                ORDER BY UPPER(TRIM(agencia)), id DESC
-            """)
+                WHERE hasta_fecha >= %s AND desde_fecha <= %s
+            """
+            params_fallback = [f_desde, f_hasta]
+            if agencia_filtro:
+                query_fallback += " AND UPPER(TRIM(agencia)) = %s"
+                params_fallback.append(normalizar(agencia_filtro))
+            query_fallback += " ORDER BY UPPER(TRIM(agencia)), id DESC"
+            cursor.execute(query_fallback, tuple(params_fallback))
             rows_concil_admin = cursor.fetchall()
 
         conciliacion_admin_detalle = []
