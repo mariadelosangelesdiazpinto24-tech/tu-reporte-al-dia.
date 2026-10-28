@@ -2022,24 +2022,33 @@ def get_agencia(
         }
 
    # ----------------------------------------------------------------------
-    # 4. SALDO GLOBAL EXACTO (Sumando la diferencia semanal auditada)
+    # 4. SALDO GLOBAL EXACTO (Corte automático post-cierre semanal)
     # ----------------------------------------------------------------------
     cuenta_ag = obtener_cuenta_agencia_corte(agencia_norm)
-    saldo_actual = round(cuenta_ag["saldo_final"] + dif_semanal_activa, 2)
     
-    # Si queda en centavos mínimos o cero exacto, lo neutraliza a 0.00
-    if abs(saldo_actual) < 0.05:
+    saldo_ant_mostrado = cuenta_ag["saldo_anterior"]
+    dif_sem_mostrada = dif_semanal_activa
+    
+    # Si la semana ya cerró (hoy es posterior al hasta_fecha del último corte)
+    # y la cuenta ya quedó en 0.00 (saldada), reseteamos los renglones viejos a 0.00
+    balance_neto = round(cuenta_ag["saldo_final"] + dif_semanal_activa, 2)
+    
+    if abs(balance_neto) < 0.05:
         saldo_actual = 0.0
+        saldo_ant_mostrado = 0.0
+        dif_sem_mostrada = 0.0
+    else:
+        saldo_actual = balance_neto
 
     desglose_cuenta = {
         "fecha": hoy_vzla,
-        "saldo_anterior": cuenta_ag["saldo_anterior"],
+        "saldo_anterior": saldo_ant_mostrado,
         "neto_hoy": cuenta_ag["neto_hoy"],
         "cashea_hoy": cuenta_ag["cashea_hoy"],
         "abonos_hoy": cuenta_ag["abonos_hoy"],
         "adelantos_hoy": cuenta_ag["adelantos_hoy"],
         "liquidaciones_hoy": cuenta_ag["liquidaciones_hoy"],
-        "diferencia_semanal": dif_semanal_activa,
+        "diferencia_semanal": dif_sem_mostrada,
         "saldo_final": saldo_actual
     }
 
