@@ -2021,11 +2021,27 @@ def get_agencia(
             "hasta_fecha": sem_cerrada_hasta
         }
 
-    # ----------------------------------------------------------------------
-    # 4. SALDO GLOBAL EXACTO (Sin sumar dos veces si ya se registró en pagos)
+   # ----------------------------------------------------------------------
+    # 4. SALDO GLOBAL EXACTO (Sumando la diferencia semanal auditada)
     # ----------------------------------------------------------------------
     cuenta_ag = obtener_cuenta_agencia_corte(agencia_norm)
-    saldo_actual = cuenta_ag["saldo_final"]
+    saldo_actual = round(cuenta_ag["saldo_final"] + dif_semanal_activa, 2)
+    
+    # Si queda en centavos mínimos o cero exacto, lo neutraliza a 0.00
+    if abs(saldo_actual) < 0.05:
+        saldo_actual = 0.0
+
+    desglose_cuenta = {
+        "fecha": hoy_vzla,
+        "saldo_anterior": cuenta_ag["saldo_anterior"],
+        "neto_hoy": cuenta_ag["neto_hoy"],
+        "cashea_hoy": cuenta_ag["cashea_hoy"],
+        "abonos_hoy": cuenta_ag["abonos_hoy"],
+        "adelantos_hoy": cuenta_ag["adelantos_hoy"],
+        "liquidaciones_hoy": cuenta_ag["liquidaciones_hoy"],
+        "diferencia_semanal": dif_semanal_activa,
+        "saldo_final": saldo_actual
+    }
 
     desglose_cuenta = {
         "fecha": hoy_vzla,
