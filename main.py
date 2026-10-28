@@ -2959,7 +2959,7 @@ def get_admin(
                     dif_sem_taquilla = dif_original
 
             # El balance contable viene directo de cuenta_taquilla (que ya integra pagos y ajustes)
-           balance_contable = round(cuenta_taquilla["saldo_final"] + dif_sem_taquilla, 2)
+            balance_contable = round(cuenta_taquilla["saldo_final"] + dif_sem_taquilla, 2)
             if abs(balance_contable) < 0.05:
                 balance_contable = 0.0
             ag['saldo_pendiente'] = balance_contable
