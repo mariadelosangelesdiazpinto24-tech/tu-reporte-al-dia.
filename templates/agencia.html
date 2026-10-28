@@ -394,55 +394,65 @@
                     <div class="collapse show mb-4" id="desglosePendienteDetalle">
                         <div class="card p-3 border rounded-3 bg-light shadow-sm small">
                             <h6 class="fw-bold text-dark border-bottom pb-2 mb-2"><i class="fas fa-calculator text-tema me-2"></i>Justificación de la Cuenta:</h6>
-                            <div class="row g-2">
-                                <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
-                                    <span>⏳ Último Saldo Pendiente:</span>
-                                    <strong class="{% if desglose_cuenta.saldo_anterior > 0 %}text-danger{% elif desglose_cuenta.saldo_anterior < 0 %}text-success{% else %}text-muted{% endif %}">
-                                        Bs. {{ (desglose_cuenta.saldo_anterior or 0) | dinero }}
-                                    </strong>
+                            
+                            <!-- MUESTRA MENSAJE DE CUENTA AL DÍA CUANDO EL SALDO ES 0.00 Y NO HAY MOVIMIENTOS HOY -->
+                            {% if saldo_actual|abs < 0.01 and (desglose_cuenta.neto_hoy or 0)|abs < 0.01 and (desglose_cuenta.abonos_hoy or 0)|abs < 0.01 %}
+                                <div class="text-center py-3">
+                                    <i class="fas fa-circle-check text-success fs-3 mb-2 d-block"></i>
+                                    <strong class="text-success fs-6">¡Tu cuenta se encuentra totalmente al día y saldada!</strong>
+                                    <p class="text-muted small m-0 mt-1">Los cierres anteriores han sido auditados y no presentas saldos pendientes para hoy.</p>
                                 </div>
-                                <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
-                                    <span>📊 Reporte del Día (Hoy):</span>
-                                    <strong class="text-primary">+ Bs. {{ (desglose_cuenta.neto_hoy or 0) | dinero }}</strong>
-                                </div>
-                                <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
-                                    <span class="text-info">🛒 Menos Facturas Cashea (Hoy):</span>
-                                    <strong class="text-info">- Bs. {{ (desglose_cuenta.cashea_hoy or 0) | dinero }}</strong>
-                                </div>
-                                <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
-                                    <span class="text-success">🏦 Menos Abonos/Pagos Realizados (Hoy):</span>
-                                    <strong class="text-success">- Bs. {{ (desglose_cuenta.abonos_hoy or 0) | dinero }}</strong>
-                                </div>
-                                <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
-                                    <span class="text-danger">💸 Liquidaciones / Pagos de Banca (Hoy):</span>
-                                    <strong class="text-danger">+ Bs. {{ (desglose_cuenta.liquidaciones_hoy or 0) | dinero }}</strong>
-                                </div>
-                                {% if desglose_cuenta.adelantos_hoy and desglose_cuenta.adelantos_hoy > 0 %}
-                                <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
-                                    <span class="text-warning">🤝 Adelantos Entregados (Hoy):</span>
-                                    <strong class="text-warning">+ Bs. {{ (desglose_cuenta.adelantos_hoy or 0) | dinero }}</strong>
-                                </div>
-                                {% endif %}
+                            {% else %}
+                                <div class="row g-2">
+                                    <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
+                                        <span>⏳ Último Saldo Pendiente:</span>
+                                        <strong class="{% if desglose_cuenta.saldo_anterior > 0 %}text-danger{% elif desglose_cuenta.saldo_anterior < 0 %}text-success{% else %}text-muted{% endif %}">
+                                            Bs. {{ (desglose_cuenta.saldo_anterior or 0) | dinero }}
+                                        </strong>
+                                    </div>
+                                    <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
+                                        <span>📊 Reporte del Día (Hoy):</span>
+                                        <strong class="text-primary">+ Bs. {{ (desglose_cuenta.neto_hoy or 0) | dinero }}</strong>
+                                    </div>
+                                    <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
+                                        <span class="text-info">🛒 Menos Facturas Cashea (Hoy):</span>
+                                        <strong class="text-info">- Bs. {{ (desglose_cuenta.cashea_hoy or 0) | dinero }}</strong>
+                                    </div>
+                                    <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
+                                        <span class="text-success">🏦 Menos Abonos/Pagos Realizados (Hoy):</span>
+                                        <strong class="text-success">- Bs. {{ (desglose_cuenta.abonos_hoy or 0) | dinero }}</strong>
+                                    </div>
+                                    <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
+                                        <span class="text-danger">💸 Liquidaciones / Pagos de Banca (Hoy):</span>
+                                        <strong class="text-danger">+ Bs. {{ (desglose_cuenta.liquidaciones_hoy or 0) | dinero }}</strong>
+                                    </div>
+                                    {% if desglose_cuenta.adelantos_hoy and desglose_cuenta.adelantos_hoy > 0 %}
+                                    <div class="col-md-6 d-flex justify-content-between border-bottom py-1">
+                                        <span class="text-warning">🤝 Adelantos Entregados (Hoy):</span>
+                                        <strong class="text-warning">+ Bs. {{ (desglose_cuenta.adelantos_hoy or 0) | dinero }}</strong>
+                                    </div>
+                                    {% endif %}
 
-                                <!-- FILA DINÁMICA DE DIFERENCIA SEMANAL (CONECTADA AL BALANCE DEL MAIN) -->
-                                {% if desglose_cuenta and desglose_cuenta.diferencia_semanal and desglose_cuenta.diferencia_semanal|abs > 0.01 %}
-                                <div class="col-12 d-flex justify-content-between border-bottom py-1 bg-white px-2 rounded">
-                                    <span class="{% if desglose_cuenta.diferencia_semanal > 0 %}text-danger{% else %}text-success{% endif %} fw-bold">
-                                        <i class="fas fa-balance-scale me-1"></i> Ajuste por Cierre Semanal Auditado:
-                                    </span>
-                                    <strong class="{% if desglose_cuenta.diferencia_semanal > 0 %}text-danger{% else %}text-success{% endif %}">
-                                        {% if desglose_cuenta.diferencia_semanal > 0 %}+{% endif %} Bs. {{ desglose_cuenta.diferencia_semanal | dinero }}
-                                    </strong>
-                                </div>
-                                {% endif %}
+                                    <!-- SOLO SE MUESTRA SI LA CUENTA AÚN PRESENTA DIFERENCIAS PENDIENTES -->
+                                    {% if desglose_cuenta and desglose_cuenta.diferencia_semanal and desglose_cuenta.diferencia_semanal|abs > 0.01 and saldo_actual|abs >= 0.01 %}
+                                    <div class="col-12 d-flex justify-content-between border-bottom py-1 bg-white px-2 rounded">
+                                        <span class="{% if desglose_cuenta.diferencia_semanal > 0 %}text-danger{% else %}text-success{% endif %} fw-bold">
+                                            <i class="fas fa-balance-scale me-1"></i> Ajuste por Cierre Semanal Auditado:
+                                        </span>
+                                        <strong class="{% if desglose_cuenta.diferencia_semanal > 0 %}text-danger{% else %}text-success{% endif %}">
+                                            {% if desglose_cuenta.diferencia_semanal > 0 %}+{% endif %} Bs. {{ desglose_cuenta.diferencia_semanal | dinero }}
+                                        </strong>
+                                    </div>
+                                    {% endif %}
 
-                                <div class="col-12 d-flex justify-content-between border-top py-2 bg-white rounded px-2 mt-2">
-                                    <strong>💰 TOTAL PENDIENTE EXACTO:</strong>
-                                    <strong class="{% if saldo_actual < -0.01 %}text-success{% elif saldo_actual > 0.01 %}text-danger{% else %}text-muted{% endif %} fs-6">
-                                        Bs. {{ saldo_actual | dinero }}
-                                    </strong>
+                                    <div class="col-12 d-flex justify-content-between border-top py-2 bg-white rounded px-2 mt-2">
+                                        <strong>💰 TOTAL PENDIENTE EXACTO:</strong>
+                                        <strong class="{% if saldo_actual < -0.01 %}text-success{% elif saldo_actual > 0.01 %}text-danger{% else %}text-muted{% endif %} fs-6">
+                                            Bs. {{ saldo_actual | dinero }}
+                                        </strong>
+                                    </div>
                                 </div>
-                            </div>
+                            {% endif %}
                         </div>
                     </div>
 
