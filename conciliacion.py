@@ -144,7 +144,7 @@ def calcular_balance_semanal(agencia: str, f_desde: str, f_hasta: str):
             COUNT(*) as dias_registrados
         FROM reportes 
         WHERE UPPER(TRIM(agencia)) = %s AND fecha >= %s AND fecha <= %s
-    """, (ag_norm, f_desde, f_hasta))
+    """, (ag_norm, f_desde.strip(), f_hasta.strip()))
     cobrado = cursor.fetchone()
 
     v_cob = float(cobrado['total_venta'] or 0.0)
@@ -156,7 +156,7 @@ def calcular_balance_semanal(agencia: str, f_desde: str, f_hasta: str):
         SELECT * FROM cierres_semanales_colab
         WHERE UPPER(TRIM(agencia)) = %s AND desde_fecha = %s AND hasta_fecha = %s
         ORDER BY id DESC LIMIT 1
-    """, (ag_norm, f_desde, f_hasta))
+    """, (ag_norm, f_desde.strip(), f_hasta.strip()))
     colab = cursor.fetchone()
     conn.close()
 
@@ -186,7 +186,7 @@ def calcular_balance_semanal(agencia: str, f_desde: str, f_hasta: str):
     }
 
 # ------------------------------------------------------------------------------
-# 3. APLICAR Y COBRAR LA DIFERENCIA AL SALDO ACTUAL
+# 3. APLICAR Y COBRAR LA DIFERENCIA AL SALDO
 # ------------------------------------------------------------------------------
 @router.post("/cobrar-diferencia")
 def post_cobrar_diferencia(
@@ -196,29 +196,31 @@ def post_cobrar_diferencia(
     monto_diferencia: float = Form(...)
 ):
     ag_norm = normalizar(agencia)
-    hoy_vzla = obtener_fecha_venezuela()
+    f_hasta_clean = hasta_fecha.strip()
+    f_desde_clean = desde_fecha.strip()
     monto_val = float(monto_diferencia)
 
     if abs(monto_val) > 0.01:
         conn = get_db()
         cursor = conn.cursor()
-        detalle = f"Ajuste Cuadre Semanal ({desde_fecha} al {hasta_fecha})"
+        detalle = f"Ajuste Cuadre Semanal ({f_desde_clean} al {f_hasta_clean})"
 
+        # Se registra con la fecha de corte 'hasta_fecha' para que pertenezca a la semana auditada
         if monto_val > 0:
             cursor.execute("""
                 INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-                VALUES (%s, %s, %s, %s, 'Diferencia auditada en cierre semanal', 'ADELANTO', 'APROBADO')
-            """, (ag_norm, hoy_vzla, monto_val, detalle))
+                VALUES (%s, %s, %s, %s, 'Diferencia auditada en cierre semanal', 'AJUSTE_DEUDA', 'APROBADO')
+            """, (ag_norm, f_hasta_clean, monto_val, detalle))
         else:
             cursor.execute("""
                 INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
                 VALUES (%s, %s, %s, %s, 'Compensación a favor de cierre semanal', 'PAGO_BANCA', 'APROBADO')
-            """, (ag_norm, hoy_vzla, abs(monto_val), detalle))
+            """, (ag_norm, f_hasta_clean, abs(monto_val), detalle))
 
         conn.commit()
         conn.close()
 
     return RedirectResponse(
-        url=f"/admin?tab=conciliacion_admin&agencia={ag_norm}&desde_fecha={desde_fecha}&hasta_fecha={hasta_fecha}&msg=conciliado",
+        url=f"/admin?tab=conciliacion_admin&agencia={ag_norm}&desde_fecha={f_desde_clean}&hasta_fecha={f_hasta_clean}&msg=conciliado",
         status_code=status.HTTP_303_SEE_OTHER
     )
