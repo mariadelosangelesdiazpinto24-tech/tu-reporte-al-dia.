@@ -584,12 +584,14 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     """, (ag_norm, fecha_hoy_contable))
     ajuste_previo = cursor.fetchone()
 
-if ajuste_previo and ajuste_previo['fecha'] == fecha_hoy_contable:
+ajuste_previo = cursor.fetchone()
+
+    if ajuste_previo and ajuste_previo['fecha'] == fecha_hoy_contable:
         saldo_anterior = float(ajuste_previo['monto'] or 0.0)
     else:
         fecha_obj = datetime.strptime(fecha_hoy_contable, '%Y-%m-%d').date()
         fecha_ayer_str = (fecha_obj - timedelta(days=1)).strftime('%Y-%m-%d')
-        
+
         # 1. Calcular el domingo de la semana pasada (fecha de corte oficial)
         lunes_esta_semana = fecha_obj - timedelta(days=fecha_obj.weekday())
         domingo_corte_pasado = (lunes_esta_semana - timedelta(days=1)).strftime('%Y-%m-%d')
