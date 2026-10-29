@@ -2948,14 +2948,47 @@ def get_admin(
             """, (ag_nombre, sem_cerrada_hasta, sem_cerrada_desde))
             row_c_ag = cursor.fetchone()
 
-            if not row_c_ag:
+         # Buscar únicamente la conciliación de la semana cerrada correspondiente
+            cursor.execute("""
+                SELECT desde_fecha, hasta_fecha, detalle_dias 
+                FROM conciliaciones_semanales 
+                WHERE UPPER(TRIM(agencia)) = %s 
+                  AND desde_fecha <= %s AND hasta_fecha >= %s
+                ORDER BY id DESC LIMIT 1
+            """, (ag_nombre, sem_cerrada_hasta, sem_cerrada_desde))
+            row_c_ag = cursor.fetchone()
+
+            dif_sem_taquilla = 0.0
+            if row_c_ag:
+                try:
+                    items_dias_ag = json.loads(row_c_ag["detalle_dias"] or "[]")
+                except Exception:
+                    items_dias_ag = []
+                
+                dif_original = sum(float(it.get("dif_neto", 0) or 0) for it in items_dias_ag)
+                dif_original = round(dif_original, 2)
+
                 cursor.execute("""
-                    SELECT desde_fecha, hasta_fecha, detalle_dias 
-                    FROM conciliaciones_semanales 
+                    SELECT COALESCE(SUM(monto), 0) as pagado 
+                    FROM pagos 
                     WHERE UPPER(TRIM(agencia)) = %s 
-                    ORDER BY id DESC LIMIT 1
-                """, (ag_nombre,))
-                row_c_ag = cursor.fetchone()
+                      AND estado = 'APROBADO' 
+                      AND (factura LIKE %s OR comprobante LIKE %s OR tipo = 'AJUSTE_DEUDA')
+                """, (ag_nombre, f"%{row_c_ag['desde_fecha']}%", f"%{row_c_ag['desde_fecha']}%"))
+                p_concil = cursor.fetchone()
+                m_pagado = float(p_concil['pagado'] or 0.0) if p_concil else 0.0
+
+                # Solo aplicar/mostrar el ajuste el día lunes; después de lunes pasa a ser 0.0
+                es_lunes = (hoy_date.weekday() == 0)
+                if es_lunes and not (abs(dif_original) > 0 and m_pagado >= abs(dif_original) - 0.05):
+                    dif_sem_taquilla = dif_original
+                else:
+                    dif_sem_taquilla = 0.0
+
+            # El balance contable viene directo de cuenta_taquilla
+            balance_contable = round(cuenta_taquilla["saldo_final"] + dif_sem_taquilla, 2)
+            if abs(balance_contable) < 0.05:
+                balance_contable = 0.0
 
             dif_sem_taquilla = 0.0
             if row_c_ag:
