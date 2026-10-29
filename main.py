@@ -584,8 +584,6 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     """, (ag_norm, fecha_hoy_contable))
     ajuste_previo = cursor.fetchone()
 
-ajuste_previo = cursor.fetchone()
-
     if ajuste_previo and ajuste_previo['fecha'] == fecha_hoy_contable:
         saldo_anterior = float(ajuste_previo['monto'] or 0.0)
     else:
@@ -2031,7 +2029,7 @@ def get_agencia(
             "hasta_fecha": sem_cerrada_hasta
         }
 
-   # ----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
     # 4. SALDO GLOBAL EXACTO (Corte automático post-cierre semanal)
     # ----------------------------------------------------------------------
     cuenta_ag = obtener_cuenta_agencia_corte(agencia_norm)
@@ -2039,8 +2037,6 @@ def get_agencia(
     saldo_ant_mostrado = cuenta_ag["saldo_anterior"]
     dif_sem_mostrada = dif_semanal_activa
     
-    # Si la semana ya cerró (hoy es posterior al hasta_fecha del último corte)
-    # y la cuenta ya quedó en 0.00 (saldada), reseteamos los renglones viejos a 0.00
     balance_neto = round(cuenta_ag["saldo_final"] + dif_semanal_activa, 2)
     
     if abs(balance_neto) < 0.05:
@@ -2059,18 +2055,6 @@ def get_agencia(
         "adelantos_hoy": cuenta_ag["adelantos_hoy"],
         "liquidaciones_hoy": cuenta_ag["liquidaciones_hoy"],
         "diferencia_semanal": dif_sem_mostrada,
-        "saldo_final": saldo_actual
-    }
-
-    desglose_cuenta = {
-        "fecha": hoy_vzla,
-        "saldo_anterior": cuenta_ag["saldo_anterior"],
-        "neto_hoy": cuenta_ag["neto_hoy"],
-        "cashea_hoy": cuenta_ag["cashea_hoy"],
-        "abonos_hoy": cuenta_ag["abonos_hoy"],
-        "adelantos_hoy": cuenta_ag["adelantos_hoy"],
-        "liquidaciones_hoy": cuenta_ag["liquidaciones_hoy"],
-        "diferencia_semanal": dif_semanal_activa,
         "saldo_final": saldo_actual
     }
 
@@ -2537,6 +2521,27 @@ def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[st
     if redirect_to:
         return RedirectResponse(url=redirect_to, status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/eliminar-cashea")
+def post_eliminar_cashea(
+    cashea_id: int = Form(...),
+    desde_fecha: Optional[str] = Form(""),
+    hasta_fecha: Optional[str] = Form("")
+):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = %s AND tipo = 'CASHEA'", (cashea_id,))
+    row = cursor.fetchone()
+    if row:
+        ag_elim = row['agencia']
+        fe_elim = row['fecha']
+        cursor.execute("DELETE FROM pagos WHERE id = %s", (cashea_id,))
+        conn.commit()
+        recalcular_y_actualizar_reporte(ag_elim, fe_elim)
+    conn.close()
+
+    url_retorno = f"/admin?tab=cashea&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
+    return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/procesar-solicitud-dinero")
 async def post_procesar_solicitud_dinero(
