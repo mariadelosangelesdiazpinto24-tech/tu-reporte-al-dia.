@@ -1090,10 +1090,11 @@
                         </table>
                     </div>
 
+                    <!-- Tabla Oculta Fuente con ID incluido -->
                     <table class="d-none" id="tablaFuenteCashea">
                         <tbody>
                             {% for c in casheas_generales %}
-                            <tr data-agencia="{{ c.agencia }}" data-monto="{{ c.monto or 0 }}" data-factura="{{ c.factura or c.comprobante }}" data-fecha="{{ c.fecha }}"></tr>
+                            <tr data-id="{{ c.id }}" data-agencia="{{ c.agencia }}" data-monto="{{ c.monto or 0 }}" data-factura="{{ c.factura or c.comprobante }}" data-fecha="{{ c.fecha }}"></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -1169,13 +1170,13 @@
                         <div class="col-md-4">
                             <div class="p-3 border rounded-3 bg-light text-center">
                                 <span class="small fw-bold text-danger d-block">CASHEA ABSORBIDO EN PERÍODO</span>
-                                <h5 class="fw-bold text-danger m-0">- Bs. {{ (total_cashea_filtrado or 0) | dinero }}</h5>
+                                <h5 class="fw-bold text-danger m-0" id="cardConsolidadoCashea">- Bs. {{ (total_cashea_filtrado or 0) | dinero }}</h5>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="p-3 border rounded-3 bg-white border-primary text-center shadow-sm">
                                 <span class="small fw-bold text-primary d-block">TOTAL REPORTES - CASHEA</span>
-                                <h5 class="fw-bold text-primary m-0">Bs. {{ ((totales_generales.neto or 0) - (total_cashea_filtrado or 0)) | dinero }}</h5>
+                                <h5 class="fw-bold text-primary m-0" id="cardConsolidadoNetoMenosCashea">Bs. {{ ((totales_generales.neto or 0) - (total_cashea_filtrado or 0)) | dinero }}</h5>
                             </div>
                         </div>
                     </div>
@@ -2043,6 +2044,7 @@
             var granTotal = 0;
 
             filasFuente.forEach(function(tr) {
+                var id = tr.getAttribute("data-id") || "";
                 var ag = tr.getAttribute("data-agencia") || "SIN ASIGNAR";
                 var monto = parseFloat(tr.getAttribute("data-monto") || 0);
                 var factura = tr.getAttribute("data-factura") || "";
@@ -2057,9 +2059,11 @@
 
                 agenciasMap[ag].total += monto;
                 granTotal += monto;
-                if (factura) {
-                    agenciasMap[ag].facturas.push(factura + " (" + fecha + ")");
-                }
+                agenciasMap[ag].facturas.push({
+                    id: id,
+                    monto: monto,
+                    texto: (factura || "Factura") + " (" + fecha + ")"
+                });
             });
 
             casheaAgrupadoGlobal = agenciasMap;
@@ -2074,9 +2078,27 @@
                     keys.forEach(function(ag) {
                         var item = agenciasMap[ag];
                         var tr = document.createElement("tr");
+
+                        // Renderizar las facturas con botón de papelera al lado
+                        var facturasHtml = item.facturas.map(function(f) {
+                            return `
+                                <div class="d-inline-flex align-items-center bg-light border rounded px-2 py-1 me-1 mb-1 small shadow-sm">
+                                    <span class="me-1">${f.texto}: <strong>${formatoBs(f.monto)}</strong></span>
+                                    <form action="/admin/eliminar-cashea" method="POST" class="d-inline ms-1 m-0" onsubmit="return confirm('¿Eliminar esta factura Cashea cargada por error?');">
+                                        <input type="hidden" name="cashea_id" value="${f.id}">
+                                        <input type="hidden" name="desde_fecha" value="{{ desde_fecha }}">
+                                        <input type="hidden" name="hasta_fecha" value="{{ hasta_fecha }}">
+                                        <button type="submit" class="btn btn-link text-danger p-0 border-0 ms-1" title="Eliminar factura" style="line-height: 1;">
+                                            <i class="fas fa-trash-can"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            `;
+                        }).join("");
+
                         tr.innerHTML = `
                             <td class="fw-bold text-dark">${ag}</td>
-                            <td class="small text-muted">${item.facturas.join(" | ") || 'Sin detalle de factura'}</td>
+                            <td>${facturasHtml || '<span class="text-muted small">Sin detalle</span>'}</td>
                             <td class="text-end fw-bold text-danger">${formatoBs(item.total)}</td>
                         `;
                         tbody.appendChild(tr);
@@ -2088,6 +2110,23 @@
             if (tfootElem) {
                 tfootElem.innerText = formatoBs(granTotal);
             }
+
+            var badgeTotal = document.getElementById("badgeTotalCashea");
+            if (badgeTotal) {
+                badgeTotal.innerText = "Total Absorbido: " + formatoBs(granTotal);
+            }
+
+            var cardConsolidadoCashea = document.getElementById("cardConsolidadoCashea");
+            if (cardConsolidadoCashea) {
+                cardConsolidadoCashea.innerText = "- " + formatoBs(granTotal);
+            }
+
+            var cardConsolidadoNeto = document.getElementById("cardConsolidadoNetoMenosCashea");
+            if (cardConsolidadoNeto) {
+                var totalNetoReportes = {{ totales_generales.neto or 0 }};
+                cardConsolidadoNeto.innerText = formatoBs(totalNetoReportes - granTotal);
+            }
+
             return granTotal;
         }
 
@@ -2604,8 +2643,11 @@
             for (var ag in casheaAgrupadoGlobal) {
                 var item = casheaAgrupadoGlobal[ag];
                 totalGeneral += item.total;
+                
+                var listaTextos = item.facturas.map(f => f.texto + " (" + formatoBs(f.monto) + ")");
+
                 texto += "📌 " + ag.toUpperCase() + "\n";
-                texto += "   • Facturas: " + (item.facturas.join(", ") || "Varias") + "\n";
+                texto += "   • Facturas: " + (listaTextos.join(", ") || "Varias") + "\n";
                 texto += "   • Monto Absorbido: " + formatoBs(item.total) + "\n\n";
             }
 
