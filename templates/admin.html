@@ -313,6 +313,7 @@
                         </div>
                     </div>
 
+                    <!-- SOLICITUDES PENDIENTES -->
                     {% if solicitudes_ln_pendientes and solicitudes_ln_pendientes | length > 0 %}
                     <div class="alert alert-warning border-0 p-3 mb-3 rounded-4 shadow-sm">
                         <h6 class="fw-bold text-dark mb-2"><i class="fas fa-user-clock text-danger me-2"></i> Solicitudes Externas de Acceso a Lista Negra</h6>
@@ -358,6 +359,7 @@
                     </div>
                     {% endif %}
 
+                    <!-- BUSCADOR INSTANTÁNEO -->
                     <div class="p-3 bg-light rounded-4 mb-3 border">
                         <div class="input-group">
                             <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-danger"></i></span>
@@ -366,6 +368,7 @@
                         </div>
                     </div>
 
+                    <!-- TABLA DE ESTAFADORES -->
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0" style="font-size: 13px;">
                             <thead class="table-dark">
@@ -1270,11 +1273,6 @@
                                     <span>Ganancia por Participación (+ / -):</span>
                                     <strong id="totalizadorParticipacion">Bs. {{ total_ganancia_participacion | dinero }}</strong>
                                 </div>
-                                <!-- NUEVO: TOTAL NETO MI SISTEMA EN TOTALIZADOR -->
-                                <div class="d-flex justify-content-between py-1 border-top border-light border-opacity-25 mt-1 pt-1">
-                                    <span>Ganancia Mi Sistema (V - P - C 14%):</span>
-                                    <strong id="totalizadorMiSistema" class="text-white">Bs. 0,00</strong>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -1314,85 +1312,6 @@
                 </div>
 
                 <h5 class="fw-bold text-dark mb-3"><i class="fas fa-building-columns text-tema me-2"></i>Liquidación de Banqueros ({{ desde_fecha }} al {{ hasta_fecha }})</h5>
-
-                <!-- NUEVO CUADRO BANQUERO: MI SISTEMA -->
-                <div class="row g-3 mb-4 banquero-bloque" data-banquero="MI SISTEMA">
-                    <div class="col-12">
-                        <div class="card p-3 border rounded-3 bg-white shadow-sm">
-                            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom flex-wrap gap-2">
-                                <div>
-                                    <h6 class="fw-bold text-dark m-0 d-inline-block me-2">MI SISTEMA</h6>
-                                    <span class="badge bg-success fs-6 badge-total-banquero" id="badge_total_mi_sistema">
-                                        Total Mi Sistema: Bs. 0,00
-                                    </span>
-                                </div>
-                                <div class="d-flex gap-1">
-                                    <button type="button" class="btn btn-outline-primary btn-sm py-0 fw-bold" onclick="copiarReporteMiSistema()">
-                                        <i class="fas fa-copy me-1"></i> Copiar
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="p-2 mb-3 bg-light rounded border">
-                                <div class="row g-2 align-items-center">
-                                    <div class="col-md-4">
-                                        <label class="form-label small fw-bold m-0 text-success">Ventas (Bs.):</label>
-                                        <input type="number" step="0.01" id="inputMiSistemaVenta" class="form-control form-control-sm fw-bold text-success" placeholder="0.00" oninput="calcularMiSistemaLive()">
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label small fw-bold m-0 text-danger">Premios (Bs.):</label>
-                                        <input type="number" step="0.01" id="inputMiSistemaPremios" class="form-control form-control-sm fw-bold text-danger" placeholder="0.00" oninput="calcularMiSistemaLive()">
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label small fw-bold m-0 text-primary">Comisión Banquero (14% Fijo):</label>
-                                        <input type="text" id="inputMiSistemaComision" class="form-control form-control-sm fw-bold text-primary bg-white" readonly value="Bs. 0,00">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="table-responsive">
-                                <table class="table table-sm table-bordered bg-white align-middle mb-0 tabla-banquero-calculo" id="tabla_mi_sistema" style="font-size: 11.5px;">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>Sistema</th>
-                                            <th class="text-end">Venta</th>
-                                            <th class="text-end">Premio</th>
-                                            <th class="text-end">Comisión (14%)</th>
-                                            <th class="text-end">Total (V-P-C)</th>
-                                            <th class="text-end">Participación</th>
-                                            <th class="text-end fw-bold">Total Final</th>
-                                            <th class="text-center" style="width: 70px;">Acción</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr data-sistema="MI SISTEMA" data-pct-banquero="14" data-pct-taquilla="12" data-pct-excedente="0" data-pct-part="0" data-manual="1">
-                                            <td class="fw-bold col-sistema">MI SISTEMA</td>
-                                            <td class="text-end col-venta" id="tdMiSistemaVenta">Bs. 0,00</td>
-                                            <td class="text-end text-danger col-premio" id="tdMiSistemaPremio">Bs. 0,00</td>
-                                            <td class="text-end text-primary col-comision" id="tdMiSistemaComision">Bs. 0,00</td>
-                                            <td class="text-end fw-bold col-total" id="tdMiSistemaTotal">Bs. 0,00</td>
-                                            <td class="text-end col-part text-muted">Bs. 0,00</td>
-                                            <td class="text-end fw-bold col-total-final" id="tdMiSistemaFinal">Bs. 0,00</td>
-                                            <td class="text-center text-muted">-</td>
-                                        </tr>
-                                    </tbody>
-                                    <tfoot class="table-light fw-bold">
-                                        <tr>
-                                            <td>TOTALES</td>
-                                            <td class="text-end foot-venta" id="footMiSistemaVenta">Bs. 0,00</td>
-                                            <td class="text-end text-danger foot-premio" id="footMiSistemaPremio">Bs. 0,00</td>
-                                            <td class="text-end text-primary foot-comision" id="footMiSistemaComision">Bs. 0,00</td>
-                                            <td class="text-end foot-total" id="footMiSistemaTotal">Bs. 0,00</td>
-                                            <td class="text-end foot-part">Bs. 0,00</td>
-                                            <td class="text-end text-success foot-final" id="footMiSistemaFinal">Bs. 0,00</td>
-                                            <td></td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
                 {% for b_nom, b_info in desglose_banqueros.items() %}
                 <div class="row g-3 mb-4 banquero-bloque" data-banquero="{{ b_nom }}">
@@ -1920,7 +1839,6 @@
         var METODOS_PAGO_AGENCIAS = {{ metodos_pago_agencias | tojson if metodos_pago_agencias is defined and metodos_pago_agencias else '{}' }};
         var agenciaSeleccionadaDesglose = "";
 
-        // Reglas de comisiones y participaciones por defecto
         var TABLA_REGLAS_SISTEMAS = {
             "MAXPLAY":        { pct_agencia: 12, pct_ganancia: 4, pct_part: 20 },
             "MATRIX":         { pct_agencia: 12, pct_ganancia: 4, pct_part: 20 },
@@ -1940,7 +1858,7 @@
             "IMAGINARIA":     { pct_agencia: 14, pct_ganancia: 3, pct_part: 35 },
             "CALAMAR":        { pct_agencia: 14, pct_ganancia: 4, pct_part: 25 },
             "BETSOL":         { pct_agencia: 12, pct_ganancia: 4, pct_part: 0 },
-            "PATRONUS":       { pct_agencia: 12, pct_ganancia: 4, pct_part: 10 }, /* 10% DE PARTICIPACIÓN */
+            "PATRONUS":       { pct_agencia: 12, pct_ganancia: 4, pct_part: 20 },
             "MASTER ACTIVO":  { pct_agencia: 13, pct_ganancia: 4, pct_part: 30 }
         };
 
@@ -2242,51 +2160,7 @@
             }
         }
 
-        // LÓGICA DE CÁLCULO DE MI SISTEMA
-        var totalMiSistemaCalculado = 0;
-        function calcularMiSistemaLive() {
-            var inputV = document.getElementById("inputMiSistemaVenta");
-            var inputP = document.getElementById("inputMiSistemaPremios");
-            var v = inputV ? (parseFloat(inputV.value) || 0) : 0;
-            var p = inputP ? (parseFloat(inputP.value) || 0) : 0;
-            var c = v * 0.14; // Comisión 14% Fija del Banquero
-            var total = v - p - c;
-            totalMiSistemaCalculado = total;
-
-            var inputCom = document.getElementById("inputMiSistemaComision");
-            if (inputCom) inputCom.value = formatoBs(c);
-
-            var tdV = document.getElementById("tdMiSistemaVenta");
-            var tdP = document.getElementById("tdMiSistemaPremio");
-            var tdC = document.getElementById("tdMiSistemaComision");
-            var tdT = document.getElementById("tdMiSistemaTotal");
-            var tdF = document.getElementById("tdMiSistemaFinal");
-
-            if (tdV) tdV.innerText = formatoBs(v);
-            if (tdP) tdP.innerText = formatoBs(p);
-            if (tdC) tdC.innerText = formatoBs(c);
-            if (tdT) tdT.innerText = formatoBs(total);
-            if (tdF) tdF.innerText = formatoBs(total);
-
-            var footV = document.getElementById("footMiSistemaVenta");
-            var footP = document.getElementById("footMiSistemaPremio");
-            var footC = document.getElementById("footMiSistemaComision");
-            var footT = document.getElementById("footMiSistemaTotal");
-            var footF = document.getElementById("footMiSistemaFinal");
-
-            if (footV) footV.innerText = formatoBs(v);
-            if (footP) footP.innerText = formatoBs(p);
-            if (footC) footC.innerText = formatoBs(c);
-            if (footT) footT.innerText = formatoBs(total);
-            if (footF) footF.innerText = formatoBs(total);
-
-            var badge = document.getElementById("badge_total_mi_sistema");
-            if (badge) {
-                badge.innerText = "Total Mi Sistema: " + formatoBs(total);
-                badge.className = "badge fs-6 badge-total-banquero " + (total >= 0 ? "bg-success" : "bg-danger");
-            }
-
- function recalcularTodoElPanel() {
+        function recalcularTodoElPanel() {
             var totalCasheaGeneral = consolidarCasheaPorAgencia();
             var granTotalBanqueros = 0;
             var granTotalPartGlobal = 0;
@@ -2295,12 +2169,6 @@
             var bloques = document.querySelectorAll(".banquero-bloque");
             bloques.forEach(function(b) {
                 var banqueroNombre = (b.getAttribute("data-banquero") || "").toUpperCase();
-                
-                // EXCLUSIÓN: Si es MI SISTEMA, no se suma a la cuenta de banqueros externos
-                if (banqueroNombre === "MI SISTEMA") {
-                    return;
-                }
-
                 var tabla = b.querySelector(".tabla-banquero-calculo");
                 var badge = b.querySelector(".badge-total-banquero");
                 var filas = tabla.querySelectorAll("tbody tr:not(.fila-cashea-extra):not(.fila-pendientes-extra):not(.fila-adelantos-extra)");
@@ -2429,6 +2297,7 @@
                     filaPend.remove();
                 }
 
+                // CÁLCULO FINAL: Adelantos (+) y Pendientes (-)
                 var totFinalBanquero = totFinal - casheaDeducido + Math.abs(valAdelanto) - Math.abs(valPendiente);
 
                 tabla.querySelector(".foot-venta").innerText = formatoBs(totVenta);
@@ -2442,41 +2311,37 @@
                     badge.innerText = "Total Banquero: " + formatoBs(totFinalBanquero);
                 }
 
-                // Suma única a banqueros externos
                 granTotalBanqueros += totFinalBanquero;
                 granTotalPartGlobal += totPart;
 
                 var box = b.querySelector(".tarjeta-mi-ganancia-banca");
-                if (box) {
-                    var difFilas = box.querySelectorAll(".fila-dif-sistema");
-                    var gananciaExcedente = 0;
+                var difFilas = box.querySelectorAll(".fila-dif-sistema");
+                var gananciaExcedente = 0;
 
-                    difFilas.forEach(function(df) {
-                        var nomSys = (df.querySelector(".dif-nombre").innerText || "").trim().toUpperCase();
-                        var montoExc = 0;
-                        
-                        for (var k in mapaExcedentes) {
-                            if (nomSys.includes(k) || k.includes(nomSys)) {
-                                montoExc = mapaExcedentes[k];
-                                break;
-                            }
+                difFilas.forEach(function(df) {
+                    var nomSys = (df.querySelector(".dif-nombre").innerText || "").trim().toUpperCase();
+                    var montoExc = 0;
+                    
+                    for (var k in mapaExcedentes) {
+                        if (nomSys.includes(k) || k.includes(nomSys)) {
+                            montoExc = mapaExcedentes[k];
+                            break;
                         }
+                    }
 
-                        df.querySelector(".dif-monto").innerText = formatoBs(montoExc);
-                        gananciaExcedente += montoExc;
-                    });
+                    df.querySelector(".dif-monto").innerText = formatoBs(montoExc);
+                    gananciaExcedente += montoExc;
+                });
 
-                    granTotalExcedenteGlobal += gananciaExcedente;
-                    var gananciaParticipacion = totPart;
-                    var gananciaTotal = gananciaExcedente + gananciaParticipacion;
+                granTotalExcedenteGlobal += gananciaExcedente;
+                var gananciaParticipacion = totPart;
+                var gananciaTotal = gananciaExcedente + gananciaParticipacion;
 
-                    box.querySelector(".val-mi-ganancia-total").innerText = formatoBs(gananciaTotal);
-                    box.querySelector(".val-ganancia-excedente").innerText = formatoBs(gananciaExcedente);
-                    box.querySelector(".val-ganancia-participacion").innerText = formatoBs(gananciaParticipacion);
-                }
+                box.querySelector(".val-mi-ganancia-total").innerText = formatoBs(gananciaTotal);
+                box.querySelector(".val-ganancia-excedente").innerText = formatoBs(gananciaExcedente);
+                box.querySelector(".val-ganancia-participacion").innerText = formatoBs(gananciaParticipacion);
             });
 
-            // Tarjeta Azul: Exclusivamente banqueros externos (MI SISTEMA no se incluye)
             var cardSumaBanqueros = document.getElementById("totalizadorSumaBanqueros");
             if (cardSumaBanqueros) {
                 cardSumaBanqueros.innerText = formatoBs(granTotalBanqueros);
@@ -2492,18 +2357,9 @@
                 cardExcedenteTotalizador.innerText = formatoBs(granTotalExcedenteGlobal);
             }
 
-            // Tarjeta Verde: Fila de MI SISTEMA
-            var cardMiSistemaTotalizador = document.getElementById("totalizadorMiSistema");
-            if (cardMiSistemaTotalizador) {
-                cardMiSistemaTotalizador.innerText = (totalMiSistemaCalculado >= 0 ? "+ " : "") + formatoBs(totalMiSistemaCalculado);
-                cardMiSistemaTotalizador.className = totalMiSistemaCalculado >= 0 ? "text-white fw-bold" : "text-danger fw-bold";
-            }
-
-            // Tarjeta Verde: Total global con MI SISTEMA sumado o restado
             var cardGranTotalGanancia = document.getElementById("totalizadorGranTotalGanancia");
             if (cardGranTotalGanancia) {
-                var granTotalConMiSistema = granTotalExcedenteGlobal + granTotalPartGlobal + totalMiSistemaCalculado;
-                cardGranTotalGanancia.innerText = formatoBs(granTotalConMiSistema);
+                cardGranTotalGanancia.innerText = formatoBs(granTotalExcedenteGlobal + granTotalPartGlobal);
             }
 
             actualizarResumenBalancesTaquillas();
