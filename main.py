@@ -2927,7 +2927,7 @@ def get_admin(
         negativos = []
         agencias_procesadas = set()
 
-        for ag in agencias:
+       for ag in agencias:
             if ag.get('rol') in ['BANQUERO', 'SOLO_LISTA_NEGRA']:
                 continue
             
@@ -2935,6 +2935,36 @@ def get_admin(
             if not ag_nombre or ag_nombre in agencias_procesadas:
                 continue
             agencias_procesadas.add(ag_nombre)
+            
+            # Obtenemos la cuenta de la agencia sin el freno de corte de lunes para el Admin
+            cuenta_taquilla = obtener_cuenta_agencia_corte(ag_nombre, f_hasta)
+            
+            balance_contable = round(cuenta_taquilla["saldo_final"], 2)
+            if abs(balance_contable) < 0.05:
+                balance_contable = 0.0
+                
+            ag['saldo_pendiente'] = balance_contable
+            
+            datos_desglose = {
+                "agencia": ag_nombre,
+                "fecha": cuenta_taquilla["fecha"],
+                "monto": balance_contable,
+                "balance_total": balance_contable,
+                "saldo_anterior": cuenta_taquilla["saldo_anterior"],
+                "reporte_neto": cuenta_taquilla["neto_hoy"],
+                "abonos": cuenta_taquilla["abonos_hoy"],
+                "cashea": cuenta_taquilla["cashea_hoy"],
+                "adelantos": cuenta_taquilla["adelantos_hoy"],
+                "liquidaciones": cuenta_taquilla["liquidaciones_hoy"],
+                "diferencia_semanal": 0.0
+            }
+
+            if balance_contable > 0.009:
+                positivos.append(datos_desglose)
+            elif balance_contable < -0.009:
+                datos_desglose_neg = dict(datos_desglose)
+                datos_desglose_neg["monto"] = abs(balance_contable)
+                negativos.append(datos_desglose_neg)
             
             cuenta_taquilla = obtener_cuenta_agencia_corte(ag_nombre)
             
