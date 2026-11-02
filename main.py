@@ -393,19 +393,13 @@ def init_db():
     cursor.execute("""
         INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
         VALUES ('COMERCIALIZADORA LIDER', 'PATRONUS', 0.16, 0.12, 0.20, FALSE)
-        ON CONFLICT (banquero, sistema) DO UPDATE
-        SET pct_banquero = EXCLUDED.pct_banquero,
-            pct_taquilla = EXCLUDED.pct_taquilla,
-            pct_participacion = EXCLUDED.pct_participacion;
+        ON CONFLICT (banquero, sistema) DO NOTHING;
     """)
 
     cursor.execute("""
         INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
         VALUES ('COMERCIALIZADORA LIDER', 'MASTER ACTIVO', 0.17, 0.13, 0.30, FALSE)
-        ON CONFLICT (banquero, sistema) DO UPDATE
-        SET pct_banquero = EXCLUDED.pct_banquero,
-            pct_taquilla = EXCLUDED.pct_taquilla,
-            pct_participacion = EXCLUDED.pct_participacion;
+        ON CONFLICT (banquero, sistema) DO NOTHING;
     """)
 
     conn.commit()
@@ -590,40 +584,48 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
         fecha_obj = datetime.strptime(fecha_hoy_contable, '%Y-%m-%d').date()
         fecha_ayer_str = (fecha_obj - timedelta(days=1)).strftime('%Y-%m-%d')
 
-        cursor.execute("""
-            SELECT monto, detalle_html FROM reportes 
-            WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s
-        """, (ag_norm, fecha_ayer_str))
-        rep_ayer = cursor.fetchone()
+        # 1. Calcular el domingo de la semana pasada (fecha de corte oficial)
+        lunes_esta_semana = fecha_obj - timedelta(days=fecha_obj.weekday())
+        domingo_corte_pasado = (lunes_esta_semana - timedelta(days=1)).strftime('%Y-%m-%d')
 
-        if rep_ayer and rep_ayer['monto'] is not None:
-            saldo_anterior = float(rep_ayer['monto'])
+        # 2. Si ayer fue domingo o una fecha de la semana cerrada anterior, el saldo arranca en 0.00
+        if fecha_ayer_str <= domingo_corte_pasado:
+            saldo_anterior = 0.0
         else:
             cursor.execute("""
-                SELECT detalle_html FROM reportes 
-                WHERE UPPER(TRIM(agencia)) = %s AND fecha < %s
-            """, (ag_norm, fecha_hoy_contable))
-            reps_prev = cursor.fetchall()
-            neto_prev = sum(extraer_neto_de_html(r['detalle_html']) for r in reps_prev if r and r['detalle_html'])
+                SELECT monto, detalle_html FROM reportes 
+                WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s
+            """, (ag_norm, fecha_ayer_str))
+            rep_ayer = cursor.fetchone()
 
-            cursor.execute("""
-                SELECT tipo, SUM(monto) as total FROM pagos 
-                WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' 
-                  AND tipo != 'AJUSTE_SALDO_ANTERIOR' AND fecha < %s
-                GROUP BY tipo
-            """, (ag_norm, fecha_hoy_contable))
-            pagos_prev = cursor.fetchall()
+            if rep_ayer and rep_ayer['monto'] is not None:
+                saldo_anterior = float(rep_ayer['monto'])
+            else:
+                cursor.execute("""
+                    SELECT detalle_html FROM reportes 
+                    WHERE UPPER(TRIM(agencia)) = %s AND fecha < %s AND fecha >= %s
+                """, (ag_norm, fecha_hoy_contable, lunes_esta_semana.strftime('%Y-%m-%d')))
+                reps_prev = cursor.fetchall()
+                neto_prev = sum(extraer_neto_de_html(r['detalle_html']) for r in reps_prev if r and r['detalle_html'])
 
-            ab_p, ca_p, ad_p, li_p = 0.0, 0.0, 0.0, 0.0
-            for p in pagos_prev:
-                tp = str(p['tipo']).upper()
-                m = float(p['total'] or 0.0)
-                if tp in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']: ab_p += m
-                elif tp == 'CASHEA': ca_p += m
-                elif tp == 'ADELANTO': ad_p += m
-                elif tp == 'LIQUIDACION': li_p += m
+                cursor.execute("""
+                    SELECT tipo, SUM(monto) as total FROM pagos 
+                    WHERE UPPER(TRIM(agencia)) = %s AND estado = 'APROBADO' 
+                      AND tipo != 'AJUSTE_SALDO_ANTERIOR' AND fecha < %s AND fecha >= %s
+                    GROUP BY tipo
+                """, (ag_norm, fecha_hoy_contable, lunes_esta_semana.strftime('%Y-%m-%d')))
+                pagos_prev = cursor.fetchall()
 
-            saldo_anterior = (neto_prev - ca_p) - ab_p + ad_p + li_p
+                ab_p, ca_p, ad_p, li_p = 0.0, 0.0, 0.0, 0.0
+                for p in pagos_prev:
+                    tp = str(p['tipo']).upper()
+                    m = float(p['total'] or 0.0)
+                    if tp in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']: ab_p += m
+                    elif tp == 'CASHEA': ca_p += m
+                    elif tp in ['ADELANTO', 'AJUSTE_DEUDA']: ad_p += m
+                    elif tp == 'LIQUIDACION': li_p += m
+
+                saldo_anterior = (neto_prev - ca_p) - ab_p + ad_p + li_p
 
     if abs(saldo_anterior) < 0.05:
         saldo_anterior = 0.0
@@ -656,7 +658,7 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
             abonos_hoy += m_val
         elif tp == 'CASHEA':
             cashea_hoy += m_val
-        elif tp == 'ADELANTO':
+        elif tp in ['ADELANTO', 'AJUSTE_DEUDA']:
             adelantos_hoy += m_val
         elif tp == 'LIQUIDACION':
             liquidaciones_hoy += m_val
@@ -800,7 +802,7 @@ def calcular_desglose_banqueros_datos(f_desde, f_hasta, agencia_filtro=""):
         t_type = str(pa['tipo']).strip().upper() if pa['tipo'] else ''
         if t_type == 'CASHEA':
             totales_auxiliares["cashea"] += m_val
-        elif t_type in ['ADELANTO', 'LIQUIDACION']:
+        elif t_type in ['ADELANTO', 'LIQUIDACION', 'AJUSTE_DEUDA']:
             totales_auxiliares["adelantos"] += m_val
         elif t_type in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']:
             totales_auxiliares["abonos_banca"] += m_val
@@ -976,7 +978,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         comp = p['comprobante'] or ''
         comp_display = f'<a href="/comprobante/{p["id"]}" class="btn btn-sm btn-outline-info py-0 fw-bold" style="border-color: var(--tech-primary); color: var(--tech-primary);"><i class="fas fa-download me-1"></i> Capture</a>' if comp else ""
 
-        if tipo_p == 'ADELANTO':
+        if tipo_p in ['ADELANTO', 'AJUSTE_DEUDA']:
             total_adelantos += monto_p
             adelantos_rows_html += f'''
             <tr style="font-size: 13px; background: rgba(255,255,255,0.02); color: var(--tech-text, #ffffff);">
@@ -1131,7 +1133,7 @@ def post_ajustar_saldo_anterior(
     conn = get_db()
     cursor = conn.cursor()
     
-    cursor.execute("DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'", (agencia_norm,))
+    # Conservar todos los ajustes anteriores como historial; el mas reciente se consulta por fecha e id.
     
     cursor.execute("""
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
@@ -1159,9 +1161,9 @@ def post_guardar_ajustes_banquero_global(
 
     cursor.execute(
         """INSERT INTO ajustes_globales_banqueros (banquero, fecha, adelantos, pendientes)
-           VALUES (%s, %s, %s, %s)
-           ON CONFLICT (banquero, fecha)
-           DO UPDATE SET adelantos = EXCLUDED.adelantos, pendientes = EXCLUDED.pendientes""",
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (banquero, fecha)
+            DO UPDATE SET adelantos = EXCLUDED.adelantos, pendientes = EXCLUDED.pendientes""",
         (b_norm, fecha, adelantos, pendientes)
     )
 
@@ -1173,14 +1175,14 @@ def post_guardar_ajustes_banquero_global(
     if adelantos != 0:
         cursor.execute(
             """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-               VALUES (%s, %s, %s, %s, %s, 'ADELANTO_BANQUERO', 'APROBADO')""",
+                VALUES (%s, %s, %s, %s, %s, 'ADELANTO_BANQUERO', 'APROBADO')""",
             (b_norm, fecha, abs(adelantos), f"Adelanto de dinero entregado por {b_norm}", f"Adelanto registrado para el cuadre ({fecha})")
         )
 
     if pendientes != 0:
         cursor.execute(
             """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-               VALUES (%s, %s, %s, %s, %s, 'PENDIENTE_BANQUERO', 'APROBADO')""",
+                VALUES (%s, %s, %s, %s, %s, 'PENDIENTE_BANQUERO', 'APROBADO')""",
             (b_norm, fecha, abs(pendientes), f"Saldo pendiente atrasado de {b_norm}", f"Pendiente de liquidación anterior ({fecha})")
         )
 
@@ -1548,9 +1550,9 @@ def post_banquero_guardar_ajustes_cuenta(
 
     cursor.execute(
         """INSERT INTO ajustes_globales_banqueros (banquero, fecha, adelantos, pendientes)
-           VALUES (%s, %s, %s, %s)
-           ON CONFLICT (banquero, fecha)
-           DO UPDATE SET adelantos = EXCLUDED.adelantos, pendientes = EXCLUDED.pendientes""",
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (banquero, fecha)
+            DO UPDATE SET adelantos = EXCLUDED.adelantos, pendientes = EXCLUDED.pendientes""",
         (b_norm, fecha, adelantos, pendientes)
     )
 
@@ -1562,14 +1564,14 @@ def post_banquero_guardar_ajustes_cuenta(
     if adelantos != 0:
         cursor.execute(
             """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-               VALUES (%s, %s, %s, %s, %s, 'ADELANTO_BANQUERO', 'APROBADO')""",
+                VALUES (%s, %s, %s, %s, %s, 'ADELANTO_BANQUERO', 'APROBADO')""",
             (b_norm, fecha, abs(adelantos), f"Adelanto reportado por {b_norm}", f"Adelanto registrado el {fecha}")
         )
 
     if pendientes != 0:
         cursor.execute(
             """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-               VALUES (%s, %s, %s, %s, %s, 'PENDIENTE_BANQUERO', 'APROBADO')""",
+                VALUES (%s, %s, %s, %s, %s, 'PENDIENTE_BANQUERO', 'APROBADO')""",
             (b_norm, fecha, abs(pendientes), f"Atraso/Pendiente de {b_norm}", f"Pendiente registrado el {fecha}")
         )
 
@@ -1596,9 +1598,9 @@ def post_banquero_guardar_ajuste_sistema(
     cursor = conn.cursor()
     cursor.execute(
         """INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
-           VALUES (%s, %s, %s, %s, %s, %s)
-           ON CONFLICT (banquero, sistema, fecha) 
-           DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (banquero, sistema, fecha) 
+            DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
         (b_norm, sistema, fecha, venta, comision, premios)
     )
     conn.commit()
@@ -1946,7 +1948,6 @@ def get_agencia(
     sem_cerrada_desde = lunes_pasado.strftime('%Y-%m-%d')
     sem_cerrada_hasta = domingo_pasado.strftime('%Y-%m-%d')
 
-    # Si no se filtra manualmente, se fija la última semana cerrada
     rango_concil_desde = desde_fecha if desde_fecha else sem_cerrada_desde
     rango_concil_hasta = hasta_fecha if hasta_fecha else sem_cerrada_hasta
 
@@ -1978,19 +1979,18 @@ def get_agencia(
         except Exception:
             detalle_conciliacion = []
 
-        # Suma neta de los ajustes de los sistemas de esa semana
         dif_semanal_original = sum(float(item.get("dif_neto", 0) or 0) for item in detalle_conciliacion)
         dif_semanal_original = round(dif_semanal_original, 2)
 
         # ------------------------------------------------------------------
-        # 3. VERIFICAR SI YA FUE PAGADO / SALDADO PARA QUE SALGA SOLVENTE
+        # 3. VERIFICAR SI YA FUE APLICADO O SALDADO
         # ------------------------------------------------------------------
         cursor.execute("""
             SELECT COALESCE(SUM(monto), 0) as pagado 
             FROM pagos 
             WHERE UPPER(TRIM(agencia)) = %s 
               AND estado = 'APROBADO' 
-              AND (factura LIKE %s OR comprobante LIKE %s)
+              AND (factura LIKE %s OR comprobante LIKE %s OR tipo = 'AJUSTE_DEUDA')
         """, (agencia_norm, f"%{row_concil['desde_fecha']}%", f"%{row_concil['desde_fecha']}%"))
         pago_concil = cursor.fetchone()
         monto_ya_pagado = float(pago_concil['pagado'] or 0.0) if pago_concil else 0.0
@@ -2024,22 +2024,45 @@ def get_agencia(
         }
 
     # ----------------------------------------------------------------------
-    # 4. SALDO GLOBAL CON IMPACTO EXACTO
+    # 4. SALDO GLOBAL EXACTO (Corte automático post-cierre semanal)
     # ----------------------------------------------------------------------
     cuenta_ag = obtener_cuenta_agencia_corte(agencia_norm)
-    saldo_actual = cuenta_ag["saldo_final"] + dif_semanal_activa
+    
+    saldo_ant_mostrado = cuenta_ag["saldo_anterior"]
+    dif_sem_mostrada = dif_semanal_activa
+    
+    balance_neto = round(cuenta_ag["saldo_final"] + dif_semanal_activa, 2)
+    
+    if abs(balance_neto) < 0.05:
+        saldo_actual = 0.0
+        saldo_ant_mostrado = 0.0
+        dif_sem_mostrada = 0.0
+    else:
+        saldo_actual = balance_neto
 
     desglose_cuenta = {
         "fecha": hoy_vzla,
-        "saldo_anterior": cuenta_ag["saldo_anterior"],
+        "saldo_anterior": saldo_ant_mostrado,
         "neto_hoy": cuenta_ag["neto_hoy"],
         "cashea_hoy": cuenta_ag["cashea_hoy"],
         "abonos_hoy": cuenta_ag["abonos_hoy"],
         "adelantos_hoy": cuenta_ag["adelantos_hoy"],
         "liquidaciones_hoy": cuenta_ag["liquidaciones_hoy"],
-        "diferencia_semanal": dif_semanal_activa,
+        "diferencia_semanal": dif_sem_mostrada,
         "saldo_final": saldo_actual
     }
+
+    # FILTRO DE PENDIENTES: solo mostrar días de la semana activa posteriores al último corte cerrado
+    cursor.execute("""
+        SELECT id, fecha, monto, detalle_html 
+        FROM reportes 
+        WHERE UPPER(TRIM(agencia)) = %s AND fecha > %s 
+        ORDER BY fecha DESC
+    """, (agencia_norm, sem_cerrada_hasta))
+    items_pendientes_filtrados = [dict(row) for row in cursor.fetchall()]
+
+    if not items_pendientes_filtrados:
+        items_pendientes_filtrados = reportes_agencia[:1] if reportes_agencia else []
 
     cursor.execute("SELECT * FROM metodos_pago WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
     datos_pago_row = cursor.fetchone()
@@ -2060,7 +2083,7 @@ def get_agencia(
         "sistemas": SISTEMAS_OFICIALES,
         "saldo_actual": saldo_actual,
         "desglose_cuenta": desglose_cuenta,
-        "items_pendientes": reportes_agencia,
+        "items_pendientes": items_pendientes_filtrados,
         "auditoria_sistemas": auditoria_sistemas_agencia,
         "totales_auditoria": totales_auditoria,
         "auditoria_cashea_monto": auditoria_cashea_monto,
@@ -2493,6 +2516,27 @@ def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[st
         return RedirectResponse(url=redirect_to, status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
+@app.post("/admin/eliminar-cashea")
+def post_eliminar_cashea(
+    cashea_id: int = Form(...),
+    desde_fecha: Optional[str] = Form(""),
+    hasta_fecha: Optional[str] = Form("")
+):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = %s AND tipo = 'CASHEA'", (cashea_id,))
+    row = cursor.fetchone()
+    if row:
+        ag_elim = row['agencia']
+        fe_elim = row['fecha']
+        cursor.execute("DELETE FROM pagos WHERE id = %s", (cashea_id,))
+        conn.commit()
+        recalcular_y_actualizar_reporte(ag_elim, fe_elim)
+    conn.close()
+
+    url_retorno = f"/admin?tab=cashea&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
+    return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
+
 @app.post("/admin/procesar-solicitud-dinero")
 async def post_procesar_solicitud_dinero(
     solicitud_id: int = Form(...),
@@ -2702,9 +2746,9 @@ def post_guardar_ajuste_banquero_sistema(
     cursor = conn.cursor()
     cursor.execute(
         """INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
-           VALUES (%s, %s, %s, %s, %s, %s)
-           ON CONFLICT (banquero, sistema, fecha) 
-           DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (banquero, sistema, fecha) 
+            DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
         (b_norm, sistema, fecha, venta, comision, premios)
     )
     conn.commit()
@@ -2810,7 +2854,7 @@ def get_admin(
             elif tipo_transaccion == 'ENVIADOS':
                 query_pagos += " AND tipo IN ('LIQUIDACION')"
             elif tipo_transaccion == 'ADELANTOS':
-                query_pagos += " AND tipo IN ('ADELANTO', 'ADELANTO_BANQUERO')"
+                query_pagos += " AND tipo IN ('ADELANTO', 'ADELANTO_BANQUERO', 'AJUSTE_DEUDA')"
             elif tipo_transaccion == 'MODIFICACIONES':
                 query_pagos += " AND tipo = 'MODIFICACION'"
             elif tipo_transaccion == 'SOLICITUDES':
@@ -2888,7 +2932,7 @@ def get_admin(
             
             cuenta_taquilla = obtener_cuenta_agencia_corte(ag_nombre)
             
-            # 1. Buscar la diferencia de la semana cerrada para esta taquilla
+            # Buscar si la diferencia de la semana cerrada ya está en BD
             cursor.execute("""
                 SELECT desde_fecha, hasta_fecha, detalle_dias 
                 FROM conciliaciones_semanales 
@@ -2898,14 +2942,15 @@ def get_admin(
             """, (ag_nombre, sem_cerrada_hasta, sem_cerrada_desde))
             row_c_ag = cursor.fetchone()
 
-            if not row_c_ag:
-                cursor.execute("""
-                    SELECT desde_fecha, hasta_fecha, detalle_dias 
-                    FROM conciliaciones_semanales 
-                    WHERE UPPER(TRIM(agencia)) = %s 
-                    ORDER BY id DESC LIMIT 1
-                """, (ag_nombre,))
-                row_c_ag = cursor.fetchone()
+         # Buscar únicamente la conciliación de la semana cerrada correspondiente
+            cursor.execute("""
+                SELECT desde_fecha, hasta_fecha, detalle_dias 
+                FROM conciliaciones_semanales 
+                WHERE UPPER(TRIM(agencia)) = %s 
+                  AND desde_fecha <= %s AND hasta_fecha >= %s
+                ORDER BY id DESC LIMIT 1
+            """, (ag_nombre, sem_cerrada_hasta, sem_cerrada_desde))
+            row_c_ag = cursor.fetchone()
 
             dif_sem_taquilla = 0.0
             if row_c_ag:
@@ -2917,13 +2962,44 @@ def get_admin(
                 dif_original = sum(float(it.get("dif_neto", 0) or 0) for it in items_dias_ag)
                 dif_original = round(dif_original, 2)
 
-                # Verificar si ya fue saldado/pagado
                 cursor.execute("""
                     SELECT COALESCE(SUM(monto), 0) as pagado 
                     FROM pagos 
                     WHERE UPPER(TRIM(agencia)) = %s 
                       AND estado = 'APROBADO' 
-                      AND (factura LIKE %s OR comprobante LIKE %s)
+                      AND (factura LIKE %s OR comprobante LIKE %s OR tipo = 'AJUSTE_DEUDA')
+                """, (ag_nombre, f"%{row_c_ag['desde_fecha']}%", f"%{row_c_ag['desde_fecha']}%"))
+                p_concil = cursor.fetchone()
+                m_pagado = float(p_concil['pagado'] or 0.0) if p_concil else 0.0
+
+                # Solo aplicar/mostrar el ajuste el día lunes; después de lunes pasa a ser 0.0
+                es_lunes = (hoy_date.weekday() == 0)
+                if es_lunes and not (abs(dif_original) > 0 and m_pagado >= abs(dif_original) - 0.05):
+                    dif_sem_taquilla = dif_original
+                else:
+                    dif_sem_taquilla = 0.0
+
+            # El balance contable viene directo de cuenta_taquilla
+            balance_contable = round(cuenta_taquilla["saldo_final"] + dif_sem_taquilla, 2)
+            if abs(balance_contable) < 0.05:
+                balance_contable = 0.0
+
+            dif_sem_taquilla = 0.0
+            if row_c_ag:
+                try:
+                    items_dias_ag = json.loads(row_c_ag["detalle_dias"] or "[]")
+                except Exception:
+                    items_dias_ag = []
+                
+                dif_original = sum(float(it.get("dif_neto", 0) or 0) for it in items_dias_ag)
+                dif_original = round(dif_original, 2)
+
+                cursor.execute("""
+                    SELECT COALESCE(SUM(monto), 0) as pagado 
+                    FROM pagos 
+                    WHERE UPPER(TRIM(agencia)) = %s 
+                      AND estado = 'APROBADO' 
+                      AND (factura LIKE %s OR comprobante LIKE %s OR tipo = 'AJUSTE_DEUDA')
                 """, (ag_nombre, f"%{row_c_ag['desde_fecha']}%", f"%{row_c_ag['desde_fecha']}%"))
                 p_concil = cursor.fetchone()
                 m_pagado = float(p_concil['pagado'] or 0.0) if p_concil else 0.0
@@ -2933,8 +3009,10 @@ def get_admin(
                 else:
                     dif_sem_taquilla = dif_original
 
-            # 2. Balance real unificado (Corte Diario + Ajuste Semanal Auditado)
+            # El balance contable viene directo de cuenta_taquilla (que ya integra pagos y ajustes)
             balance_contable = round(cuenta_taquilla["saldo_final"] + dif_sem_taquilla, 2)
+            if abs(balance_contable) < 0.05:
+                balance_contable = 0.0
             ag['saldo_pendiente'] = balance_contable
             
             datos_desglose = {
