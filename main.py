@@ -584,12 +584,12 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     """, (ag_norm, fecha_hoy_contable))
     ajuste_previo = cursor.fetchone()
 
-    if ajuste_previo and ajuste_previo['fecha'] == fecha_hoy_contable:
+if ajuste_previo and ajuste_previo['fecha'] == fecha_hoy_contable:
         saldo_anterior = float(ajuste_previo['monto'] or 0.0)
     else:
         fecha_obj = datetime.strptime(fecha_hoy_contable, '%Y-%m-%d').date()
         fecha_ayer_str = (fecha_obj - timedelta(days=1)).strftime('%Y-%m-%d')
-
+        
         # 1. Calcular el domingo de la semana pasada (fecha de corte oficial)
         lunes_esta_semana = fecha_obj - timedelta(days=fecha_obj.weekday())
         domingo_corte_pasado = (lunes_esta_semana - timedelta(days=1)).strftime('%Y-%m-%d')
@@ -2029,7 +2029,7 @@ def get_agencia(
             "hasta_fecha": sem_cerrada_hasta
         }
 
-    # ----------------------------------------------------------------------
+   # ----------------------------------------------------------------------
     # 4. SALDO GLOBAL EXACTO (Corte automático post-cierre semanal)
     # ----------------------------------------------------------------------
     cuenta_ag = obtener_cuenta_agencia_corte(agencia_norm)
@@ -2037,6 +2037,8 @@ def get_agencia(
     saldo_ant_mostrado = cuenta_ag["saldo_anterior"]
     dif_sem_mostrada = dif_semanal_activa
     
+    # Si la semana ya cerró (hoy es posterior al hasta_fecha del último corte)
+    # y la cuenta ya quedó en 0.00 (saldada), reseteamos los renglones viejos a 0.00
     balance_neto = round(cuenta_ag["saldo_final"] + dif_semanal_activa, 2)
     
     if abs(balance_neto) < 0.05:
@@ -2055,6 +2057,18 @@ def get_agencia(
         "adelantos_hoy": cuenta_ag["adelantos_hoy"],
         "liquidaciones_hoy": cuenta_ag["liquidaciones_hoy"],
         "diferencia_semanal": dif_sem_mostrada,
+        "saldo_final": saldo_actual
+    }
+
+    desglose_cuenta = {
+        "fecha": hoy_vzla,
+        "saldo_anterior": cuenta_ag["saldo_anterior"],
+        "neto_hoy": cuenta_ag["neto_hoy"],
+        "cashea_hoy": cuenta_ag["cashea_hoy"],
+        "abonos_hoy": cuenta_ag["abonos_hoy"],
+        "adelantos_hoy": cuenta_ag["adelantos_hoy"],
+        "liquidaciones_hoy": cuenta_ag["liquidaciones_hoy"],
+        "diferencia_semanal": dif_semanal_activa,
         "saldo_final": saldo_actual
     }
 
@@ -2522,27 +2536,6 @@ def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[st
         return RedirectResponse(url=redirect_to, status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-@app.post("/admin/eliminar-cashea")
-def post_eliminar_cashea(
-    cashea_id: int = Form(...),
-    desde_fecha: Optional[str] = Form(""),
-    hasta_fecha: Optional[str] = Form("")
-):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = %s AND tipo = 'CASHEA'", (cashea_id,))
-    row = cursor.fetchone()
-    if row:
-        ag_elim = row['agencia']
-        fe_elim = row['fecha']
-        cursor.execute("DELETE FROM pagos WHERE id = %s", (cashea_id,))
-        conn.commit()
-        recalcular_y_actualizar_reporte(ag_elim, fe_elim)
-    conn.close()
-
-    url_retorno = f"/admin?tab=cashea&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
-    return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
-
 @app.post("/admin/procesar-solicitud-dinero")
 async def post_procesar_solicitud_dinero(
     solicitud_id: int = Form(...),
@@ -2936,36 +2929,6 @@ def get_admin(
                 continue
             agencias_procesadas.add(ag_nombre)
             
-            # Usamos f_hasta para que calcule el acumulado correcto hasta la fecha seleccionada
-            cuenta_taquilla = obtener_cuenta_agencia_corte(ag_nombre, f_hasta)
-            
-            balance_contable = round(cuenta_taquilla["saldo_final"], 2)
-            if abs(balance_contable) < 0.05:
-                balance_contable = 0.0
-                
-            ag['saldo_pendiente'] = balance_contable
-            
-            datos_desglose = {
-                "agencia": ag_nombre,
-                "fecha": cuenta_taquilla["fecha"],
-                "monto": balance_contable,
-                "balance_total": balance_contable,
-                "saldo_anterior": cuenta_taquilla["saldo_anterior"],
-                "reporte_neto": cuenta_taquilla["neto_hoy"],
-                "abonos": cuenta_taquilla["abonos_hoy"],
-                "cashea": cuenta_taquilla["cashea_hoy"],
-                "adelantos": cuenta_taquilla["adelantos_hoy"],
-                "liquidaciones": cuenta_taquilla["liquidaciones_hoy"],
-                "diferencia_semanal": 0.0
-            }
-
-            if balance_contable > 0.009:
-                positivos.append(datos_desglose)
-            elif balance_contable < -0.009:
-                datos_desglose_neg = dict(datos_desglose)
-                datos_desglose_neg["monto"] = abs(balance_contable)
-                negativos.append(datos_desglose_neg)
-            
             cuenta_taquilla = obtener_cuenta_agencia_corte(ag_nombre)
             
             # Buscar si la diferencia de la semana cerrada ya está en BD
@@ -2978,47 +2941,14 @@ def get_admin(
             """, (ag_nombre, sem_cerrada_hasta, sem_cerrada_desde))
             row_c_ag = cursor.fetchone()
 
-         # Buscar únicamente la conciliación de la semana cerrada correspondiente
-            cursor.execute("""
-                SELECT desde_fecha, hasta_fecha, detalle_dias 
-                FROM conciliaciones_semanales 
-                WHERE UPPER(TRIM(agencia)) = %s 
-                  AND desde_fecha <= %s AND hasta_fecha >= %s
-                ORDER BY id DESC LIMIT 1
-            """, (ag_nombre, sem_cerrada_hasta, sem_cerrada_desde))
-            row_c_ag = cursor.fetchone()
-
-            dif_sem_taquilla = 0.0
-            if row_c_ag:
-                try:
-                    items_dias_ag = json.loads(row_c_ag["detalle_dias"] or "[]")
-                except Exception:
-                    items_dias_ag = []
-                
-                dif_original = sum(float(it.get("dif_neto", 0) or 0) for it in items_dias_ag)
-                dif_original = round(dif_original, 2)
-
+            if not row_c_ag:
                 cursor.execute("""
-                    SELECT COALESCE(SUM(monto), 0) as pagado 
-                    FROM pagos 
+                    SELECT desde_fecha, hasta_fecha, detalle_dias 
+                    FROM conciliaciones_semanales 
                     WHERE UPPER(TRIM(agencia)) = %s 
-                      AND estado = 'APROBADO' 
-                      AND (factura LIKE %s OR comprobante LIKE %s OR tipo = 'AJUSTE_DEUDA')
-                """, (ag_nombre, f"%{row_c_ag['desde_fecha']}%", f"%{row_c_ag['desde_fecha']}%"))
-                p_concil = cursor.fetchone()
-                m_pagado = float(p_concil['pagado'] or 0.0) if p_concil else 0.0
-
-                # Solo aplicar/mostrar el ajuste el día lunes; después de lunes pasa a ser 0.0
-                es_lunes = (hoy_date.weekday() == 0)
-                if es_lunes and not (abs(dif_original) > 0 and m_pagado >= abs(dif_original) - 0.05):
-                    dif_sem_taquilla = dif_original
-                else:
-                    dif_sem_taquilla = 0.0
-
-            # El balance contable viene directo de cuenta_taquilla
-            balance_contable = round(cuenta_taquilla["saldo_final"] + dif_sem_taquilla, 2)
-            if abs(balance_contable) < 0.05:
-                balance_contable = 0.0
+                    ORDER BY id DESC LIMIT 1
+                """, (ag_nombre,))
+                row_c_ag = cursor.fetchone()
 
             dif_sem_taquilla = 0.0
             if row_c_ag:
