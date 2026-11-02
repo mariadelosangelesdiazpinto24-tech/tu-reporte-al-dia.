@@ -2927,7 +2927,7 @@ def get_admin(
         negativos = []
         agencias_procesadas = set()
 
-for ag in agencias:
+        for ag in agencias:
             if ag.get('rol') in ['BANQUERO', 'SOLO_LISTA_NEGRA']:
                 continue
             
