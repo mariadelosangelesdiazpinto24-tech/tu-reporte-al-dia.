@@ -2927,7 +2927,7 @@ def get_admin(
         negativos = []
         agencias_procesadas = set()
 
-       for ag in agencias:
+for ag in agencias:
             if ag.get('rol') in ['BANQUERO', 'SOLO_LISTA_NEGRA']:
                 continue
             
@@ -2936,7 +2936,6 @@ def get_admin(
                 continue
             agencias_procesadas.add(ag_nombre)
             
-            # Obtenemos la cuenta de la agencia sin el freno de corte de lunes para el Admin
             cuenta_taquilla = obtener_cuenta_agencia_corte(ag_nombre, f_hasta)
             
             balance_contable = round(cuenta_taquilla["saldo_final"], 2)
