@@ -219,6 +219,10 @@ def get_db():
     return conn
 
 def init_db():
+    pass
+    return
+    pass
+    return
     conn = get_db()
     cursor = conn.cursor()
     
@@ -233,13 +237,18 @@ def init_db():
         )
     ''')
 
-    cursor.execute('''
-        ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS nombre_real TEXT;
-        ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cedula TEXT;
-        ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefono TEXT;
-        ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS estado TEXT DEFAULT 'ACTIVO';
-        ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS recomendado_por TEXT;
-    ''')
+    columnas = [
+        "nombre_real TEXT",
+        "cedula TEXT",
+        "telefono TEXT",
+        "estado TEXT DEFAULT 'ACTIVO'",
+        "recomendado_por TEXT"
+    ]
+    for col in columnas:
+        try:
+            cursor.execute(f"ALTER TABLE usuarios ADD COLUMN {col};")
+        except Exception:
+            pass
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reportes (
@@ -393,19 +402,25 @@ def init_db():
     cursor.execute("""
         INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
         VALUES ('COMERCIALIZADORA LIDER', 'PATRONUS', 0.16, 0.12, 0.20, FALSE)
-        ON CONFLICT (banquero, sistema) DO NOTHING;
+        ON CONFLICT (banquero, sistema) DO UPDATE
+        SET pct_banquero = EXCLUDED.pct_banquero,
+            pct_taquilla = EXCLUDED.pct_taquilla,
+            pct_participacion = EXCLUDED.pct_participacion;
     """)
 
     cursor.execute("""
         INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
         VALUES ('COMERCIALIZADORA LIDER', 'MASTER ACTIVO', 0.17, 0.13, 0.30, FALSE)
-        ON CONFLICT (banquero, sistema) DO NOTHING;
+        ON CONFLICT (banquero, sistema) DO UPDATE
+        SET pct_banquero = EXCLUDED.pct_banquero,
+            pct_taquilla = EXCLUDED.pct_taquilla,
+            pct_participacion = EXCLUDED.pct_participacion;
     """)
 
     conn.commit()
     conn.close()
 
-init_db()
+# init_db()
 
 @app.post("/agencia/guardar-metodos-pago")
 def post_guardar_metodos_pago(
@@ -1133,7 +1148,7 @@ def post_ajustar_saldo_anterior(
     conn = get_db()
     cursor = conn.cursor()
     
-    # Conservar todos los ajustes anteriores como historial; el mas reciente se consulta por fecha e id.
+    cursor.execute("DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'", (agencia_norm,))
     
     cursor.execute("""
         INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
