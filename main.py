@@ -2936,6 +2936,7 @@ def get_admin(
                 continue
             agencias_procesadas.add(ag_nombre)
             
+            # Usamos f_hasta para que calcule el acumulado correcto hasta la fecha seleccionada
             cuenta_taquilla = obtener_cuenta_agencia_corte(ag_nombre, f_hasta)
             
             balance_contable = round(cuenta_taquilla["saldo_final"], 2)
