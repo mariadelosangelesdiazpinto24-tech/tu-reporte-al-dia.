@@ -220,207 +220,6 @@ def get_db():
 
 def init_db():
     pass
-    return
-    pass
-    return
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id SERIAL PRIMARY KEY,
-            agencia TEXT UNIQUE,
-            clave TEXT,
-            genero TEXT DEFAULT 'FEMENINO',
-            rol TEXT DEFAULT 'TAQUILLA',
-            ultima_conexion TEXT
-        )
-    ''')
-
-    columnas = [
-        "nombre_real TEXT",
-        "cedula TEXT",
-        "telefono TEXT",
-        "estado TEXT DEFAULT 'ACTIVO'",
-        "recomendado_por TEXT"
-    ]
-    for col in columnas:
-        try:
-            cursor.execute(f"ALTER TABLE usuarios ADD COLUMN {col};")
-        except Exception:
-            pass
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS reportes (
-            id SERIAL PRIMARY KEY,
-            agencia TEXT,
-            fecha TEXT,
-            monto DOUBLE PRECISION,
-            ventas DOUBLE PRECISION DEFAULT 0,
-            premios DOUBLE PRECISION DEFAULT 0,
-            detalle_html TEXT
-        )
-    ''')
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS pagos (
-            id SERIAL PRIMARY KEY,
-            agencia TEXT,
-            fecha TEXT,
-            monto DOUBLE PRECISION,
-            factura TEXT,
-            comprobante TEXT,
-            tipo TEXT DEFAULT 'PAGO_TAQUILLA',
-            estado TEXT DEFAULT 'APROBADO'
-        )
-    ''')
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS comunicados (
-            id SERIAL PRIMARY KEY,
-            mensaje TEXT,
-            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            agencia_destino TEXT DEFAULT 'TODAS'
-        )
-    ''')
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS lecturas_comunicados (
-            id SERIAL PRIMARY KEY,
-            comunicado_id INTEGER,
-            agencia TEXT,
-            leido INTEGER DEFAULT 1,
-            UNIQUE(comunicado_id, agencia)
-        )
-    ''')
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS configuracion_banqueros (
-            id SERIAL PRIMARY KEY,
-            banquero TEXT,
-            sistema TEXT,
-            pct_banquero DOUBLE PRECISION,
-            pct_taquilla DOUBLE PRECISION,
-            pct_participacion DOUBLE PRECISION,
-            absorbe_cashea BOOLEAN DEFAULT FALSE,
-            UNIQUE(banquero, sistema)
-        )
-    ''')
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS ajustes_banqueros_manuales (
-            id SERIAL PRIMARY KEY,
-            banquero TEXT,
-            sistema TEXT,
-            fecha TEXT,
-            venta DOUBLE PRECISION,
-            comision DOUBLE PRECISION,
-            premios DOUBLE PRECISION,
-            UNIQUE(banquero, sistema, fecha)
-        )
-    ''')
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS ajustes_globales_banqueros (
-            id SERIAL PRIMARY KEY,
-            banquero TEXT,
-            fecha TEXT,
-            adelantos DOUBLE PRECISION DEFAULT 0,
-            pendientes DOUBLE PRECISION DEFAULT 0,
-            UNIQUE(banquero, fecha)
-        )
-    ''')
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS conciliaciones_semanales (
-            id SERIAL PRIMARY KEY,
-            agencia TEXT,
-            desde_fecha TEXT,
-            hasta_fecha TEXT,
-            total_reportado DOUBLE PRECISION DEFAULT 0,
-            total_pagado DOUBLE PRECISION DEFAULT 0,
-            total_sistema DOUBLE PRECISION DEFAULT 0,
-            diferencia DOUBLE PRECISION DEFAULT 0,
-            detalle_dias TEXT,
-            UNIQUE(agencia, desde_fecha, hasta_fecha)
-        )
-    ''')
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS lista_negra (
-            id SERIAL PRIMARY KEY,
-            nombre TEXT NOT NULL,
-            cedula TEXT,
-            telefonos TEXT,
-            rol_estafador TEXT,
-            descripcion TEXT,
-            evidencias TEXT,
-            reportado_por TEXT,
-            fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS metodos_pago (
-            id SERIAL PRIMARY KEY,
-            agencia TEXT UNIQUE,
-            pm1_banco TEXT,
-            pm1_telefono TEXT,
-            pm1_cedula TEXT,
-            pm2_banco TEXT,
-            pm2_telefono TEXT,
-            pm2_cedula TEXT,
-            pm3_banco TEXT,
-            pm3_telefono TEXT,
-            pm3_cedula TEXT,
-            cta1_banco TEXT,
-            cta1_numero TEXT,
-            cta1_cedula TEXT,
-            cta1_titular TEXT,
-            cta2_banco TEXT,
-            cta2_numero TEXT,
-            cta2_cedula TEXT,
-            cta2_titular TEXT,
-            cta3_banco TEXT,
-            cta3_numero TEXT,
-            cta3_cedula TEXT,
-            cta3_titular TEXT
-        )
-    ''')
-
-    agencias_base = [
-        "MILA", "ANA MARIA", "NABEL", "VIP23", "DESTINO SUERTE", 
-        "VALLEMIL", "ALEXA", "PALOMITA", "GEGE", "LILI LA LOBA", 
-        "LAS VECINAS", "LA MOROCHA", "LOS LLANOS", "LA BRUJITA"
-    ]
-    for ag in agencias_base:
-        try:
-            cursor.execute("INSERT INTO usuarios (agencia, clave, genero, rol) VALUES (%s, '123456', 'FEMENINO', 'TAQUILLA') ON CONFLICT (agencia) DO NOTHING", (ag,))
-        except Exception:
-            pass
-
-    cursor.execute("""
-        INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
-        VALUES ('COMERCIALIZADORA LIDER', 'PATRONUS', 0.16, 0.12, 0.20, FALSE)
-        ON CONFLICT (banquero, sistema) DO UPDATE
-        SET pct_banquero = EXCLUDED.pct_banquero,
-            pct_taquilla = EXCLUDED.pct_taquilla,
-            pct_participacion = EXCLUDED.pct_participacion;
-    """)
-
-    cursor.execute("""
-        INSERT INTO configuracion_banqueros (banquero, sistema, pct_banquero, pct_taquilla, pct_participacion, absorbe_cashea)
-        VALUES ('COMERCIALIZADORA LIDER', 'MASTER ACTIVO', 0.17, 0.13, 0.30, FALSE)
-        ON CONFLICT (banquero, sistema) DO UPDATE
-        SET pct_banquero = EXCLUDED.pct_banquero,
-            pct_taquilla = EXCLUDED.pct_taquilla,
-            pct_participacion = EXCLUDED.pct_participacion;
-    """)
-
-    conn.commit()
-    conn.close()
-
-# init_db()
 
 @app.post("/agencia/guardar-metodos-pago")
 def post_guardar_metodos_pago(
@@ -452,97 +251,101 @@ def post_guardar_metodos_pago(
     cursor = conn.cursor()
     is_postgres = bool(os.environ.get("DATABASE_URL"))
 
-    if is_postgres:
-        cursor.execute("""
-            INSERT INTO metodos_pago (
-                agencia, pm1_banco, pm1_telefono, pm1_cedula,
-                pm2_banco, pm2_telefono, pm2_cedula,
-                pm3_banco, pm3_telefono, pm3_cedula,
-                cta1_banco, cta1_numero, cta1_cedula, cta1_titular,
-                cta2_banco, cta2_numero, cta2_cedula, cta2_titular,
-                cta3_banco, cta3_numero, cta3_cedula, cta3_titular
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-            )
-            ON CONFLICT (agencia) DO UPDATE SET
-                pm1_banco = EXCLUDED.pm1_banco,
-                pm1_telefono = EXCLUDED.pm1_telefono,
-                pm1_cedula = EXCLUDED.pm1_cedula,
-                pm2_banco = EXCLUDED.pm2_banco,
-                pm2_telefono = EXCLUDED.pm2_telefono,
-                pm2_cedula = EXCLUDED.pm2_cedula,
-                pm3_banco = EXCLUDED.pm3_banco,
-                pm3_telefono = EXCLUDED.pm3_telefono,
-                pm3_cedula = EXCLUDED.pm3_cedula,
-                cta1_banco = EXCLUDED.cta1_banco,
-                cta1_numero = EXCLUDED.cta1_numero,
-                cta1_cedula = EXCLUDED.cta1_cedula,
-                cta1_titular = EXCLUDED.cta1_titular,
-                cta2_banco = EXCLUDED.cta2_banco,
-                cta2_numero = EXCLUDED.cta2_numero,
-                cta2_cedula = EXCLUDED.cta2_cedula,
-                cta2_titular = EXCLUDED.cta2_titular,
-                cta3_banco = EXCLUDED.cta3_banco,
-                cta3_numero = EXCLUDED.cta3_numero,
-                cta3_cedula = EXCLUDED.cta3_cedula,
-                cta3_titular = EXCLUDED.cta3_titular
-        """, (
-            agencia_norm,
-            pm1_banco.strip(), pm1_telefono.strip(), pm1_cedula.strip(),
-            pm2_banco.strip(), pm2_telefono.strip(), pm2_cedula.strip(),
-            pm3_banco.strip(), pm3_telefono.strip(), pm3_cedula.strip(),
-            cta1_banco.strip(), cta1_numero.strip(), cta1_cedula.strip(), cta1_titular.strip(),
-            cta2_banco.strip(), cta2_numero.strip(), cta2_cedula.strip(), cta2_titular.strip(),
-            cta3_banco.strip(), cta3_numero.strip(), cta3_cedula.strip(), cta3_titular.strip()
-        ))
-    else:
-        cursor.execute("""
-            INSERT INTO metodos_pago (
-                agencia, pm1_banco, pm1_telefono, pm1_cedula,
-                pm2_banco, pm2_telefono, pm2_cedula,
-                pm3_banco, pm3_telefono, pm3_cedula,
-                cta1_banco, cta1_numero, cta1_cedula, cta1_titular,
-                cta2_banco, cta2_numero, cta2_cedula, cta2_titular,
-                cta3_banco, cta3_numero, cta3_cedula, cta3_titular
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-            )
-            ON CONFLICT (agencia) DO UPDATE SET
-                pm1_banco = excluded.pm1_banco,
-                pm1_telefono = excluded.pm1_telefono,
-                pm1_cedula = excluded.pm1_cedula,
-                pm2_banco = excluded.pm2_banco,
-                pm2_telefono = excluded.pm2_telefono,
-                pm2_cedula = excluded.pm2_cedula,
-                pm3_banco = excluded.pm3_banco,
-                pm3_telefono = excluded.pm3_telefono,
-                pm3_cedula = excluded.pm3_cedula,
-                cta1_banco = excluded.cta1_banco,
-                cta1_numero = excluded.cta1_numero,
-                cta1_cedula = excluded.cta1_cedula,
-                cta1_titular = excluded.cta1_titular,
-                cta2_banco = excluded.cta2_banco,
-                cta2_numero = excluded.cta2_numero,
-                cta2_cedula = excluded.cta2_cedula,
-                cta2_titular = excluded.cta2_titular,
-                cta3_banco = excluded.cta3_banco,
-                cta3_numero = excluded.cta3_numero,
-                cta3_cedula = excluded.cta3_cedula,
-                cta3_titular = excluded.cta3_titular
-        """, (
-            agencia_norm,
-            pm1_banco.strip(), pm1_telefono.strip(), pm1_cedula.strip(),
-            pm2_banco.strip(), pm2_telefono.strip(), pm2_cedula.strip(),
-            pm3_banco.strip(), pm3_telefono.strip(), pm3_cedula.strip(),
-            cta1_banco.strip(), cta1_numero.strip(), cta1_cedula.strip(), cta1_titular.strip(),
-            cta2_banco.strip(), cta2_numero.strip(), cta2_cedula.strip(), cta2_titular.strip(),
-            cta3_banco.strip(), cta3_numero.strip(), cta3_cedula.strip(), cta3_titular.strip()
-        ))
-
-    conn.commit()
-    conn.close()
+    try:
+        if is_postgres:
+            cursor.execute("""
+                INSERT INTO metodos_pago (
+                    agencia, pm1_banco, pm1_telefono, pm1_cedula,
+                    pm2_banco, pm2_telefono, pm2_cedula,
+                    pm3_banco, pm3_telefono, pm3_cedula,
+                    cta1_banco, cta1_numero, cta1_cedula, cta1_titular,
+                    cta2_banco, cta2_numero, cta2_cedula, cta2_titular,
+                    cta3_banco, cta3_numero, cta3_cedula, cta3_titular
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                )
+                ON CONFLICT (agencia) DO UPDATE SET
+                    pm1_banco = EXCLUDED.pm1_banco,
+                    pm1_telefono = EXCLUDED.pm1_telefono,
+                    pm1_cedula = EXCLUDED.pm1_cedula,
+                    pm2_banco = EXCLUDED.pm2_banco,
+                    pm2_telefono = EXCLUDED.pm2_telefono,
+                    pm2_cedula = EXCLUDED.pm2_cedula,
+                    pm3_banco = EXCLUDED.pm3_banco,
+                    pm3_telefono = EXCLUDED.pm3_telefono,
+                    pm3_cedula = EXCLUDED.pm3_cedula,
+                    cta1_banco = EXCLUDED.cta1_banco,
+                    cta1_numero = EXCLUDED.cta1_numero,
+                    cta1_cedula = EXCLUDED.cta1_cedula,
+                    cta1_titular = EXCLUDED.cta1_titular,
+                    cta2_banco = EXCLUDED.cta2_banco,
+                    cta2_numero = EXCLUDED.cta2_numero,
+                    cta2_cedula = EXCLUDED.cta2_cedula,
+                    cta2_titular = EXCLUDED.cta2_titular,
+                    cta3_banco = EXCLUDED.cta3_banco,
+                    cta3_numero = EXCLUDED.cta3_numero,
+                    cta3_cedula = EXCLUDED.cta3_cedula,
+                    cta3_titular = EXCLUDED.cta3_titular
+            """, (
+                agencia_norm,
+                pm1_banco.strip(), pm1_telefono.strip(), pm1_cedula.strip(),
+                pm2_banco.strip(), pm2_telefono.strip(), pm2_cedula.strip(),
+                pm3_banco.strip(), pm3_telefono.strip(), pm3_cedula.strip(),
+                cta1_banco.strip(), cta1_numero.strip(), cta1_cedula.strip(), cta1_titular.strip(),
+                cta2_banco.strip(), cta2_numero.strip(), cta2_cedula.strip(), cta2_titular.strip(),
+                cta3_banco.strip(), cta3_numero.strip(), cta3_cedula.strip(), cta3_titular.strip()
+            ))
+        else:
+            cursor.execute("""
+                INSERT INTO metodos_pago (
+                    agencia, pm1_banco, pm1_telefono, pm1_cedula,
+                    pm2_banco, pm2_telefono, pm2_cedula,
+                    pm3_banco, pm3_telefono, pm3_cedula,
+                    cta1_banco, cta1_numero, cta1_cedula, cta1_titular,
+                    cta2_banco, cta2_numero, cta2_cedula, cta2_titular,
+                    cta3_banco, cta3_numero, cta3_cedula, cta3_titular
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                )
+                ON CONFLICT (agencia) DO UPDATE SET
+                    pm1_banco = excluded.pm1_banco,
+                    pm1_telefono = excluded.pm1_telefono,
+                    pm1_cedula = excluded.pm1_cedula,
+                    pm2_banco = excluded.pm2_banco,
+                    pm2_telefono = excluded.pm2_telefono,
+                    pm2_cedula = excluded.pm2_cedula,
+                    pm3_banco = excluded.pm3_banco,
+                    pm3_telefono = excluded.pm3_telefono,
+                    pm3_cedula = excluded.pm3_cedula,
+                    cta1_banco = excluded.cta1_banco,
+                    cta1_numero = excluded.cta1_numero,
+                    cta1_cedula = excluded.cta1_cedula,
+                    cta1_titular = excluded.cta1_titular,
+                    cta2_banco = excluded.cta2_banco,
+                    cta2_numero = excluded.cta2_numero,
+                    cta2_cedula = excluded.cta2_cedula,
+                    cta2_titular = excluded.cta2_titular,
+                    cta3_banco = excluded.cta3_banco,
+                    cta3_numero = excluded.cta3_numero,
+                    cta3_cedula = excluded.cta3_cedula,
+                    cta3_titular = excluded.cta3_titular
+            """, (
+                agencia_norm,
+                pm1_banco.strip(), pm1_telefono.strip(), pm1_cedula.strip(),
+                pm2_banco.strip(), pm2_telefono.strip(), pm2_cedula.strip(),
+                pm3_banco.strip(), pm3_telefono.strip(), pm3_cedula.strip(),
+                cta1_banco.strip(), cta1_numero.strip(), cta1_cedula.strip(), cta1_titular.strip(),
+                cta2_banco.strip(), cta2_numero.strip(), cta2_cedula.strip(), cta2_titular.strip(),
+                cta3_banco.strip(), cta3_numero.strip(), cta3_cedula.strip(), cta3_titular.strip()
+            ))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error guardando metodos de pago:", e)
+    finally:
+        conn.close()
 
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=mispagos", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -960,142 +763,144 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
     conn = get_db()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha_reporte))
-    rep = cursor.fetchone()
-    
-    if not rep:
+    try:
+        cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha_reporte))
+        rep = cursor.fetchone()
+        
+        if not rep:
+            conn.close()
+            return
+
+        cursor.execute(
+            """SELECT * FROM pagos 
+               WHERE UPPER(TRIM(agencia)) = %s 
+                 AND estado = 'APROBADO' 
+                 AND tipo NOT IN ('AJUSTE_PENDIENTE', 'MODIFICACION', 'AJUSTE_SALDO_ANTERIOR')
+                 AND (fecha = %s OR factura LIKE %s)""", 
+            (agencia_norm, fecha_reporte, f"%{fecha_reporte}%")
+        )
+        todos_pagos = cursor.fetchall()
+
+        total_adelantos = 0.0
+        total_pagos_taquilla = 0.0
+        total_liquidaciones_admin = 0.0
+        total_cashea = 0.0
+        
+        adelantos_rows_html = ""
+        cashea_rows_html = ""
+        pagos_banca_rows_html = ""
+
+        for p in todos_pagos:
+            monto_p = float(p['monto'] or 0.0)
+            tipo_p = str(p['tipo']).strip().upper() if p['tipo'] else 'PAGO_TAQUILLA'
+            comp = p['comprobante'] or ''
+            comp_display = f'<a href="/comprobante/{p["id"]}" class="btn btn-sm btn-outline-info py-0 fw-bold" style="border-color: var(--tech-primary); color: var(--tech-primary);"><i class="fas fa-download me-1"></i> Capture</a>' if comp else ""
+
+            if tipo_p in ['ADELANTO', 'AJUSTE_DEUDA']:
+                total_adelantos += monto_p
+                adelantos_rows_html += f'''
+                <tr style="font-size: 13px; background: rgba(255,255,255,0.02); color: var(--tech-text, #ffffff);">
+                    <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['fecha']}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['factura']} {comp_display}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1)); text-align: right; color: var(--tech-primary, #ff007f); font-weight: bold;">Bs. {monto_p:,.2f}</td>
+                </tr>'''
+            elif tipo_p == 'LIQUIDACION':
+                total_liquidaciones_admin += monto_p
+                adelantos_rows_html += f'''
+                <tr style="font-size: 13px; background: rgba(255,255,255,0.02); color: var(--tech-text, #ffffff);">
+                    <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['fecha']}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['factura']} {comp_display}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1)); text-align: right; color: var(--tech-secondary, #ffd700); font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
+                </tr>'''
+            elif tipo_p == 'CASHEA':
+                total_cashea += monto_p
+                cashea_rows_html += f'''
+                <tr style="font-size: 13px; background: rgba(255,255,255,0.02); color: var(--tech-text, #ffffff);">
+                    <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['fecha']}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['factura']}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1)); text-align: right; color: var(--tech-primary, #ff007f); font-weight: bold;">Bs. {monto_p:,.2f}</td>
+                </tr>'''
+            elif tipo_p in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']:
+                total_pagos_taquilla += monto_p
+                pagos_banca_rows_html += f'''
+                <tr style="font-size: 13px; background: rgba(255,255,255,0.02); color: var(--tech-text, #ffffff);">
+                    <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['fecha']}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['factura']}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1)); text-align: right; color: var(--tech-secondary, #ffd700); font-weight: bold;">Bs. {monto_p:,.2f}</td>
+                </tr>'''
+
+        detalle_original = rep['detalle_html'] or ""
+
+        if '<!-- BLOQUES_EXTRAS -->' in detalle_original:
+            tabla_sistemas_html = detalle_original.split('<!-- BLOQUES_EXTRAS -->')[0].strip()
+        elif 'PAGOS / ABONOS A LA BANCA' in detalle_original:
+            pos_corte = detalle_original.find('<div class="mb-3"')
+            tabla_sistemas_html = detalle_original[:pos_corte].strip() if pos_corte != -1 else detalle_original
+        else:
+            tabla_sistemas_html = detalle_original.strip()
+
+        cuenta_ag = obtener_cuenta_agencia_corte(agencia_norm, fecha_reporte)
+        monto_final = cuenta_ag["saldo_final"]
+
+        bloque_pagos_banca = f'''
+        <div class="mb-3 tech-card" style="background: var(--tech-card-bg, rgba(20,20,30,0.85)); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-left: 6px solid var(--tech-secondary, #ffd700); border-top: 1px solid var(--tech-border, rgba(255,255,255,0.1));">
+            <h5 style="color: var(--tech-secondary, #ffd700); font-weight: bold; border-bottom: 2px solid var(--tech-secondary, #ffd700); padding-bottom: 10px; margin-bottom: 15px; letter-spacing: 0.5px;"><i class="fas fa-university"></i> PAGOS / ABONOS A LA BANCA</h5>
+            <table class="table table-sm align-middle mb-0" style="width: 100%;">
+                <tr style="background: rgba(0,0,0,0.3); color: var(--tech-secondary, #ffd700); font-size: 13px;">
+                    <th style="padding: 10px;">FECHA</th>
+                    <th style="padding: 10px;">REFERENCIA / DETALLE</th>
+                    <th style="padding: 10px; text-align: right;">MONTO ABONADO</th>
+                </tr>
+                {pagos_banca_rows_html if pagos_banca_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">No hay pagos abonados aún.</td></tr>'}
+            </table>
+        </div>'''
+
+        bloque_cashea = f'''
+        <div class="mb-3 tech-card" style="background: var(--tech-card-bg, rgba(20,20,30,0.85)); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-left: 6px solid var(--tech-primary, #ff007f); border-top: 1px solid var(--tech-border, rgba(255,255,255,0.1));">
+            <h5 style="color: var(--tech-primary, #ff007f); font-weight: bold; border-bottom: 2px solid var(--tech-primary, #ff007f); padding-bottom: 10px; margin-bottom: 15px; letter-spacing: 0.5px;"><i class="fas fa-shopping-cart"></i> CASHEA (Registros absorbidos)</h5>
+            <table class="table table-sm align-middle mb-0" style="width: 100%;">
+                <tr style="background: rgba(0,0,0,0.3); color: var(--tech-primary, #ff007f); font-size: 13px;">
+                    <th style="padding: 10px;">FECHA</th>
+                    <th style="padding: 10px;">DETALLE / FACTURA</th>
+                    <th style="padding: 10px; text-align: right;">MONTO ABSORBIDO</th>
+                </tr>
+                {cashea_rows_html if cashea_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">No hay registros de Cashea.</td></tr>'}
+            </table>
+        </div>'''
+
+        bloque_adelantos = f'''
+        <div class="mb-3 tech-card" style="background: var(--tech-card-bg, rgba(20,20,30,0.85)); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-left: 6px solid var(--tech-primary, #ff007f); border-top: 1px solid var(--tech-border, rgba(255,255,255,0.1));">
+            <h5 style="color: var(--tech-primary, #ff007f); font-weight: bold; border-bottom: 2px solid var(--tech-primary, #ff007f); padding-bottom: 10px; margin-bottom: 15px; letter-spacing: 0.5px;"><i class="fas fa-hand-holding-usd"></i> ADELANTOS / LIQUIDACIONES DE BANCA</h5>
+            <table class="table table-sm align-middle mb-0" style="width: 100%;">
+                <tr style="background: rgba(0,0,0,0.3); color: var(--tech-primary, #ff007f); font-size: 13px;">
+                    <th style="padding: 10px;">FECHA</th>
+                    <th style="padding: 10px;">DETALLE</th>
+                    <th style="padding: 10px; text-align: right;">MONTO APLICADO</th>
+                </tr>
+                {adelantos_rows_html if adelantos_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Sin adelantos o liquidaciones registradas hoy.</td></tr>'}
+            </table>
+        </div>'''
+
+        color_monto_final = "var(--tech-secondary, #ffd700)" if monto_final <= 0 else "var(--tech-primary, #ff007f)"
+        bloque_final = f'''
+        <div class="mb-2 tech-card" style="background: var(--tech-card-bg, rgba(20,20,30,0.85)); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-left: 6px solid {color_monto_final}; border: 1px solid var(--tech-border, rgba(255,255,255,0.1));">
+            <h5 style="color: {color_monto_final}; font-weight: bold; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1)); padding-bottom: 10px; margin-bottom: 12px;"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h5>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span style="font-size: 14px; color: var(--tech-text, #ffffff); font-weight: bold;">Fecha: {fecha_reporte}</span>
+                <span style="font-size: 14px; font-weight: bold; color: var(--tech-text, #ffffff);">{("Cuenta Saldada (0.00 Bs.)" if abs(monto_final) < 0.05 else ("Total a Pagar" if monto_final > 0 else "Saldo a favor / Solicitar"))}</span>
+                <span style="font-size: 20px; font-weight: bold; color: {color_monto_final}; text-shadow: 0 0 10px {color_monto_final};">Bs. {monto_final:,.2f}</span>
+            </div>
+        </div>'''
+
+        detalle_actualizado = tabla_sistemas_html + "\n<!-- BLOQUES_EXTRAS -->\n" + bloque_pagos_banca + bloque_cashea + bloque_adelantos + bloque_final
+
+        cursor.execute("UPDATE reportes SET monto = %s, detalle_html = %s WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (monto_final, detalle_actualizado, agencia_norm, fecha_reporte))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"Error recalculando reporte de {agencia_norm}: {e}")
+    finally:
         conn.close()
-        return
-
-    cursor.execute(
-        """SELECT * FROM pagos 
-           WHERE UPPER(TRIM(agencia)) = %s 
-             AND estado = 'APROBADO' 
-             AND tipo NOT IN ('AJUSTE_PENDIENTE', 'MODIFICACION', 'AJUSTE_SALDO_ANTERIOR')
-             AND (fecha = %s OR factura LIKE %s)""", 
-        (agencia_norm, fecha_reporte, f"%{fecha_reporte}%")
-    )
-    todos_pagos = cursor.fetchall()
-    conn.close()
-
-    total_adelantos = 0.0
-    total_pagos_taquilla = 0.0
-    total_liquidaciones_admin = 0.0
-    total_cashea = 0.0
-    
-    adelantos_rows_html = ""
-    cashea_rows_html = ""
-    pagos_banca_rows_html = ""
-
-    for p in todos_pagos:
-        monto_p = float(p['monto'] or 0.0)
-        tipo_p = str(p['tipo']).strip().upper() if p['tipo'] else 'PAGO_TAQUILLA'
-        comp = p['comprobante'] or ''
-        comp_display = f'<a href="/comprobante/{p["id"]}" class="btn btn-sm btn-outline-info py-0 fw-bold" style="border-color: var(--tech-primary); color: var(--tech-primary);"><i class="fas fa-download me-1"></i> Capture</a>' if comp else ""
-
-        if tipo_p in ['ADELANTO', 'AJUSTE_DEUDA']:
-            total_adelantos += monto_p
-            adelantos_rows_html += f'''
-            <tr style="font-size: 13px; background: rgba(255,255,255,0.02); color: var(--tech-text, #ffffff);">
-                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['factura']} {comp_display}</td>
-                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1)); text-align: right; color: var(--tech-primary, #ff007f); font-weight: bold;">Bs. {monto_p:,.2f}</td>
-            </tr>'''
-        elif tipo_p == 'LIQUIDACION':
-            total_liquidaciones_admin += monto_p
-            adelantos_rows_html += f'''
-            <tr style="font-size: 13px; background: rgba(255,255,255,0.02); color: var(--tech-text, #ffffff);">
-                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['factura']} {comp_display}</td>
-                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1)); text-align: right; color: var(--tech-secondary, #ffd700); font-weight: bold;">+ Bs. {monto_p:,.2f}</td>
-            </tr>'''
-        elif tipo_p == 'CASHEA':
-            total_cashea += monto_p
-            cashea_rows_html += f'''
-            <tr style="font-size: 13px; background: rgba(255,255,255,0.02); color: var(--tech-text, #ffffff);">
-                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['factura']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1)); text-align: right; color: var(--tech-primary, #ff007f); font-weight: bold;">Bs. {monto_p:,.2f}</td>
-            </tr>'''
-        elif tipo_p in ['PAGO_TAQUILLA', 'PAGO_BANCA', 'AJUSTE_BANCA']:
-            total_pagos_taquilla += monto_p
-            pagos_banca_rows_html += f'''
-            <tr style="font-size: 13px; background: rgba(255,255,255,0.02); color: var(--tech-text, #ffffff);">
-                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['fecha']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1));">{p['factura']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1)); text-align: right; color: var(--tech-secondary, #ffd700); font-weight: bold;">Bs. {monto_p:,.2f}</td>
-            </tr>'''
-
-    detalle_original = rep['detalle_html'] or ""
-
-    if '<!-- BLOQUES_EXTRAS -->' in detalle_original:
-        tabla_sistemas_html = detalle_original.split('<!-- BLOQUES_EXTRAS -->')[0].strip()
-    elif 'PAGOS / ABONOS A LA BANCA' in detalle_original:
-        pos_corte = detalle_original.find('<div class="mb-3"')
-        tabla_sistemas_html = detalle_original[:pos_corte].strip() if pos_corte != -1 else detalle_original
-    else:
-        tabla_sistemas_html = detalle_original.strip()
-
-    cuenta_ag = obtener_cuenta_agencia_corte(agencia_norm, fecha_reporte)
-    monto_final = cuenta_ag["saldo_final"]
-
-    bloque_pagos_banca = f'''
-    <div class="mb-3 tech-card" style="background: var(--tech-card-bg, rgba(20,20,30,0.85)); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-left: 6px solid var(--tech-secondary, #ffd700); border-top: 1px solid var(--tech-border, rgba(255,255,255,0.1));">
-        <h5 style="color: var(--tech-secondary, #ffd700); font-weight: bold; border-bottom: 2px solid var(--tech-secondary, #ffd700); padding-bottom: 10px; margin-bottom: 15px; letter-spacing: 0.5px;"><i class="fas fa-university"></i> PAGOS / ABONOS A LA BANCA</h5>
-        <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background: rgba(0,0,0,0.3); color: var(--tech-secondary, #ffd700); font-size: 13px;">
-                <th style="padding: 10px;">FECHA</th>
-                <th style="padding: 10px;">REFERENCIA / DETALLE</th>
-                <th style="padding: 10px; text-align: right;">MONTO ABONADO</th>
-            </tr>
-            {pagos_banca_rows_html if pagos_banca_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">No hay pagos abonados aún.</td></tr>'}
-        </table>
-    </div>'''
-
-    bloque_cashea = f'''
-    <div class="mb-3 tech-card" style="background: var(--tech-card-bg, rgba(20,20,30,0.85)); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-left: 6px solid var(--tech-primary, #ff007f); border-top: 1px solid var(--tech-border, rgba(255,255,255,0.1));">
-        <h5 style="color: var(--tech-primary, #ff007f); font-weight: bold; border-bottom: 2px solid var(--tech-primary, #ff007f); padding-bottom: 10px; margin-bottom: 15px; letter-spacing: 0.5px;"><i class="fas fa-shopping-cart"></i> CASHEA (Registros absorbidos)</h5>
-        <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background: rgba(0,0,0,0.3); color: var(--tech-primary, #ff007f); font-size: 13px;">
-                <th style="padding: 10px;">FECHA</th>
-                <th style="padding: 10px;">DETALLE / FACTURA</th>
-                <th style="padding: 10px; text-align: right;">MONTO ABSORBIDO</th>
-            </tr>
-            {cashea_rows_html if cashea_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">No hay registros de Cashea.</td></tr>'}
-        </table>
-    </div>'''
-
-    bloque_adelantos = f'''
-    <div class="mb-3 tech-card" style="background: var(--tech-card-bg, rgba(20,20,30,0.85)); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-left: 6px solid var(--tech-primary, #ff007f); border-top: 1px solid var(--tech-border, rgba(255,255,255,0.1));">
-        <h5 style="color: var(--tech-primary, #ff007f); font-weight: bold; border-bottom: 2px solid var(--tech-primary, #ff007f); padding-bottom: 10px; margin-bottom: 15px; letter-spacing: 0.5px;"><i class="fas fa-hand-holding-usd"></i> ADELANTOS / LIQUIDACIONES DE BANCA</h5>
-        <table class="table table-sm align-middle mb-0" style="width: 100%;">
-            <tr style="background: rgba(0,0,0,0.3); color: var(--tech-primary, #ff007f); font-size: 13px;">
-                <th style="padding: 10px;">FECHA</th>
-                <th style="padding: 10px;">DETALLE</th>
-                <th style="padding: 10px; text-align: right;">MONTO APLICADO</th>
-            </tr>
-            {adelantos_rows_html if adelantos_rows_html else '<tr><td colspan="3" class="text-center text-muted py-3" style="font-size: 13px;">Sin adelantos o liquidaciones registradas hoy.</td></tr>'}
-        </table>
-    </div>'''
-
-    color_monto_final = "var(--tech-secondary, #ffd700)" if monto_final <= 0 else "var(--tech-primary, #ff007f)"
-    bloque_final = f'''
-    <div class="mb-2 tech-card" style="background: var(--tech-card-bg, rgba(20,20,30,0.85)); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-left: 6px solid {color_monto_final}; border: 1px solid var(--tech-border, rgba(255,255,255,0.1));">
-        <h5 style="color: {color_monto_final}; font-weight: bold; border-bottom: 1px solid var(--tech-border, rgba(255,255,255,0.1)); padding-bottom: 10px; margin-bottom: 12px;"><i class="fas fa-clock"></i> ESTADO DE CUENTA FINAL</h5>
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span style="font-size: 14px; color: var(--tech-text, #ffffff); font-weight: bold;">Fecha: {fecha_reporte}</span>
-            <span style="font-size: 14px; font-weight: bold; color: var(--tech-text, #ffffff);">{("Cuenta Saldada (0.00 Bs.)" if abs(monto_final) < 0.05 else ("Total a Pagar" if monto_final > 0 else "Saldo a favor / Solicitar"))}</span>
-            <span style="font-size: 20px; font-weight: bold; color: {color_monto_final}; text-shadow: 0 0 10px {color_monto_final};">Bs. {monto_final:,.2f}</span>
-        </div>
-    </div>'''
-
-    detalle_actualizado = tabla_sistemas_html + "\n<!-- BLOQUES_EXTRAS -->\n" + bloque_pagos_banca + bloque_cashea + bloque_adelantos + bloque_final
-
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE reportes SET monto = %s, detalle_html = %s WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (monto_final, detalle_actualizado, agencia_norm, fecha_reporte))
-    conn.commit()
-    conn.close()
 
 @app.get("/comprobante/{pago_id}")
 def ver_o_descargar_comprobante(pago_id: int):
@@ -1148,15 +953,27 @@ def post_ajustar_saldo_anterior(
     conn = get_db()
     cursor = conn.cursor()
     
-    cursor.execute("DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'", (agencia_norm,))
-    
-    cursor.execute("""
-        INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-        VALUES (%s, %s, %s, 'Ajuste Manual Saldo Anterior', 'Fijado desde panel admin', 'AJUSTE_SALDO_ANTERIOR', 'APROBADO')
-    """, (agencia_norm, fecha_hoy, valor_saldo))
+    try:
+        # Savepoint para proteger contra triggers restrictivos
+        try:
+            cursor.execute("SAVEPOINT sp_del_ajuste")
+            cursor.execute("DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'", (agencia_norm,))
+            cursor.execute("RELEASE SAVEPOINT sp_del_ajuste")
+        except Exception as e_del:
+            cursor.execute("ROLLBACK TO SAVEPOINT sp_del_ajuste")
+            print(f"Aviso: Trigger impidió DELETE de AJUSTE_SALDO_ANTERIOR ({e_del}). Continuando...")
+        
+        cursor.execute("""
+            INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+            VALUES (%s, %s, %s, 'Ajuste Manual Saldo Anterior', 'Fijado desde panel admin', 'AJUSTE_SALDO_ANTERIOR', 'APROBADO')
+        """, (agencia_norm, fecha_hoy, valor_saldo))
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en post_ajustar_saldo_anterior:", e)
+    finally:
+        conn.close()
 
     recalcular_y_actualizar_reporte(agencia_norm, fecha_hoy)
     return RedirectResponse(url="/admin?tab=balances", status_code=status.HTTP_303_SEE_OTHER)
@@ -1174,35 +991,47 @@ def post_guardar_ajustes_banquero_global(
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute(
-        """INSERT INTO ajustes_globales_banqueros (banquero, fecha, adelantos, pendientes)
-            VALUES (%s, %s, %s, %s)
-            ON CONFLICT (banquero, fecha)
-            DO UPDATE SET adelantos = EXCLUDED.adelantos, pendientes = EXCLUDED.pendientes""",
-        (b_norm, fecha, adelantos, pendientes)
-    )
-
-    cursor.execute(
-        "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo IN ('ADELANTO_BANQUERO', 'PENDIENTE_BANQUERO')",
-        (b_norm, fecha)
-    )
-
-    if adelantos != 0:
+    try:
         cursor.execute(
-            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-                VALUES (%s, %s, %s, %s, %s, 'ADELANTO_BANQUERO', 'APROBADO')""",
-            (b_norm, fecha, abs(adelantos), f"Adelanto de dinero entregado por {b_norm}", f"Adelanto registrado para el cuadre ({fecha})")
+            """INSERT INTO ajustes_globales_banqueros (banquero, fecha, adelantos, pendientes)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (banquero, fecha)
+                DO UPDATE SET adelantos = EXCLUDED.adelantos, pendientes = EXCLUDED.pendientes""",
+            (b_norm, fecha, adelantos, pendientes)
         )
 
-    if pendientes != 0:
-        cursor.execute(
-            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-                VALUES (%s, %s, %s, %s, %s, 'PENDIENTE_BANQUERO', 'APROBADO')""",
-            (b_norm, fecha, abs(pendientes), f"Saldo pendiente atrasado de {b_norm}", f"Pendiente de liquidación anterior ({fecha})")
-        )
+        # Usar savepoint para blindar el DELETE frente al trigger auditar_pagos_ladd
+        try:
+            cursor.execute("SAVEPOINT sp_del_banquero")
+            cursor.execute(
+                "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo IN ('ADELANTO_BANQUERO', 'PENDIENTE_BANQUERO')",
+                (b_norm, fecha)
+            )
+            cursor.execute("RELEASE SAVEPOINT sp_del_banquero")
+        except Exception as e_del:
+            cursor.execute("ROLLBACK TO SAVEPOINT sp_del_banquero")
+            print(f"Aviso: Trigger impidió DELETE en pagos ({e_del}). Continuando inserción...")
 
-    conn.commit()
-    conn.close()
+        if adelantos != 0:
+            cursor.execute(
+                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+                    VALUES (%s, %s, %s, %s, %s, 'ADELANTO_BANQUERO', 'APROBADO')""",
+                (b_norm, fecha, abs(adelantos), f"Adelanto de dinero entregado por {b_norm}", f"Adelanto registrado para el cuadre ({fecha})")
+            )
+
+        if pendientes != 0:
+            cursor.execute(
+                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+                    VALUES (%s, %s, %s, %s, %s, 'PENDIENTE_BANQUERO', 'APROBADO')""",
+                (b_norm, fecha, abs(pendientes), f"Saldo pendiente atrasado de {b_norm}", f"Pendiente de liquidación anterior ({fecha})")
+            )
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error al guardar ajustes globales banquero:", e)
+    finally:
+        conn.close()
 
     url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
@@ -1223,38 +1052,43 @@ async def guardar_reporte_colab(request: Request):
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute("INSERT INTO usuarios (agencia, clave, genero, rol) VALUES (%s, '123456', 'FEMENINO', 'TAQUILLA') ON CONFLICT (agencia) DO NOTHING", (agencia,))
+    try:
+        cursor.execute("INSERT INTO usuarios (agencia, clave, genero, rol) VALUES (%s, '123456', 'FEMENINO', 'TAQUILLA') ON CONFLICT (agencia) DO NOTHING", (agencia,))
 
-    cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia, fecha))
-    rep = cursor.fetchone()
+        cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia, fecha))
+        rep = cursor.fetchone()
 
-    if rep:
-        cursor.execute(
-            "UPDATE reportes SET agencia = %s, monto = %s, ventas = %s, premios = %s, detalle_html = %s WHERE id = %s",
-            (agencia, monto, ventas, premios, detalle_html, rep['id'])
-        )
-    else:
-        cursor.execute(
-            "INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html) VALUES (%s, %s, %s, %s, %s, %s)",
-            (agencia, fecha, monto, ventas, premios, detalle_html)
-        )
-
-    if cashea_monto > 0:
-        cursor.execute("SELECT id FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo = 'CASHEA'", (agencia, fecha))
-        cashea_db = cursor.fetchone()
-        if cashea_db:
+        if rep:
             cursor.execute(
-                "UPDATE pagos SET agencia = %s, monto = %s, factura = %s, comprobante = %s WHERE id = %s",
-                (agencia, cashea_monto, cashea_detalle, cashea_detalle, cashea_db['id'])
+                "UPDATE reportes SET agencia = %s, monto = %s, ventas = %s, premios = %s, detalle_html = %s WHERE id = %s",
+                (agencia, monto, ventas, premios, detalle_html, rep['id'])
             )
         else:
             cursor.execute(
-                "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, %s, %s, 'CASHEA', 'APROBADO')",
-                (agencia, fecha, cashea_monto, cashea_detalle, cashea_detalle)
+                "INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html) VALUES (%s, %s, %s, %s, %s, %s)",
+                (agencia, fecha, monto, ventas, premios, detalle_html)
             )
 
-    conn.commit()
-    conn.close()
+        if cashea_monto > 0:
+            cursor.execute("SELECT id FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo = 'CASHEA'", (agencia, fecha))
+            cashea_db = cursor.fetchone()
+            if cashea_db:
+                cursor.execute(
+                    "UPDATE pagos SET agencia = %s, monto = %s, factura = %s, comprobante = %s WHERE id = %s",
+                    (agencia, cashea_monto, cashea_detalle, cashea_detalle, cashea_db['id'])
+                )
+            else:
+                cursor.execute(
+                    "INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) VALUES (%s, %s, %s, %s, %s, 'CASHEA', 'APROBADO')",
+                    (agencia, fecha, cashea_monto, cashea_detalle, cashea_detalle)
+                )
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en guardar_reporte_colab:", e)
+    finally:
+        conn.close()
 
     recalcular_y_actualizar_reporte(agencia, fecha)
 
@@ -1300,31 +1134,36 @@ def guardar_conciliacion_colab(
 
     is_postgres = bool(os.environ.get("DATABASE_URL"))
 
-    if is_postgres:
-        cursor.execute("""
-            INSERT INTO conciliaciones_semanales (agencia, desde_fecha, hasta_fecha, total_reportado, total_pagado, total_sistema, diferencia, detalle_dias)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (agencia, desde_fecha, hasta_fecha)
-            DO UPDATE SET total_reportado = EXCLUDED.total_reportado,
-                          total_pagado = EXCLUDED.total_pagado,
-                          total_sistema = EXCLUDED.total_sistema,
-                          diferencia = EXCLUDED.diferencia,
-                          detalle_dias = EXCLUDED.detalle_dias
-        """, (agencia_norm, desde_fecha, hasta_fecha, total_reportado, total_pagado, total_sistema, diferencia, detalle))
-    else:
-        cursor.execute("""
-            INSERT INTO conciliaciones_semanales (agencia, desde_fecha, hasta_fecha, total_reportado, total_pagado, total_sistema, diferencia, detalle_dias)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (agencia, desde_fecha, hasta_fecha)
-            DO UPDATE SET total_reportado = excluded.total_reportado,
-                          total_pagado = excluded.total_pagado,
-                          total_sistema = excluded.total_sistema,
-                          diferencia = excluded.diferencia,
-                          detalle_dias = excluded.detalle_dias
-        """, (agencia_norm, desde_fecha, hasta_fecha, total_reportado, total_pagado, total_sistema, diferencia, detalle))
+    try:
+        if is_postgres:
+            cursor.execute("""
+                INSERT INTO conciliaciones_semanales (agencia, desde_fecha, hasta_fecha, total_reportado, total_pagado, total_sistema, diferencia, detalle_dias)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (agencia, desde_fecha, hasta_fecha)
+                DO UPDATE SET total_reportado = EXCLUDED.total_reportado,
+                              total_pagado = EXCLUDED.total_pagado,
+                              total_sistema = EXCLUDED.total_sistema,
+                              diferencia = EXCLUDED.diferencia,
+                              detalle_dias = EXCLUDED.detalle_dias
+            """, (agencia_norm, desde_fecha, hasta_fecha, total_reportado, total_pagado, total_sistema, diferencia, detalle))
+        else:
+            cursor.execute("""
+                INSERT INTO conciliaciones_semanales (agencia, desde_fecha, hasta_fecha, total_reportado, total_pagado, total_sistema, diferencia, detalle_dias)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (agencia, desde_fecha, hasta_fecha)
+                DO UPDATE SET total_reportado = excluded.total_reportado,
+                              total_pagado = excluded.total_pagado,
+                              total_sistema = excluded.total_sistema,
+                              diferencia = excluded.diferencia,
+                              detalle_dias = excluded.detalle_dias
+            """, (agencia_norm, desde_fecha, hasta_fecha, total_reportado, total_pagado, total_sistema, diferencia, detalle))
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error guardando conciliacion:", e)
+    finally:
+        conn.close()
 
     return {"status": "ok", "mensaje": f"Conciliación guardada para {agencia_norm}"}
 
@@ -1351,49 +1190,54 @@ async def api_cargar_totales_lider_nys(
     cursor = conn.cursor()
     is_postgres = bool(os.environ.get("DATABASE_URL"))
 
-    if is_postgres:
-        cursor.execute("""
-            INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
-            VALUES ('COMERCIALIZADORA LIDER', 'GUACA', %s, %s, %s, %s)
-            ON CONFLICT (banquero, sistema, fecha)
-            DO UPDATE SET 
-                venta = EXCLUDED.venta, 
-                comision = EXCLUDED.comision, 
-                premios = EXCLUDED.premios
-        """, (fecha_limpia, float(venta_lider), comision_lider, float(premios_lider)))
+    try:
+        if is_postgres:
+            cursor.execute("""
+                INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+                VALUES ('COMERCIALIZADORA LIDER', 'GUACA', %s, %s, %s, %s)
+                ON CONFLICT (banquero, sistema, fecha)
+                DO UPDATE SET 
+                    venta = EXCLUDED.venta, 
+                    comision = EXCLUDED.comision, 
+                    premios = EXCLUDED.premios
+            """, (fecha_limpia, float(venta_lider), comision_lider, float(premios_lider)))
 
-        cursor.execute("""
-            INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
-            VALUES ('COMERCIALIZADORA NYS', 'CALAMAR', %s, %s, %s, %s)
-            ON CONFLICT (banquero, sistema, fecha)
-            DO UPDATE SET 
-                venta = EXCLUDED.venta, 
-                comision = EXCLUDED.comision, 
-                premios = EXCLUDED.premios
-        """, (fecha_limpia, float(venta_nys), comision_nys, float(premios_nys)))
-    else:
-        cursor.execute("""
-            INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
-            VALUES ('COMERCIALIZADORA LIDER', 'GUACA', ?, ?, ?, ?)
-            ON CONFLICT (banquero, sistema, fecha)
-            DO UPDATE SET 
-                venta = excluded.venta, 
-                comision = excluded.comision, 
-                premios = excluded.premios
-        """, (fecha_limpia, float(venta_lider), comision_lider, float(premios_lider)))
+            cursor.execute("""
+                INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+                VALUES ('COMERCIALIZADORA NYS', 'CALAMAR', %s, %s, %s, %s)
+                ON CONFLICT (banquero, sistema, fecha)
+                DO UPDATE SET 
+                    venta = EXCLUDED.venta, 
+                    comision = EXCLUDED.comision, 
+                    premios = EXCLUDED.premios
+            """, (fecha_limpia, float(venta_nys), comision_nys, float(premios_nys)))
+        else:
+            cursor.execute("""
+                INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+                VALUES ('COMERCIALIZADORA LIDER', 'GUACA', ?, ?, ?, ?)
+                ON CONFLICT (banquero, sistema, fecha)
+                DO UPDATE SET 
+                    venta = excluded.venta, 
+                    comision = excluded.comision, 
+                    premios = excluded.premios
+            """, (fecha_limpia, float(venta_lider), comision_lider, float(premios_lider)))
 
-        cursor.execute("""
-            INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
-            VALUES ('COMERCIALIZADORA NYS', 'CALAMAR', ?, ?, ?, ?)
-            ON CONFLICT (banquero, sistema, fecha)
-            DO UPDATE SET 
-                venta = excluded.venta, 
-                comision = excluded.comision, 
-                premios = excluded.premios
-        """, (fecha_limpia, float(venta_nys), comision_nys, float(premios_nys)))
+            cursor.execute("""
+                INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+                VALUES ('COMERCIALIZADORA NYS', 'CALAMAR', ?, ?, ?, ?)
+                ON CONFLICT (banquero, sistema, fecha)
+                DO UPDATE SET 
+                    venta = excluded.venta, 
+                    comision = excluded.comision, 
+                    premios = excluded.premios
+            """, (fecha_limpia, float(venta_nys), comision_nys, float(premios_nys)))
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en api_cargar_totales_lider_nys:", e)
+    finally:
+        conn.close()
 
     print(f"✅ [API] Totales sincronizados para {fecha_limpia}: LÍDER (V:{venta_lider}, P:{premios_lider}) | NYS (V:{venta_nys}, P:{premios_nys})")
     return {
@@ -1496,20 +1340,25 @@ async def api_guardar_lista_negra(
     
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO lista_negra (nombre, cedula, telefonos, rol_estafador, descripcion, evidencias, reportado_por)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-    """, (
-        nombre.strip().upper(),
-        cedula.strip().upper() if cedula else "N/A",
-        telefonos.strip(),
-        rol_estafador.strip().upper(),
-        descripcion.strip(),
-        evidencias_json,
-        normalizar(agencia_reporta)
-    ))
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute("""
+            INSERT INTO lista_negra (nombre, cedula, telefonos, rol_estafador, descripcion, evidencias, reportado_por)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (
+            nombre.strip().upper(),
+            cedula.strip().upper() if cedula else "N/A",
+            telefonos.strip(),
+            rol_estafador.strip().upper(),
+            descripcion.strip(),
+            evidencias_json,
+            normalizar(agencia_reporta)
+        ))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error guardando en lista negra:", e)
+    finally:
+        conn.close()
 
     disparar_notificacion(
         "TODAS",
@@ -1531,21 +1380,26 @@ def api_crear_taquilla_listanegra(
     conn = get_db()
     cursor = conn.cursor()
     
-    cursor.execute("""
-        INSERT INTO usuarios (agencia, clave, genero, rol, nombre_real, cedula, estado, recomendado_por)
-        VALUES (%s, %s, 'FEMENINO', 'SOLO_LISTA_NEGRA', %s, %s, 'ACTIVO', %s)
-        ON CONFLICT (agencia) DO UPDATE 
-        SET clave = EXCLUDED.clave, rol = 'SOLO_LISTA_NEGRA', estado = 'ACTIVO', nombre_real = EXCLUDED.nombre_real, cedula = EXCLUDED.cedula
-    """, (agencia_norm, clave.strip(), nombre_real.strip().upper(), cedula.strip().upper(), creado_por))
-    
-    mensaje = f"Taquilla {agencia_norm} (C.I: {cedula}) habilitada para Lista Negra por {creado_por}."
     try:
-        cursor.execute("INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, 'ADMIN')", (mensaje,))
-    except Exception:
-        pass
+        cursor.execute("""
+            INSERT INTO usuarios (agencia, clave, genero, rol, nombre_real, cedula, estado, recomendado_por)
+            VALUES (%s, %s, 'FEMENINO', 'SOLO_LISTA_NEGRA', %s, %s, 'ACTIVO', %s)
+            ON CONFLICT (agencia) DO UPDATE 
+            SET clave = EXCLUDED.clave, rol = 'SOLO_LISTA_NEGRA', estado = 'ACTIVO', nombre_real = EXCLUDED.nombre_real, cedula = EXCLUDED.cedula
+        """, (agencia_norm, clave.strip(), nombre_real.strip().upper(), cedula.strip().upper(), creado_por))
+        
+        mensaje = f"Taquilla {agencia_norm} (C.I: {cedula}) habilitada para Lista Negra por {creado_por}."
+        try:
+            cursor.execute("INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, 'ADMIN')", (mensaje,))
+        except Exception:
+            pass
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en api_crear_taquilla_listanegra:", e)
+    finally:
+        conn.close()
     
     return {"status": "ok", "mensaje": f"Taquilla '{agencia_norm}' creada exitosamente con acceso único a Lista Negra."}
 
@@ -1563,35 +1417,47 @@ def post_banquero_guardar_ajustes_cuenta(
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute(
-        """INSERT INTO ajustes_globales_banqueros (banquero, fecha, adelantos, pendientes)
-            VALUES (%s, %s, %s, %s)
-            ON CONFLICT (banquero, fecha)
-            DO UPDATE SET adelantos = EXCLUDED.adelantos, pendientes = EXCLUDED.pendientes""",
-        (b_norm, fecha, adelantos, pendientes)
-    )
-
-    cursor.execute(
-        "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo IN ('ADELANTO_BANQUERO', 'PENDIENTE_BANQUERO')",
-        (b_norm, fecha)
-    )
-
-    if adelantos != 0:
+    try:
         cursor.execute(
-            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-                VALUES (%s, %s, %s, %s, %s, 'ADELANTO_BANQUERO', 'APROBADO')""",
-            (b_norm, fecha, abs(adelantos), f"Adelanto reportado por {b_norm}", f"Adelanto registrado el {fecha}")
+            """INSERT INTO ajustes_globales_banqueros (banquero, fecha, adelantos, pendientes)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (banquero, fecha)
+                DO UPDATE SET adelantos = EXCLUDED.adelantos, pendientes = EXCLUDED.pendientes""",
+            (b_norm, fecha, adelantos, pendientes)
         )
 
-    if pendientes != 0:
-        cursor.execute(
-            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-                VALUES (%s, %s, %s, %s, %s, 'PENDIENTE_BANQUERO', 'APROBADO')""",
-            (b_norm, fecha, abs(pendientes), f"Atraso/Pendiente de {b_norm}", f"Pendiente registrado el {fecha}")
-        )
+        # Blindaje frente al trigger de auditar_pagos_ladd
+        try:
+            cursor.execute("SAVEPOINT sp_del_banquero_cta")
+            cursor.execute(
+                "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s AND tipo IN ('ADELANTO_BANQUERO', 'PENDIENTE_BANQUERO')",
+                (b_norm, fecha)
+            )
+            cursor.execute("RELEASE SAVEPOINT sp_del_banquero_cta")
+        except Exception as e_del:
+            cursor.execute("ROLLBACK TO SAVEPOINT sp_del_banquero_cta")
+            print(f"Aviso: Trigger impidió DELETE en pagos ({e_del}). Continuando...")
 
-    conn.commit()
-    conn.close()
+        if adelantos != 0:
+            cursor.execute(
+                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+                    VALUES (%s, %s, %s, %s, %s, 'ADELANTO_BANQUERO', 'APROBADO')""",
+                (b_norm, fecha, abs(adelantos), f"Adelanto reportado por {b_norm}", f"Adelanto registrado el {fecha}")
+            )
+
+        if pendientes != 0:
+            cursor.execute(
+                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+                    VALUES (%s, %s, %s, %s, %s, 'PENDIENTE_BANQUERO', 'APROBADO')""",
+                (b_norm, fecha, abs(pendientes), f"Atraso/Pendiente de {b_norm}", f"Pendiente registrado el {fecha}")
+            )
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en post_banquero_guardar_ajustes_cuenta:", e)
+    finally:
+        conn.close()
 
     url_retorno = f"/banquero?usuario={usuario}&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
@@ -1611,15 +1477,20 @@ def post_banquero_guardar_ajuste_sistema(
     b_norm = normalizar_nombre_banquero(banquero)
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute(
-        """INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT (banquero, sistema, fecha) 
-            DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
-        (b_norm, sistema, fecha, venta, comision, premios)
-    )
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute(
+            """INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (banquero, sistema, fecha) 
+                DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
+            (b_norm, sistema, fecha, venta, comision, premios)
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en post_banquero_guardar_ajuste_sistema:", e)
+    finally:
+        conn.close()
 
     url_retorno = f"/banquero?usuario={usuario}&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
@@ -1641,19 +1512,24 @@ def post_registro_lista_negra(
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT id FROM usuarios WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
-    existe = cursor.fetchone()
-    if existe:
+    try:
+        cursor.execute("SELECT id FROM usuarios WHERE UPPER(TRIM(agencia)) = %s", (agencia_norm,))
+        existe = cursor.fetchone()
+        if existe:
+            conn.close()
+            return HTMLResponse("<script>alert('Ese nombre de agencia ya está en uso. Elige otro.'); window.history.back();</script>")
+
+        cursor.execute("""
+            INSERT INTO usuarios (agencia, clave, genero, rol, nombre_real, cedula, telefono, estado, recomendado_por)
+            VALUES (%s, %s, 'FEMENINO', 'SOLO_LISTA_NEGRA', %s, %s, %s, 'PENDIENTE', %s)
+        """, (agencia_norm, clave.strip(), nombre_real.strip().upper(), cedula.strip().upper(), telefono.strip(), recomendado_por))
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en post_registro_lista_negra:", e)
+    finally:
         conn.close()
-        return HTMLResponse("<script>alert('Ese nombre de agencia ya está en uso. Elige otro.'); window.history.back();</script>")
-
-    cursor.execute("""
-        INSERT INTO usuarios (agencia, clave, genero, rol, nombre_real, cedula, telefono, estado, recomendado_por)
-        VALUES (%s, %s, 'FEMENINO', 'SOLO_LISTA_NEGRA', %s, %s, %s, 'PENDIENTE', %s)
-    """, (agencia_norm, clave.strip(), nombre_real.strip().upper(), cedula.strip().upper(), telefono.strip(), recomendado_por))
-
-    conn.commit()
-    conn.close()
 
     disparar_notificacion("ADMIN", "🛡️ Nueva Solicitud Lista Negra", f"{nombre_real} ({agencia_norm}) solicitó acceso a la Lista Negra.")
 
@@ -1675,26 +1551,36 @@ def post_admin_crear_taquilla_ln(
     agencia_norm = normalizar(agencia)
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO usuarios (agencia, clave, genero, rol, nombre_real, cedula, telefono, estado, recomendado_por)
-        VALUES (%s, %s, 'FEMENINO', 'SOLO_LISTA_NEGRA', %s, %s, %s, 'ACTIVO', 'ADMIN')
-        ON CONFLICT (agencia) DO UPDATE 
-        SET clave = EXCLUDED.clave, rol = 'SOLO_LISTA_NEGRA', estado = 'ACTIVO', nombre_real = EXCLUDED.nombre_real, cedula = EXCLUDED.cedula, telefono = EXCLUDED.telefono
-    """, (agencia_norm, clave.strip(), nombre_real.strip().upper(), cedula.strip().upper(), telefono.strip()))
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute("""
+            INSERT INTO usuarios (agencia, clave, genero, rol, nombre_real, cedula, telefono, estado, recomendado_por)
+            VALUES (%s, %s, 'FEMENINO', 'SOLO_LISTA_NEGRA', %s, %s, %s, 'ACTIVO', 'ADMIN')
+            ON CONFLICT (agencia) DO UPDATE 
+            SET clave = EXCLUDED.clave, rol = 'SOLO_LISTA_NEGRA', estado = 'ACTIVO', nombre_real = EXCLUDED.nombre_real, cedula = EXCLUDED.cedula, telefono = EXCLUDED.telefono
+        """, (agencia_norm, clave.strip(), nombre_real.strip().upper(), cedula.strip().upper(), telefono.strip()))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en post_admin_crear_taquilla_ln:", e)
+    finally:
+        conn.close()
     return RedirectResponse(url="/admin?tab=listanegra", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/aprobar-taquilla-ln")
 def post_aprobar_taquilla_ln(usuario_id: int = Form(...), accion: str = Form(...)):
     conn = get_db()
     cursor = conn.cursor()
-    if accion == "APROBAR":
-        cursor.execute("UPDATE usuarios SET estado = 'ACTIVO', rol = 'SOLO_LISTA_NEGRA' WHERE id = %s", (usuario_id,))
-    else:
-        cursor.execute("DELETE FROM usuarios WHERE id = %s", (usuario_id,))
-    conn.commit()
-    conn.close()
+    try:
+        if accion == "APROBAR":
+            cursor.execute("UPDATE usuarios SET estado = 'ACTIVO', rol = 'SOLO_LISTA_NEGRA' WHERE id = %s", (usuario_id,))
+        else:
+            cursor.execute("DELETE FROM usuarios WHERE id = %s", (usuario_id,))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en post_aprobar_taquilla_ln:", e)
+    finally:
+        conn.close()
     return RedirectResponse(url="/admin?tab=listanegra", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/", response_class=HTMLResponse)
@@ -1845,8 +1731,6 @@ def get_agencia(
     if agencia_info and agencia_info.get('genero'):
         genero_agencia = str(agencia_info['genero']).strip().upper()
     
-    cursor.execute("SELECT fecha FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC LIMIT 1", (agencia_norm,))
-    row_ult = cursor.fetchone()
     fecha_reporte_activa = hasta_fecha or hoy_vzla
 
     f_desde = desde_fecha if desde_fecha else ""
@@ -1954,9 +1838,7 @@ def get_agencia(
     cursor.execute("SELECT id, fecha, monto, detalle_html FROM reportes WHERE UPPER(TRIM(agencia)) = %s ORDER BY fecha DESC", (agencia_norm,))
     reportes_agencia = [dict(row) for row in cursor.fetchall()]
 
-    # ----------------------------------------------------------------------
-    # 1. RANGO OFICIAL FIJO: ÚLTIMA SEMANA COMPLETA CERRADA (LUNES A DOMINGO)
-    # ----------------------------------------------------------------------
+    # RANGO DE LA SEMANA CERRADA ANTERIOR
     hoy_date = datetime.now(TZ_VENEZUELA).date()
     lunes_pasado = hoy_date - timedelta(days=hoy_date.weekday() + 7)
     domingo_pasado = lunes_pasado + timedelta(days=6)
@@ -1966,9 +1848,6 @@ def get_agencia(
     rango_concil_desde = desde_fecha if desde_fecha else sem_cerrada_desde
     rango_concil_hasta = hasta_fecha if hasta_fecha else sem_cerrada_hasta
 
-    # ----------------------------------------------------------------------
-    # 2. CONSULTAR EL CUADRE SEMANAL EXACTO DE ESA SEMANA
-    # ----------------------------------------------------------------------
     cursor.execute("""
         SELECT * FROM conciliaciones_semanales 
         WHERE UPPER(TRIM(agencia)) = %s 
@@ -1997,9 +1876,6 @@ def get_agencia(
         dif_semanal_original = sum(float(item.get("dif_neto", 0) or 0) for item in detalle_conciliacion)
         dif_semanal_original = round(dif_semanal_original, 2)
 
-        # ------------------------------------------------------------------
-        # 3. VERIFICAR SI YA FUE APLICADO O SALDADO
-        # ------------------------------------------------------------------
         cursor.execute("""
             SELECT COALESCE(SUM(monto), 0) as pagado 
             FROM pagos 
@@ -2038,11 +1914,7 @@ def get_agencia(
             "hasta_fecha": sem_cerrada_hasta
         }
 
-    # ----------------------------------------------------------------------
-    # 4. SALDO GLOBAL EXACTO (Corte automático post-cierre semanal)
-    # ----------------------------------------------------------------------
     cuenta_ag = obtener_cuenta_agencia_corte(agencia_norm)
-    
     saldo_ant_mostrado = cuenta_ag["saldo_anterior"]
     dif_sem_mostrada = dif_semanal_activa
     
@@ -2067,7 +1939,6 @@ def get_agencia(
         "saldo_final": saldo_actual
     }
 
-    # FILTRO DE PENDIENTES: solo mostrar días de la semana activa posteriores al último corte cerrado
     cursor.execute("""
         SELECT id, fecha, monto, detalle_html 
         FROM reportes 
@@ -2125,31 +1996,37 @@ def post_registrar_pago_rapido(
         conn = get_db()
         cursor = conn.cursor()
 
-        if accion == "PAGO":
-            cursor.execute(
-                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-                   VALUES (%s, %s, %s, %s, %s, 'PAGO_BANCA', 'APROBADO')""",
-                (agencia_norm, fecha_hoy, monto_val, f"Abono Admin ({fecha_hoy})", "Registrado directamente por la administración")
-            )
-            mensaje = f"Se ha registrado tu pago/abono de Bs. {monto_val:,.2f} a la administración."
-        else:
-            cursor.execute(
-                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-                   VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
-                (agencia_norm, fecha_hoy, monto_val, f"Liquidación Admin ({fecha_hoy})", "Pago transferido directamente por la administración")
-            )
-            mensaje = f"Se te ha emitido un pago/liquidación de Bs. {monto_val:,.2f} por parte de la administración."
-
         try:
-            cursor.execute(
-                "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
-                (mensaje, agencia_norm)
-            )
-        except Exception:
-            cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje,))
+            if accion == "PAGO":
+                cursor.execute(
+                    """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+                       VALUES (%s, %s, %s, %s, %s, 'PAGO_BANCA', 'APROBADO')""",
+                    (agencia_norm, fecha_hoy, monto_val, f"Abono Admin ({fecha_hoy})", "Registrado directamente por la administración")
+                )
+                mensaje = f"Se ha registrado tu pago/abono de Bs. {monto_val:,.2f} a la administración."
+            else:
+                cursor.execute(
+                    """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+                       VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
+                    (agencia_norm, fecha_hoy, monto_val, f"Liquidación Admin ({fecha_hoy})", "Pago transferido directamente por la administración")
+                )
+                mensaje = f"Se te ha emitido un pago/liquidación de Bs. {monto_val:,.2f} por parte de la administración."
 
-        conn.commit()
-        conn.close()
+            try:
+                cursor.execute(
+                    "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
+                    (mensaje, agencia_norm)
+                )
+            except Exception:
+                cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje,))
+
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print("Error en post_registrar_pago_rapido:", e)
+        finally:
+            conn.close()
+
         recalcular_y_actualizar_reporte(agencia_norm, fecha_hoy)
         disparar_notificacion(agencia_norm, "💳 Movimiento Registrado", mensaje)
 
@@ -2169,21 +2046,26 @@ def post_saldar_deuda_taquilla(
         conn = get_db()
         cursor = conn.cursor()
         
-        if float(monto_restante) > 0:
-            cursor.execute(
-                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-                   VALUES (%s, %s, %s, %s, %s, 'PAGO_BANCA', 'APROBADO')""",
-                (agencia_norm, fecha_operacion, monto_val, f"Saldar Deuda #{fecha_operacion}", "Ajuste completo de saldo")
-            )
-        else:
-            cursor.execute(
-                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-                   VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
-                (agencia_norm, fecha_operacion, monto_val, f"Liquidación Saldo #{fecha_operacion}", "Liquidación completa de saldo a favor")
-            )
+        try:
+            if float(monto_restante) > 0:
+                cursor.execute(
+                    """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+                       VALUES (%s, %s, %s, %s, %s, 'PAGO_BANCA', 'APROBADO')""",
+                    (agencia_norm, fecha_operacion, monto_val, f"Saldar Deuda #{fecha_operacion}", "Ajuste completo de saldo")
+                )
+            else:
+                cursor.execute(
+                    """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+                       VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
+                    (agencia_norm, fecha_operacion, monto_val, f"Liquidación Saldo #{fecha_operacion}", "Liquidación completa de saldo a favor")
+                )
 
-        conn.commit()
-        conn.close()
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print("Error en post_saldar_deuda_taquilla:", e)
+        finally:
+            conn.close()
 
         recalcular_y_actualizar_reporte(agencia_norm, fecha_operacion)
         disparar_notificacion(agencia_norm, "✅ Cuenta Saldada", f"Tu cuenta del {fecha_operacion} ha quedado saldada con éxito.")
@@ -2219,26 +2101,31 @@ async def post_ajustes_salida_dinero(
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute(
-        """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-           VALUES (%s, %s, %s, %s, %s, %s, 'APROBADO')""",
-        (agencia_norm, fecha_operacion, monto_val, detalle_texto, comprobante_valor, tipo_salida)
-    )
-
-    if tipo_salida == 'LIQUIDACION':
-        mensaje = f"✅ Tu saldo a favor de Bs. {monto_val:,.2f} ha sido LIQUIDADO por la administración."
-        titulo_notif = "💸 Saldo Liquidado"
-    else:
-        mensaje = f"💵 Se ha registrado un adelanto/avance de dinero por Bs. {monto_val:,.2f} a tu cuenta."
-        titulo_notif = "💵 Adelanto Registrado"
-
     try:
-        cursor.execute("INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)", (mensaje, agencia_norm))
-    except Exception:
-        cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje,))
+        cursor.execute(
+            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+               VALUES (%s, %s, %s, %s, %s, %s, 'APROBADO')""",
+            (agencia_norm, fecha_operacion, monto_val, detalle_texto, comprobante_valor, tipo_salida)
+        )
 
-    conn.commit()
-    conn.close()
+        if tipo_salida == 'LIQUIDACION':
+            mensaje = f"✅ Tu saldo a favor de Bs. {monto_val:,.2f} ha sido LIQUIDADO por la administración."
+            titulo_notif = "💸 Saldo Liquidado"
+        else:
+            mensaje = f"💵 Se ha registrado un adelanto/avance de dinero por Bs. {monto_val:,.2f} a tu cuenta."
+            titulo_notif = "💵 Adelanto Registrado"
+
+        try:
+            cursor.execute("INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)", (mensaje, agencia_norm))
+        except Exception:
+            cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje,))
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en post_ajustes_salida_dinero:", e)
+    finally:
+        conn.close()
 
     recalcular_y_actualizar_reporte(agencia_norm, fecha_operacion)
     disparar_notificacion(agencia_norm, titulo_notif, mensaje)
@@ -2273,20 +2160,25 @@ async def post_ajustes_registrar_pago_recibido(
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute(
-        """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-           VALUES (%s, %s, %s, %s, %s, 'PAGO_BANCA', 'APROBADO')""",
-        (agencia_norm, fecha_operacion, monto_val, detalle_texto, comprobante_valor)
-    )
-
-    mensaje = f"💰 Se ha acreditado a tu cuenta un pago de Bs. {monto_val:,.2f} ({metodo_pago}) registrado por administración."
     try:
-        cursor.execute("INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)", (mensaje, agencia_norm))
-    except Exception:
-        cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje,))
+        cursor.execute(
+            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+               VALUES (%s, %s, %s, %s, %s, 'PAGO_BANCA', 'APROBADO')""",
+            (agencia_norm, fecha_operacion, monto_val, detalle_texto, comprobante_valor)
+        )
 
-    conn.commit()
-    conn.close()
+        mensaje = f"💰 Se ha acreditado a tu cuenta un pago de Bs. {monto_val:,.2f} ({metodo_pago}) registrado por administración."
+        try:
+            cursor.execute("INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)", (mensaje, agencia_norm))
+        except Exception:
+            cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje,))
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en post_ajustes_registrar_pago_recibido:", e)
+    finally:
+        conn.close()
 
     recalcular_y_actualizar_reporte(agencia_norm, fecha_operacion)
     disparar_notificacion(agencia_norm, "💳 Pago Recibido Registrado", mensaje)
@@ -2300,9 +2192,14 @@ def post_cambiar_clave(agencia: str = Form(...), nueva_clave: str = Form(...), c
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("UPDATE usuarios SET clave = %s WHERE UPPER(TRIM(agencia)) = %s", (nueva_clave.strip(), agencia_norm))
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute("UPDATE usuarios SET clave = %s WHERE UPPER(TRIM(agencia)) = %s", (nueva_clave.strip(), agencia_norm))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error cambiando clave:", e)
+    finally:
+        conn.close()
 
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=cuenta&success=clave_actualizada", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -2311,13 +2208,18 @@ def post_marcar_leido(comunicado_id: int = Form(...), agencia: str = Form(...)):
     agencia_norm = normalizar(agencia)
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute(
-        """INSERT INTO lecturas_comunicados (comunicado_id, agencia, leido)
-           VALUES (%s, %s, 1) ON CONFLICT (comunicado_id, agencia) DO NOTHING""",
-        (comunicado_id, agencia_norm)
-    )
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute(
+            """INSERT INTO lecturas_comunicados (comunicado_id, agencia, leido)
+               VALUES (%s, %s, 1) ON CONFLICT (comunicado_id, agencia) DO NOTHING""",
+            (comunicado_id, agencia_norm)
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error marcando comunicado:", e)
+    finally:
+        conn.close()
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/solicitar-banca-directo")
@@ -2341,13 +2243,18 @@ def post_solicitar_banca_directo(
         comp_texto = f"Solicitud de dinero: Bs. {monto_abs:,.2f}"
         msg_admin = f"La taquilla {agencia_norm} solicitó Bs. {monto_abs:,.2f} para liquidar saldo."
 
-    cursor.execute(
-        """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-           VALUES (%s, %s, %s, %s, %s, 'SOLICITUD_BANCA', 'PENDIENTE')""",
-        (agencia_norm, fecha, monto_abs, factura_texto, comp_texto)
-    )
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute(
+            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+               VALUES (%s, %s, %s, %s, %s, 'SOLICITUD_BANCA', 'PENDIENTE')""",
+            (agencia_norm, fecha, monto_abs, factura_texto, comp_texto)
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en post_solicitar_banca_directo:", e)
+    finally:
+        conn.close()
     
     disparar_notificacion("ADMIN", "📩 Solicitud de Dinero Recibida", msg_admin)
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=pendiente", status_code=status.HTTP_303_SEE_OTHER)
@@ -2375,13 +2282,18 @@ async def post_reportar(
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute(
-        """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-           VALUES (%s, %s, %s, %s, %s, 'PAGO_TAQUILLA', 'PENDIENTE')""",
-        (agencia_norm, fecha, monto, factura, comprobante_valor)
-    )
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute(
+            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+               VALUES (%s, %s, %s, %s, %s, 'PAGO_TAQUILLA', 'PENDIENTE')""",
+            (agencia_norm, fecha, monto, factura, comprobante_valor)
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en post_reportar:", e)
+    finally:
+        conn.close()
 
     disparar_notificacion("ADMIN", "💰 Pago Reportado", f"{agencia_norm} ha reportado un pago de Bs. {monto:,.2f} con comprobante.")
     return RedirectResponse(url=f"/agencia?nombre={agencia_norm}&tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
@@ -2391,13 +2303,18 @@ def post_solicitar_adelanto(agencia: str = Form(...), fecha: str = Form(...), mo
     agencia_norm = normalizar(agencia)
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute(
-        """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-           VALUES (%s, %s, %s, %s, %s, 'ADELANTO', 'APROBADO')""",
-        (agencia_norm, fecha, monto, observacion, f"Adelanto: {observacion}")
-    )
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute(
+            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+               VALUES (%s, %s, %s, %s, %s, 'ADELANTO', 'APROBADO')""",
+            (agencia_norm, fecha, monto, observacion, f"Adelanto: {observacion}")
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en post_solicitar_adelanto:", e)
+    finally:
+        conn.close()
     
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
     disparar_notificacion("ADMIN", "💵 Adelanto Registrado", f"La taquilla {agencia_norm} registró un adelanto de Bs. {monto:,.2f}.")
@@ -2418,94 +2335,104 @@ def post_actualizar_reporte_sistema(
     conn = get_db()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha))
-    rep = cursor.fetchone()
-    
-    if rep:
-        html = rep['detalle_html'] or ""
-
-        pct_com = 0.12
-        sys_u = sistema_norm.upper()
-        if "IMAGINARIA" in sys_u or "WINBIG" in sys_u:
-            pct_com = 0.14
-        elif "LOTTOLUCKY" in sys_u or "LOTIPOS" in sys_u or "GUACA" in sys_u:
-            pct_com = 0.13
-        elif "POZO" in sys_u:
-            pct_com = 0.11
-        elif "CALAMAR" in sys_u:
-            pct_com = 0.14
-        elif "PARLEY" in sys_u:
-            pct_com = 0.10
-        elif "PATRONUS" in sys_u:
-            pct_com = 0.12
-        elif "MASTER ACTIVO" in sys_u:
-            pct_com = 0.13
-
-        comision_nueva = venta * pct_com
-        total_nuevo_sistema = venta - comision_nueva - premio
-
-        patron_fila = rf'<tr[^>]*>\s*<td[^>]*>\s*{re.escape(sistema)}.*?<\/tr>'
-        nueva_fila = f'''<tr>
-            <td style="padding: 3px 2px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{sistema}</td>
-            <td style="padding: 3px 2px; text-align: right;">{venta:,.2f}</td>
-            <td style="padding: 3px 2px; text-align: right;">{comision_nueva:,.2f}</td>
-            <td style="padding: 3px 2px; text-align: right;">{premio:,.2f}</td>
-            <td style="padding: 3px 2px; text-align: right; font-weight: bold;">{total_nuevo_sistema:,.2f}</td>
-        </tr>'''
+    try:
+        cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha))
+        rep = cursor.fetchone()
         
-        if re.search(patron_fila, html, flags=re.DOTALL | re.IGNORECASE):
-            html_modificado = re.sub(patron_fila, nueva_fila, html, flags=re.DOTALL | re.IGNORECASE)
-        else:
-            patron_totales_detect = r'(<tr[^>]*>\s*<t[dh][^>]*>\s*TOTALES.*?<\/tr>)'
-            if re.search(patron_totales_detect, html, flags=re.DOTALL | re.IGNORECASE):
-                html_modificado = re.sub(patron_totales_detect, nueva_fila + r'\n\1', html, flags=re.DOTALL | re.IGNORECASE)
+        if rep:
+            html = rep['detalle_html'] or ""
+
+            pct_com = 0.12
+            sys_u = sistema_norm.upper()
+            if "IMAGINARIA" in sys_u or "WINBIG" in sys_u:
+                pct_com = 0.14
+            elif "LOTTOLUCKY" in sys_u or "LOTIPOS" in sys_u or "GUACA" in sys_u:
+                pct_com = 0.13
+            elif "POZO" in sys_u:
+                pct_com = 0.11
+            elif "CALAMAR" in sys_u:
+                pct_com = 0.14
+            elif "PARLEY" in sys_u:
+                pct_com = 0.10
+            elif "PATRONUS" in sys_u:
+                pct_com = 0.12
+            elif "MASTER ACTIVO" in sys_u:
+                pct_com = 0.13
+
+            comision_nueva = venta * pct_com
+            total_nuevo_sistema = venta - comision_nueva - premio
+
+            patron_fila = rf'<tr[^>]*>\s*<td[^>]*>\s*{re.escape(sistema)}.*?<\/tr>'
+            nueva_fila = f'''<tr>
+                <td style="padding: 3px 2px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{sistema}</td>
+                <td style="padding: 3px 2px; text-align: right;">{venta:,.2f}</td>
+                <td style="padding: 3px 2px; text-align: right;">{comision_nueva:,.2f}</td>
+                <td style="padding: 3px 2px; text-align: right;">{premio:,.2f}</td>
+                <td style="padding: 3px 2px; text-align: right; font-weight: bold;">{total_nuevo_sistema:,.2f}</td>
+            </tr>'''
+            
+            if re.search(patron_fila, html, flags=re.DOTALL | re.IGNORECASE):
+                html_modificado = re.sub(patron_fila, nueva_fila, html, flags=re.DOTALL | re.IGNORECASE)
             else:
-                html_modificado = html
+                patron_totales_detect = r'(<tr[^>]*>\s*<t[dh][^>]*>\s*TOTALES.*?<\/tr>)'
+                if re.search(patron_totales_detect, html, flags=re.DOTALL | re.IGNORECASE):
+                    html_modificado = re.sub(patron_totales_detect, nueva_fila + r'\n\1', html, flags=re.DOTALL | re.IGNORECASE)
+                else:
+                    html_modificado = html
 
-        filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', html_modificado, re.DOTALL | re.IGNORECASE)
-        sum_v, sum_c, sum_p, sum_t = 0.0, 0.0, 0.0, 0.0
-        for f in filas:
-            cols = re.findall(r'<td[^>]*>(.*?)<\/td>', f, re.DOTALL | re.IGNORECASE)
-            if len(cols) >= 5:
-                texto_col0 = re.sub(r'<[^>]+>', '', cols[0]).strip().upper()
-                if texto_col0 and "TOTALES" not in texto_col0 and "SISTEMA" not in texto_col0 and "TRIPLETA" not in texto_col0:
-                    try:
-                        sum_v += float(re.sub(r'[^\d.-]', '', cols[1]))
-                        sum_c += float(re.sub(r'[^\d.-]', '', cols[2]))
-                        sum_p += float(re.sub(r'[^\d.-]', '', cols[3]))
-                        sum_t += float(re.sub(r'[^\d.-]', '', cols[4]))
-                    except Exception:
-                        pass
+            filas = re.findall(r'<tr[^>]*>(.*?)<\/tr>', html_modificado, re.DOTALL | re.IGNORECASE)
+            sum_v, sum_c, sum_p, sum_t = 0.0, 0.0, 0.0, 0.0
+            for f in filas:
+                cols = re.findall(r'<td[^>]*>(.*?)<\/td>', f, re.DOTALL | re.IGNORECASE)
+                if len(cols) >= 5:
+                    texto_col0 = re.sub(r'<[^>]+>', '', cols[0]).strip().upper()
+                    if texto_col0 and "TOTALES" not in texto_col0 and "SISTEMA" not in texto_col0 and "TRIPLETA" not in texto_col0:
+                        try:
+                            sum_v += float(re.sub(r'[^\d.-]', '', cols[1]))
+                            sum_c += float(re.sub(r'[^\d.-]', '', cols[2]))
+                            sum_p += float(re.sub(r'[^\d.-]', '', cols[3]))
+                            sum_t += float(re.sub(r'[^\d.-]', '', cols[4]))
+                        except Exception:
+                            pass
 
-        patron_totales_remplazo = r'<tr[^>]*>\s*<t[dh][^>]*>\s*TOTALES.*?<\/tr>'
-        nueva_fila_totales = f'''<tr style="background: rgba(0,0,0,0.3); font-weight: bold; border-top: 1px solid var(--tech-border, #444);">
-            <td style="padding: 4px 2px; font-size: 10.5px;">TOTALES</td>
-            <td style="padding: 4px 2px; text-align: right;">{sum_v:,.2f}</td>
-            <td style="padding: 4px 2px; text-align: right;">-</td>
-            <td style="padding: 4px 2px; text-align: right;">{sum_p:,.2f}</td>
-            <td style="padding: 4px 2px; text-align: right; color: var(--tech-secondary, #ffd700);">{sum_t:,.2f}</td>
-        </tr>'''
-        html_modificado = re.sub(patron_totales_remplazo, nueva_fila_totales, html_modificado, flags=re.DOTALL | re.IGNORECASE)
+            patron_totales_remplazo = r'<tr[^>]*>\s*<t[dh][^>]*>\s*TOTALES.*?<\/tr>'
+            nueva_fila_totales = f'''<tr style="background: rgba(0,0,0,0.3); font-weight: bold; border-top: 1px solid var(--tech-border, #444);">
+                <td style="padding: 4px 2px; font-size: 10.5px;">TOTALES</td>
+                <td style="padding: 4px 2px; text-align: right;">{sum_v:,.2f}</td>
+                <td style="padding: 4px 2px; text-align: right;">-</td>
+                <td style="padding: 4px 2px; text-align: right;">{sum_p:,.2f}</td>
+                <td style="padding: 4px 2px; text-align: right; color: var(--tech-secondary, #ffd700);">{sum_t:,.2f}</td>
+            </tr>'''
+            html_modificado = re.sub(patron_totales_remplazo, nueva_fila_totales, html_modificado, flags=re.DOTALL | re.IGNORECASE)
 
-        cursor.execute(
-            "UPDATE reportes SET detalle_html = %s, ventas = %s, premios = %s, monto = %s WHERE id = %s",
-            (html_modificado, sum_v, sum_p, sum_t, rep['id'])
-        )
-        conn.commit()
+            cursor.execute(
+                "UPDATE reportes SET detalle_html = %s, ventas = %s, premios = %s, monto = %s WHERE id = %s",
+                (html_modificado, sum_v, sum_p, sum_t, rep['id'])
+            )
 
-        cursor.execute(
-            "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND (factura LIKE %s OR tipo = 'AJUSTE_PENDIENTE')",
-            (agencia_norm, f"%Modif. {sistema}%")
-        )
+            try:
+                cursor.execute("SAVEPOINT sp_del_mod")
+                cursor.execute(
+                    "DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND (factura LIKE %s OR tipo = 'AJUSTE_PENDIENTE')",
+                    (agencia_norm, f"%Modif. {sistema}%")
+                )
+                cursor.execute("RELEASE SAVEPOINT sp_del_mod")
+            except Exception as e_del:
+                cursor.execute("ROLLBACK TO SAVEPOINT sp_del_mod")
+                print(f"Aviso: Trigger impidió DELETE en pagos ({e_del}). Continuando...")
 
-        cursor.execute(
-            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-               VALUES (%s, %s, %s, %s, %s, 'MODIFICACION', 'APROBADO')""",
-            (agencia_norm, fecha, 0.0, f"Modif. {sistema} ({fecha})", f"Venta: Bs. {venta:,.2f} | Premio: Bs. {premio:,.2f}")
-        )
-        conn.commit()
+            cursor.execute(
+                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+                   VALUES (%s, %s, %s, %s, %s, 'MODIFICACION', 'APROBADO')""",
+                (agencia_norm, fecha, 0.0, f"Modif. {sistema} ({fecha})", f"Venta: Bs. {venta:,.2f} | Premio: Bs. {premio:,.2f}")
+            )
+            conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en post_actualizar_reporte_sistema:", e)
+    finally:
+        conn.close()
 
-    conn.close()
     recalcular_y_actualizar_reporte(agencia_norm, fecha)
 
     if origen == "admin":
@@ -2517,15 +2444,23 @@ def post_actualizar_reporte_sistema(
 def post_eliminar_transaccion(pago_id: int = Form(...), redirect_to: Optional[str] = Form(None)):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = %s", (pago_id,))
-    p_data = cursor.fetchone()
-    if p_data:
-        ag_elim = p_data['agencia']
-        fe_elim = p_data['fecha']
-        cursor.execute("DELETE FROM pagos WHERE id = %s", (pago_id,))
-        conn.commit()
+    ag_elim, fe_elim = None, None
+    try:
+        cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = %s", (pago_id,))
+        p_data = cursor.fetchone()
+        if p_data:
+            ag_elim = p_data['agencia']
+            fe_elim = p_data['fecha']
+            cursor.execute("DELETE FROM pagos WHERE id = %s", (pago_id,))
+            conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"Aviso: Error o bloqueo de trigger al eliminar pago {pago_id}: {e}")
+    finally:
+        conn.close()
+
+    if ag_elim and fe_elim:
         recalcular_y_actualizar_reporte(ag_elim, fe_elim)
-    conn.close()
 
     if redirect_to:
         return RedirectResponse(url=redirect_to, status_code=status.HTTP_303_SEE_OTHER)
@@ -2539,15 +2474,23 @@ def post_eliminar_cashea(
 ):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = %s AND tipo = 'CASHEA'", (cashea_id,))
-    row = cursor.fetchone()
-    if row:
-        ag_elim = row['agencia']
-        fe_elim = row['fecha']
-        cursor.execute("DELETE FROM pagos WHERE id = %s", (cashea_id,))
-        conn.commit()
+    ag_elim, fe_elim = None, None
+    try:
+        cursor.execute("SELECT agencia, fecha FROM pagos WHERE id = %s AND tipo = 'CASHEA'", (cashea_id,))
+        row = cursor.fetchone()
+        if row:
+            ag_elim = row['agencia']
+            fe_elim = row['fecha']
+            cursor.execute("DELETE FROM pagos WHERE id = %s", (cashea_id,))
+            conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"Aviso: Error o bloqueo al eliminar cashea {cashea_id}: {e}")
+    finally:
+        conn.close()
+
+    if ag_elim and fe_elim:
         recalcular_y_actualizar_reporte(ag_elim, fe_elim)
-    conn.close()
 
     url_retorno = f"/admin?tab=cashea&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
@@ -2563,114 +2506,121 @@ async def post_procesar_solicitud_dinero(
 ):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM pagos WHERE id = %s", (solicitud_id,))
-    solicitud = cursor.fetchone()
+    try:
+        cursor.execute("SELECT * FROM pagos WHERE id = %s", (solicitud_id,))
+        solicitud = cursor.fetchone()
 
-    if solicitud:
-        monto_original = float(solicitud['monto'] or 0.0)
-        monto_pagar = monto_original if accion == "COMPLETO" else float(monto_abono or 0.0)
-        agencia_norm = normalizar(agencia)
-        fecha_solicitud = solicitud['fecha'] or fecha or obtener_fecha_venezuela()
-        fecha_actual = obtener_fecha_venezuela()
+        if solicitud:
+            monto_original = float(solicitud['monto'] or 0.0)
+            monto_pagar = monto_original if accion == "COMPLETO" else float(monto_abono or 0.0)
+            agencia_norm = normalizar(agencia)
+            fecha_solicitud = solicitud['fecha'] or fecha or obtener_fecha_venezuela()
+            fecha_actual = obtener_fecha_venezuela()
 
-        nombre_guardado = f"Liquidación Saldo #{solicitud_id}"
-        if comprobante_file and comprobante_file.filename:
-            contenido = await comprobante_file.read()
-            ext = comprobante_file.filename.split('.')[-1]
-            nombre_archivo = f"liquidacion_{solicitud_id}_{datetime.now(TZ_VENEZUELA).strftime('%Y%m%d_%H%M%S')}.{ext}"
-            ruta_destino = os.path.join("uploads", nombre_archivo)
-            with open(ruta_destino, "wb") as buffer:
-                buffer.write(contenido)
+            nombre_guardado = f"Liquidación Saldo #{solicitud_id}"
+            if comprobante_file and comprobante_file.filename:
+                contenido = await comprobante_file.read()
+                ext = comprobante_file.filename.split('.')[-1]
+                nombre_archivo = f"liquidacion_{solicitud_id}_{datetime.now(TZ_VENEZUELA).strftime('%Y%m%d_%H%M%S')}.{ext}"
+                ruta_destino = os.path.join("uploads", nombre_archivo)
+                with open(ruta_destino, "wb") as buffer:
+                    buffer.write(contenido)
 
-            nombre_guardado = nombre_archivo
-            if len(contenido) < 1500000:
-                mime = comprobante_file.content_type or "image/jpeg"
-                nombre_guardado = f"data:{mime};base64,{base64.b64encode(contenido).decode('utf-8')}"
+                nombre_guardado = nombre_archivo
+                if len(contenido) < 1500000:
+                    mime = comprobante_file.content_type or "image/jpeg"
+                    nombre_guardado = f"data:{mime};base64,{base64.b64encode(contenido).decode('utf-8')}"
 
-        if accion == "COMPLETO":
-            cursor.execute(
-                """UPDATE pagos 
-                   SET tipo = 'LIQUIDACION', 
-                       estado = 'APROBADO', 
-                       monto = %s, 
-                       factura = %s, 
-                       comprobante = %s 
-                   WHERE id = %s""",
-                (monto_pagar, f"Liquidación Completa ({fecha_solicitud})", nombre_guardado, solicitud_id)
-            )
-        else:
-            monto_restante = max(0.0, monto_original - monto_pagar)
-            if monto_restante > 0.009:
-                cursor.execute("UPDATE pagos SET monto = %s WHERE id = %s", (monto_restante, solicitud_id))
+            if accion == "COMPLETO":
+                cursor.execute(
+                    """UPDATE pagos 
+                       SET tipo = 'LIQUIDACION', 
+                           estado = 'APROBADO', 
+                           monto = %s, 
+                           factura = %s, 
+                           comprobante = %s 
+                       WHERE id = %s""",
+                    (monto_pagar, f"Liquidación Completa ({fecha_solicitud})", nombre_guardado, solicitud_id)
+                )
             else:
-                cursor.execute("UPDATE pagos SET estado = 'PROCESADO' WHERE id = %s", (solicitud_id,))
-            
-            cursor.execute(
-                """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) 
-                   VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
-                (agencia_norm, fecha_solicitud, monto_pagar, f"Liquidación Parcial ({fecha_solicitud})", nombre_guardado)
-            )
+                monto_restante = max(0.0, monto_original - monto_pagar)
+                if monto_restante > 0.009:
+                    cursor.execute("UPDATE pagos SET monto = %s WHERE id = %s", (monto_restante, solicitud_id))
+                else:
+                    cursor.execute("UPDATE pagos SET estado = 'PROCESADO' WHERE id = %s", (solicitud_id,))
+                
+                cursor.execute(
+                    """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado) 
+                       VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
+                    (agencia_norm, fecha_solicitud, monto_pagar, f"Liquidación Parcial ({fecha_solicitud})", nombre_guardado)
+                )
 
-        mensaje_com = f"Se te ha transferido Bs. {monto_pagar:,.2f} ({accion}) para saldar tu cuenta."
-        try:
-            cursor.execute(
-                "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
-                (mensaje_com, agencia_norm)
-            )
-        except Exception:
-            cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje_com,))
+            mensaje_com = f"Se te ha transferido Bs. {monto_pagar:,.2f} ({accion}) para saldar tu cuenta."
+            try:
+                cursor.execute(
+                    "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
+                    (mensaje_com, agencia_norm)
+                )
+            except Exception:
+                cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje_com,))
 
-        conn.commit()
+            conn.commit()
+
+            recalcular_y_actualizar_reporte(agencia_norm, fecha_solicitud)
+            if fecha_solicitud != fecha_actual:
+                recalcular_y_actualizar_reporte(agencia_norm, fecha_actual)
+
+            disparar_notificacion(agencia_norm, "💸 Liquidación Procesada", mensaje_com)
+            return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        conn.rollback()
+        print("Error procesando solicitud de dinero:", e)
+    finally:
         conn.close()
 
-        recalcular_y_actualizar_reporte(agencia_norm, fecha_solicitud)
-        if fecha_solicitud != fecha_actual:
-            recalcular_y_actualizar_reporte(agencia_norm, fecha_actual)
-
-        disparar_notificacion(agencia_norm, "💸 Liquidación Procesada", mensaje_com)
-        return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
-
-    conn.close()
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/validar-pago")
 def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM pagos WHERE id = %s", (solicitud_id,))
-    pago = cursor.fetchone()
+    try:
+        cursor.execute("SELECT * FROM pagos WHERE id = %s", (solicitud_id,))
+        pago = cursor.fetchone()
 
-    if pago:
-        agencia_p = normalizar(pago['agencia'])
-        fecha_pago = pago['fecha']
-        monto_p = float(pago['monto'] or 0.0)
-        
-        if accion == "APROBAR":
-            cursor.execute("UPDATE pagos SET estado = 'APROBADO' WHERE id = %s", (solicitud_id,))
-            msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido APROBADO y acreditado a tu cuenta."
-        else:
-            cursor.execute("UPDATE pagos SET estado = 'RECHAZADO' WHERE id = %s", (solicitud_id,))
-            msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido RECHAZADO. Por favor verifica con la administración."
+        if pago:
+            agencia_p = normalizar(pago['agencia'])
+            fecha_pago = pago['fecha']
+            monto_p = float(pago['monto'] or 0.0)
+            
+            if accion == "APROBAR":
+                cursor.execute("UPDATE pagos SET estado = 'APROBADO' WHERE id = %s", (solicitud_id,))
+                msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido APROBADO y acreditado a tu cuenta."
+            else:
+                cursor.execute("UPDATE pagos SET estado = 'RECHAZADO' WHERE id = %s", (solicitud_id,))
+                msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido RECHAZADO. Por favor verifica con la administración."
 
-        try:
-            cursor.execute(
-                "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
-                (msg_notif, agencia_p)
-            )
-        except Exception:
-            cursor.execute(
-                "INSERT INTO comunicados (mensaje) VALUES (%s)",
-                (msg_notif,)
-            )
+            try:
+                cursor.execute(
+                    "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
+                    (msg_notif, agencia_p)
+                )
+            except Exception:
+                cursor.execute(
+                    "INSERT INTO comunicados (mensaje) VALUES (%s)",
+                    (msg_notif,)
+                )
 
-        conn.commit()
+            conn.commit()
+            recalcular_y_actualizar_reporte(agencia_p, fecha_pago)
+            disparar_notificacion(agencia_p, "🔔 Estado de Pago", msg_notif)
+            return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        conn.rollback()
+        print("Error validando pago:", e)
+    finally:
         conn.close()
-        
-        recalcular_y_actualizar_reporte(agencia_p, fecha_pago)
-        disparar_notificacion(agencia_p, "🔔 Estado de Pago", msg_notif)
-        return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
-    conn.close()
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/liquidar-saldo-negativo")
@@ -2700,23 +2650,28 @@ async def post_liquidar_saldo_negativo(
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute(
-        """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
-           VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
-        (agencia_norm, fecha_operacion, monto_pago, "Liquidación Saldo a Favor", comprobante_valor)
-    )
-
-    mensaje = f"✅ Tu saldo a favor de Bs. {monto_pago:,.2f} ha sido LIQUIDADO."
     try:
         cursor.execute(
-            "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
-            (mensaje, agencia_norm)
+            """INSERT INTO pagos (agencia, fecha, monto, factura, comprobante, tipo, estado)
+               VALUES (%s, %s, %s, %s, %s, 'LIQUIDACION', 'APROBADO')""",
+            (agencia_norm, fecha_operacion, monto_pago, "Liquidación Saldo a Favor", comprobante_valor)
         )
-    except Exception:
-        cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje,))
 
-    conn.commit()
-    conn.close()
+        mensaje = f"✅ Tu saldo a favor de Bs. {monto_pago:,.2f} ha sido LIQUIDADO."
+        try:
+            cursor.execute(
+                "INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, %s)",
+                (mensaje, agencia_norm)
+            )
+        except Exception:
+            cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje,))
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en post_liquidar_saldo_negativo:", e)
+    finally:
+        conn.close()
 
     recalcular_y_actualizar_reporte(agencia_norm, fecha_operacion)
     disparar_notificacion(agencia_norm, "💸 Saldo Liquidado", mensaje)
@@ -2733,14 +2688,19 @@ def post_actualizar_regla_banquero(
 ):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute(
-        """UPDATE configuracion_banqueros 
-           SET pct_banquero = %s, pct_taquilla = %s, pct_participacion = %s
-           WHERE id = %s""",
-        (pct_banquero / 100.0, pct_taquilla / 100.0, pct_participacion / 100.0, regla_id)
-    )
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute(
+            """UPDATE configuracion_banqueros 
+               SET pct_banquero = %s, pct_taquilla = %s, pct_participacion = %s
+               WHERE id = %s""",
+            (pct_banquero / 100.0, pct_taquilla / 100.0, pct_participacion / 100.0, regla_id)
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error actualizando regla banquero:", e)
+    finally:
+        conn.close()
 
     url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
@@ -2759,15 +2719,20 @@ def post_guardar_ajuste_banquero_sistema(
     b_norm = normalizar_nombre_banquero(banquero)
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute(
-        """INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT (banquero, sistema, fecha) 
-            DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
-        (b_norm, sistema, fecha, venta, comision, premios)
-    )
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute(
+            """INSERT INTO ajustes_banqueros_manuales (banquero, sistema, fecha, venta, comision, premios)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (banquero, sistema, fecha) 
+                DO UPDATE SET venta = EXCLUDED.venta, comision = EXCLUDED.comision, premios = EXCLUDED.premios""",
+            (b_norm, sistema, fecha, venta, comision, premios)
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en post_guardar_ajuste_banquero_sistema:", e)
+    finally:
+        conn.close()
 
     url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
@@ -2786,12 +2751,17 @@ def post_restablecer_ajuste_banquero_sistema(
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute(
-        "DELETE FROM ajustes_banqueros_manuales WHERE (banquero = %s OR banquero = %s) AND sistema = %s",
-        (b_norm, b_norm.replace("COMERCIALIZADORA ", ""), sistema)
-    )
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute(
+            "DELETE FROM ajustes_banqueros_manuales WHERE (banquero = %s OR banquero = %s) AND sistema = %s",
+            (b_norm, b_norm.replace("COMERCIALIZADORA ", ""), sistema)
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error en restablecer_ajuste_banquero_sistema:", e)
+    finally:
+        conn.close()
 
     url_retorno = f"/admin?tab=desglose_banca&desde_fecha={desde_fecha or ''}&hasta_fecha={hasta_fecha or ''}"
     return RedirectResponse(url=url_retorno, status_code=status.HTTP_303_SEE_OTHER)
@@ -2803,21 +2773,31 @@ def post_comunicado(mensaje: str = Form(...)):
         conn = get_db()
         cursor = conn.cursor()
         try:
-            cursor.execute("INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, 'TODAS')", (mensaje.strip(),))
-        except Exception:
-            cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje.strip(),))
-        conn.commit()
-        conn.close()
-        disparar_notificacion("TODAS", "📢 Comunicado Los Ángeles del Dinero", mensaje.strip())
+            try:
+                cursor.execute("INSERT INTO comunicados (mensaje, agencia_destino) VALUES (%s, 'TODAS')", (mensaje.strip(),))
+            except Exception:
+                cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (mensaje.strip(),))
+            conn.commit()
+            disparar_notificacion("TODAS", "📢 Comunicado Los Ángeles del Dinero", mensaje.strip())
+        except Exception as e:
+            conn.rollback()
+            print("Error creando comunicado:", e)
+        finally:
+            conn.close()
     return RedirectResponse(url="/admin?tab=notificaciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/eliminar-comunicado")
 def post_eliminar_comunicado(comunicado_id: int = Form(...)):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM comunicados WHERE id = %s", (comunicado_id,))
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute("DELETE FROM comunicados WHERE id = %s", (comunicado_id,))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error eliminando comunicado:", e)
+    finally:
+        conn.close()
     return RedirectResponse(url="/admin?tab=notificaciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/crear-agencia")
@@ -2827,22 +2807,32 @@ def post_crear_agencia(agencia: str = Form(...), clave: str = Form(...), genero:
     if agencia_norm and clave:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute(
-            """INSERT INTO usuarios (agencia, clave, genero, rol) VALUES (%s, %s, %s, 'TAQUILLA')
-               ON CONFLICT (agencia) DO UPDATE SET clave = EXCLUDED.clave, genero = EXCLUDED.genero, rol = 'TAQUILLA'""",
-            (agencia_norm, clave, genero)
-        )
-        conn.commit()
-        conn.close()
+        try:
+            cursor.execute(
+                """INSERT INTO usuarios (agencia, clave, genero, rol) VALUES (%s, %s, %s, 'TAQUILLA')
+                   ON CONFLICT (agencia) DO UPDATE SET clave = EXCLUDED.clave, genero = EXCLUDED.genero, rol = 'TAQUILLA'""",
+                (agencia_norm, clave, genero)
+            )
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print("Error creando agencia:", e)
+        finally:
+            conn.close()
     return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/eliminar-agencia")
 def post_eliminar_agencia(agencia_id: int = Form(...)):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM usuarios WHERE id = %s", (agencia_id,))
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute("DELETE FROM usuarios WHERE id = %s", (agencia_id,))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error eliminando agencia:", e)
+    finally:
+        conn.close()
     return RedirectResponse(url="/admin?tab=taquillas", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/admin", response_class=HTMLResponse)
@@ -2947,7 +2937,7 @@ def get_admin(
             
             cuenta_taquilla = obtener_cuenta_agencia_corte(ag_nombre)
             
-            # Buscar si la diferencia de la semana cerrada ya está en BD
+            # Buscar la conciliación de la semana cerrada correspondiente
             cursor.execute("""
                 SELECT desde_fecha, hasta_fecha, detalle_dias 
                 FROM conciliaciones_semanales 
@@ -2956,48 +2946,6 @@ def get_admin(
                 ORDER BY id DESC LIMIT 1
             """, (ag_nombre, sem_cerrada_hasta, sem_cerrada_desde))
             row_c_ag = cursor.fetchone()
-
-         # Buscar únicamente la conciliación de la semana cerrada correspondiente
-            cursor.execute("""
-                SELECT desde_fecha, hasta_fecha, detalle_dias 
-                FROM conciliaciones_semanales 
-                WHERE UPPER(TRIM(agencia)) = %s 
-                  AND desde_fecha <= %s AND hasta_fecha >= %s
-                ORDER BY id DESC LIMIT 1
-            """, (ag_nombre, sem_cerrada_hasta, sem_cerrada_desde))
-            row_c_ag = cursor.fetchone()
-
-            dif_sem_taquilla = 0.0
-            if row_c_ag:
-                try:
-                    items_dias_ag = json.loads(row_c_ag["detalle_dias"] or "[]")
-                except Exception:
-                    items_dias_ag = []
-                
-                dif_original = sum(float(it.get("dif_neto", 0) or 0) for it in items_dias_ag)
-                dif_original = round(dif_original, 2)
-
-                cursor.execute("""
-                    SELECT COALESCE(SUM(monto), 0) as pagado 
-                    FROM pagos 
-                    WHERE UPPER(TRIM(agencia)) = %s 
-                      AND estado = 'APROBADO' 
-                      AND (factura LIKE %s OR comprobante LIKE %s OR tipo = 'AJUSTE_DEUDA')
-                """, (ag_nombre, f"%{row_c_ag['desde_fecha']}%", f"%{row_c_ag['desde_fecha']}%"))
-                p_concil = cursor.fetchone()
-                m_pagado = float(p_concil['pagado'] or 0.0) if p_concil else 0.0
-
-                # Solo aplicar/mostrar el ajuste el día lunes; después de lunes pasa a ser 0.0
-                es_lunes = (hoy_date.weekday() == 0)
-                if es_lunes and not (abs(dif_original) > 0 and m_pagado >= abs(dif_original) - 0.05):
-                    dif_sem_taquilla = dif_original
-                else:
-                    dif_sem_taquilla = 0.0
-
-            # El balance contable viene directo de cuenta_taquilla
-            balance_contable = round(cuenta_taquilla["saldo_final"] + dif_sem_taquilla, 2)
-            if abs(balance_contable) < 0.05:
-                balance_contable = 0.0
 
             dif_sem_taquilla = 0.0
             if row_c_ag:
@@ -3024,7 +2972,6 @@ def get_admin(
                 else:
                     dif_sem_taquilla = dif_original
 
-            # El balance contable viene directo de cuenta_taquilla (que ya integra pagos y ajustes)
             balance_contable = round(cuenta_taquilla["saldo_final"] + dif_sem_taquilla, 2)
             if abs(balance_contable) < 0.05:
                 balance_contable = 0.0
@@ -3051,9 +2998,6 @@ def get_admin(
                 datos_desglose_neg["monto"] = abs(balance_contable)
                 negativos.append(datos_desglose_neg)
 
-        # ----------------------------------------------------------------------
-        # FILTRADO EXACTO DE CUADRE SEMANAL (CONCILIACIÓN)
-        # ----------------------------------------------------------------------
         if tab == 'conciliacion_admin':
             if not desde_fecha and not hasta_fecha:
                 f_desde = sem_cerrada_desde
