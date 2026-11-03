@@ -3137,6 +3137,7 @@ def get_admin(
             "diferencia": tot_dif_admin
         }
 
+        
         cursor.execute("SELECT * FROM metodos_pago")
         rows_metodos = cursor.fetchall()
         metodos_pago_agencias = {}
