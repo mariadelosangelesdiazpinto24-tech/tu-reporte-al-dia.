@@ -292,9 +292,10 @@ def post_guardar_metodos_pago(
                 pm1_banco.strip(), pm1_telefono.strip(), pm1_cedula.strip(),
                 pm2_banco.strip(), pm2_telefono.strip(), pm2_cedula.strip(),
                 pm3_banco.strip(), pm3_telefono.strip(), pm3_cedula.strip(),
-                cta1_banco.strip(), cta1_numero.strip(), cta1_cedula.strip(), cta1_titular.strip(),
-                cta2_banco.strip(), cta2_numero.strip(), cta2_cedula.strip(), cta2_titular.strip(),
-                cta3_banco.strip(), cta3_numero.strip(), cta3_cedula.strip(), cta3_titular.strip()
+                cta1_banco.strip(), cta1_numero.strip(), cta1_cedula.strip(),
+                cta1_titular.strip(), cta2_banco.strip(), cta2_numero.strip(),
+                cta2_cedula.strip(), cta2_titular.strip(), cta3_banco.strip(),
+                cta3_numero.strip(), cta3_cedula.strip(), cta3_titular.strip()
             ))
         else:
             cursor.execute("""
@@ -336,9 +337,10 @@ def post_guardar_metodos_pago(
                 pm1_banco.strip(), pm1_telefono.strip(), pm1_cedula.strip(),
                 pm2_banco.strip(), pm2_telefono.strip(), pm2_cedula.strip(),
                 pm3_banco.strip(), pm3_telefono.strip(), pm3_cedula.strip(),
-                cta1_banco.strip(), cta1_numero.strip(), cta1_cedula.strip(), cta1_titular.strip(),
-                cta2_banco.strip(), cta2_numero.strip(), cta2_cedula.strip(), cta2_titular.strip(),
-                cta3_banco.strip(), cta3_numero.strip(), cta3_cedula.strip(), cta3_titular.strip()
+                cta1_banco.strip(), cta1_numero.strip(), cta1_cedula.strip(),
+                cta1_titular.strip(), cta2_banco.strip(), cta2_numero.strip(),
+                cta2_cedula.strip(), cta2_titular.strip(), cta3_banco.strip(),
+                cta3_numero.strip(), cta3_cedula.strip(), cta3_titular.strip()
             ))
         conn.commit()
     except Exception as e:
@@ -402,11 +404,9 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
         fecha_obj = datetime.strptime(fecha_hoy_contable, '%Y-%m-%d').date()
         fecha_ayer_str = (fecha_obj - timedelta(days=1)).strftime('%Y-%m-%d')
 
-        # 1. Calcular el domingo de la semana pasada (fecha de corte oficial)
         lunes_esta_semana = fecha_obj - timedelta(days=fecha_obj.weekday())
         domingo_corte_pasado = (lunes_esta_semana - timedelta(days=1)).strftime('%Y-%m-%d')
 
-        # 2. Si ayer fue domingo o una fecha de la semana cerrada anterior, el saldo arranca en 0.00
         if fecha_ayer_str <= domingo_corte_pasado:
             saldo_anterior = 0.0
         else:
@@ -767,9 +767,14 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha_reporte))
         rep = cursor.fetchone()
         
+        # Si no existe reporte para esa fecha (por ejemplo, solo hizo un abono o pago),
+        # lo creamos vacío para almacenar el estado de cuenta y que el saldo refleje el pago
         if not rep:
-            conn.close()
-            return
+            cursor.execute(
+                "INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html) VALUES (%s, %s, 0.0, 0.0, 0.0, '') RETURNING *",
+                (agencia_norm, fecha_reporte)
+            )
+            rep = cursor.fetchone()
 
         cursor.execute(
             """SELECT * FROM pagos 
@@ -954,7 +959,6 @@ def post_ajustar_saldo_anterior(
     cursor = conn.cursor()
     
     try:
-        # Savepoint para proteger contra triggers restrictivos
         try:
             cursor.execute("SAVEPOINT sp_del_ajuste")
             cursor.execute("DELETE FROM pagos WHERE UPPER(TRIM(agencia)) = %s AND tipo = 'AJUSTE_SALDO_ANTERIOR'", (agencia_norm,))
@@ -1000,7 +1004,6 @@ def post_guardar_ajustes_banquero_global(
             (b_norm, fecha, adelantos, pendientes)
         )
 
-        # Usar savepoint para blindar el DELETE frente al trigger auditar_pagos_ladd
         try:
             cursor.execute("SAVEPOINT sp_del_banquero")
             cursor.execute(
@@ -1010,7 +1013,7 @@ def post_guardar_ajustes_banquero_global(
             cursor.execute("RELEASE SAVEPOINT sp_del_banquero")
         except Exception as e_del:
             cursor.execute("ROLLBACK TO SAVEPOINT sp_del_banquero")
-            print(f"Aviso: Trigger impidió DELETE en pagos ({e_del}). Continuando inserción...")
+            print(f"Aviso: Trigger impidió DELETE en pagos ({e_del}). Continuando...")
 
         if adelantos != 0:
             cursor.execute(
@@ -1426,7 +1429,6 @@ def post_banquero_guardar_ajustes_cuenta(
             (b_norm, fecha, adelantos, pendientes)
         )
 
-        # Blindaje frente al trigger de auditar_pagos_ladd
         try:
             cursor.execute("SAVEPOINT sp_del_banquero_cta")
             cursor.execute(
@@ -1788,7 +1790,7 @@ def get_agencia(
                     if len(cols_s) >= 5:
                         s_raw = re.sub(r'<[^>]+>', '', cols_s[0]).strip()
                         
-                        if not s_raw or "SISTEMA" in s_raw.upper() or "TOTALES" in s_raw.upper() or "TRIPLETA" in s_raw.upper():
+                        if not s_raw or "SISTEMA" in sys_raw.upper() or "TOTALES" in sys_raw.upper() or "TRIPLETA" in sys_raw.upper():
                             continue
                         
                         s_name = normalizar_sistema(s_raw)
@@ -2581,11 +2583,25 @@ async def post_procesar_solicitud_dinero(
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/validar-pago")
-def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
+def post_validar_pago(
+    solicitud_id: Optional[int] = Form(None),
+    pago_id: Optional[int] = Form(None),
+    id: Optional[int] = Form(None),
+    accion: str = Form(...)
+):
+    # Detectar el ID correcto sin importar cómo lo envíe el formulario HTML
+    p_id = solicitud_id or pago_id or id
+    if not p_id:
+        print("❌ Error: No se recibió ningún ID para validar el pago.")
+        return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+
     conn = get_db()
     cursor = conn.cursor()
+    agencia_p = None
+    fecha_pago = None
+
     try:
-        cursor.execute("SELECT * FROM pagos WHERE id = %s", (solicitud_id,))
+        cursor.execute("SELECT * FROM pagos WHERE id = %s", (p_id,))
         pago = cursor.fetchone()
 
         if pago:
@@ -2594,10 +2610,10 @@ def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
             monto_p = float(pago['monto'] or 0.0)
             
             if accion == "APROBAR":
-                cursor.execute("UPDATE pagos SET estado = 'APROBADO' WHERE id = %s", (solicitud_id,))
+                cursor.execute("UPDATE pagos SET estado = 'APROBADO' WHERE id = %s", (p_id,))
                 msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido APROBADO y acreditado a tu cuenta."
             else:
-                cursor.execute("UPDATE pagos SET estado = 'RECHAZADO' WHERE id = %s", (solicitud_id,))
+                cursor.execute("UPDATE pagos SET estado = 'RECHAZADO' WHERE id = %s", (p_id,))
                 msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido RECHAZADO. Por favor verifica con la administración."
 
             try:
@@ -2612,14 +2628,19 @@ def post_validar_pago(solicitud_id: int = Form(...), accion: str = Form(...)):
                 )
 
             conn.commit()
-            recalcular_y_actualizar_reporte(agencia_p, fecha_pago)
             disparar_notificacion(agencia_p, "🔔 Estado de Pago", msg_notif)
-            return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
     except Exception as e:
         conn.rollback()
-        print("Error validando pago:", e)
+        print(f"❌ Error validando pago {p_id}: {e}")
     finally:
         conn.close()
+
+    # Recalcular el reporte y balance de la agencia de inmediato
+    if agencia_p and fecha_pago:
+        try:
+            recalcular_y_actualizar_reporte(agencia_p, fecha_pago)
+        except Exception as e_rec:
+            print(f"⚠️ Aviso al recalcular reporte tras validar pago: {e_rec}")
 
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
