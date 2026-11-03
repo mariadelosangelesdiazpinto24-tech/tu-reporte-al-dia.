@@ -771,7 +771,6 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha_reporte))
         rep = cursor.fetchone()
         
-        # Si no existe reporte contable para ese día, lo creamos para alojar los pagos/abonos
         if not rep:
             cursor.execute(
                 "INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html) VALUES (%s, %s, 0.0, 0.0, 0.0, '') RETURNING *",
@@ -1793,7 +1792,8 @@ def get_agencia(
                     if len(cols_s) >= 5:
                         s_raw = re.sub(r'<[^>]+>', '', cols_s[0]).strip()
                         
-                        if not s_raw or "SISTEMA" in sys_raw.upper() or "TOTALES" in sys_raw.upper() or "TRIPLETA" in sys_raw.upper():
+                        # Corrección del NameError
+                        if not s_raw or "SISTEMA" in s_raw.upper() or "TOTALES" in s_raw.upper() or "TRIPLETA" in s_raw.upper():
                             continue
                         
                         s_name = normalizar_sistema(s_raw)
@@ -2589,7 +2589,6 @@ async def post_procesar_solicitud_dinero(
 async def post_validar_pago(request: Request):
     form_data = await request.form()
     
-    # Capturar el ID dinámicamente según el campo enviado por el formulario
     p_id_raw = (
         form_data.get("solicitud_id") or 
         form_data.get("pago_id") or 
@@ -2658,7 +2657,6 @@ async def post_validar_pago(request: Request):
     finally:
         conn.close()
 
-    # Recalcular el estado contable de la agencia para que el saldo se actualice
     if agencia_p and fecha_pago:
         try:
             recalcular_y_actualizar_reporte(agencia_p, fecha_pago)
