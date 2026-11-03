@@ -186,37 +186,57 @@ templates.env.filters["dinero"] = formatear_monto
 def get_db():
     database_url = os.environ.get("DATABASE_URL")
     if database_url:
-        try:
-            without_prefix = database_url.replace("postgresql://", "")
-            auth_part, rest = without_prefix.split("@")
-            user, password = auth_part.split(":", 1)
-            host_port, dbname = rest.split("/")
-            
-            if ":" in host_port:
-                host, port = host_port.split(":")
-            else:
-                host, port = host_port, "6543"
+        if database_url.startswith("postgres://"):
+            database_url = database_url.replace("postgres://", "postgresql://", 1)
 
-            conn = psycopg2.connect(
-                dbname=dbname,
-                user=user,
-                password=urlparse.unquote(password),
-                host=host,
-                port=port,
-                sslmode='require',
-                cursor_factory=psycopg2.extras.RealDictCursor
-            )
-        except Exception:
+        try:
             conn = psycopg2.connect(
                 database_url,
                 sslmode='require',
+                connect_timeout=10,
+                keepalives=1,
+                keepalives_idle=30,
+                keepalives_interval=10,
+                keepalives_count=5,
                 cursor_factory=psycopg2.extras.RealDictCursor
             )
+            return conn
+        except Exception as e_direct:
+            print("⚠️ Aviso: Reintentando conexión secundaria a DB:", e_direct)
+            try:
+                without_prefix = database_url.replace("postgresql://", "")
+                auth_part, rest = without_prefix.split("@")
+                user, password = auth_part.split(":", 1)
+                host_port, dbname = rest.split("/")
+                
+                if ":" in host_port:
+                    host, port = host_port.split(":")
+                else:
+                    host, port = host_port, "5432"
+
+                conn = psycopg2.connect(
+                    dbname=dbname.split("?")[0],
+                    user=user,
+                    password=urlparse.unquote(password),
+                    host=host,
+                    port=port,
+                    sslmode='require',
+                    connect_timeout=10,
+                    keepalives=1,
+                    keepalives_idle=30,
+                    keepalives_interval=10,
+                    keepalives_count=5,
+                    cursor_factory=psycopg2.extras.RealDictCursor
+                )
+                return conn
+            except Exception as e_parse:
+                print("❌ Error crítico conectando a PostgreSQL:", e_parse)
+                raise e_parse
     else:
         import sqlite3
         conn = sqlite3.connect("database.db", timeout=30.0)
         conn.row_factory = sqlite3.Row
-    return conn
+        return conn
 
 def init_db():
     pass
@@ -1612,11 +1632,16 @@ def post_login(request: Request, usuario: Optional[str] = Form(None), clave: Opt
         else:
             return templates.TemplateResponse(request=request, name="login.html", context={"error": "Usuario o clave incorrectos"})
 
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM usuarios WHERE UPPER(TRIM(agencia)) = %s", (usuario_norm,))
-    user_data = cursor.fetchone()
-    conn.close()
+    user_data = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM usuarios WHERE UPPER(TRIM(agencia)) = %s", (usuario_norm,))
+        user_data = cursor.fetchone()
+        conn.close()
+    except Exception as e:
+        print("❌ Error al consultar usuario en login:", e)
+        return templates.TemplateResponse(request=request, name="login.html", context={"error": "Error temporal de conexión. Intenta de nuevo en unos segundos."})
 
     if user_data and user_data['clave'] == clave:
         if user_data.get('estado') == 'PENDIENTE':
@@ -1792,7 +1817,7 @@ def get_agencia(
                     if len(cols_s) >= 5:
                         s_raw = re.sub(r'<[^>]+>', '', cols_s[0]).strip()
                         
-                        # Corrección del NameError
+                        # Corrección aquí: usar s_raw consistentemente
                         if not s_raw or "SISTEMA" in s_raw.upper() or "TOTALES" in s_raw.upper() or "TRIPLETA" in s_raw.upper():
                             continue
                         
@@ -2980,7 +3005,6 @@ def get_admin(
             
             cuenta_taquilla = obtener_cuenta_agencia_corte(ag_nombre)
             
-            # Buscar la conciliación de la semana cerrada correspondiente
             cursor.execute("""
                 SELECT desde_fecha, hasta_fecha, detalle_dias 
                 FROM conciliaciones_semanales 
