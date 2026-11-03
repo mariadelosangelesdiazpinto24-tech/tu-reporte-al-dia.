@@ -293,9 +293,11 @@ def post_guardar_metodos_pago(
                 pm2_banco.strip(), pm2_telefono.strip(), pm2_cedula.strip(),
                 pm3_banco.strip(), pm3_telefono.strip(), pm3_cedula.strip(),
                 cta1_banco.strip(), cta1_numero.strip(), cta1_cedula.strip(),
-                cta1_titular.strip(), cta2_banco.strip(), cta2_numero.strip(),
-                cta2_cedula.strip(), cta2_titular.strip(), cta3_banco.strip(),
-                cta3_numero.strip(), cta3_cedula.strip(), cta3_titular.strip()
+                cta1_titular.strip(),
+                cta2_banco.strip(), cta2_numero.strip(), cta2_cedula.strip(),
+                cta2_titular.strip(),
+                cta3_banco.strip(), cta3_numero.strip(), cta3_cedula.strip(),
+                cta3_titular.strip()
             ))
         else:
             cursor.execute("""
@@ -338,9 +340,11 @@ def post_guardar_metodos_pago(
                 pm2_banco.strip(), pm2_telefono.strip(), pm2_cedula.strip(),
                 pm3_banco.strip(), pm3_telefono.strip(), pm3_cedula.strip(),
                 cta1_banco.strip(), cta1_numero.strip(), cta1_cedula.strip(),
-                cta1_titular.strip(), cta2_banco.strip(), cta2_numero.strip(),
-                cta2_cedula.strip(), cta2_titular.strip(), cta3_banco.strip(),
-                cta3_numero.strip(), cta3_cedula.strip(), cta3_titular.strip()
+                cta1_titular.strip(),
+                cta2_banco.strip(), cta2_numero.strip(), cta2_cedula.strip(),
+                cta2_titular.strip(),
+                cta3_banco.strip(), cta3_numero.strip(), cta3_cedula.strip(),
+                cta3_titular.strip()
             ))
         conn.commit()
     except Exception as e:
@@ -767,8 +771,7 @@ def recalcular_y_actualizar_reporte(agencia: str, fecha_reporte: str):
         cursor.execute("SELECT * FROM reportes WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s", (agencia_norm, fecha_reporte))
         rep = cursor.fetchone()
         
-        # Si no existe reporte para esa fecha (por ejemplo, solo hizo un abono o pago),
-        # lo creamos vacío para almacenar el estado de cuenta y que el saldo refleje el pago
+        # Si no existe reporte contable para ese día, lo creamos para alojar los pagos/abonos
         if not rep:
             cursor.execute(
                 "INSERT INTO reportes (agencia, fecha, monto, ventas, premios, detalle_html) VALUES (%s, %s, 0.0, 0.0, 0.0, '') RETURNING *",
@@ -2583,38 +2586,55 @@ async def post_procesar_solicitud_dinero(
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/validar-pago")
-def post_validar_pago(
-    solicitud_id: Optional[int] = Form(None),
-    pago_id: Optional[int] = Form(None),
-    id: Optional[int] = Form(None),
-    accion: str = Form(...)
-):
-    # Detectar el ID correcto sin importar cómo lo envíe el formulario HTML
-    p_id = solicitud_id or pago_id or id
-    if not p_id:
-        print("❌ Error: No se recibió ningún ID para validar el pago.")
+async def post_validar_pago(request: Request):
+    form_data = await request.form()
+    
+    # Capturar el ID dinámicamente según el campo enviado por el formulario
+    p_id_raw = (
+        form_data.get("solicitud_id") or 
+        form_data.get("pago_id") or 
+        form_data.get("id") or 
+        form_data.get("transaccion_id")
+    )
+    accion = form_data.get("accion", "APROBAR").upper()
+
+    if not p_id_raw:
+        print("❌ [VALIDAR-PAGO] ERROR: El formulario no envió ningún ID.")
         return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        p_id = int(p_id_raw)
+    except ValueError:
+        print(f"❌ [VALIDAR-PAGO] ID inválido recibido: {p_id_raw}")
+        return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
+
+    nuevo_estado = "APROBADO" if "APROB" in accion else "RECHAZADO"
 
     conn = get_db()
     cursor = conn.cursor()
     agencia_p = None
     fecha_pago = None
+    monto_p = 0.0
 
     try:
-        cursor.execute("SELECT * FROM pagos WHERE id = %s", (p_id,))
-        pago = cursor.fetchone()
-
-        if pago:
-            agencia_p = normalizar(pago['agencia'])
-            fecha_pago = pago['fecha']
-            monto_p = float(pago['monto'] or 0.0)
+        cursor.execute("""
+            UPDATE pagos 
+            SET estado = %s 
+            WHERE id = %s 
+            RETURNING agencia, fecha, monto
+        """, (nuevo_estado, p_id))
+        
+        row_actualizada = cursor.fetchone()
+        
+        if row_actualizada:
+            agencia_p = normalizar(row_actualizada['agencia'])
+            fecha_pago = row_actualizada['fecha']
+            monto_p = float(row_actualizada['monto'] or 0.0)
             
-            if accion == "APROBAR":
-                cursor.execute("UPDATE pagos SET estado = 'APROBADO' WHERE id = %s", (p_id,))
+            if nuevo_estado == "APROBADO":
                 msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido APROBADO y acreditado a tu cuenta."
             else:
-                cursor.execute("UPDATE pagos SET estado = 'RECHAZADO' WHERE id = %s", (p_id,))
-                msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido RECHAZADO. Por favor verifica con la administración."
+                msg_notif = f"Tu pago de Bs. {monto_p:,.2f} ha sido RECHAZADO. Consulta con administración."
 
             try:
                 cursor.execute(
@@ -2622,25 +2642,29 @@ def post_validar_pago(
                     (msg_notif, agencia_p)
                 )
             except Exception:
-                cursor.execute(
-                    "INSERT INTO comunicados (mensaje) VALUES (%s)",
-                    (msg_notif,)
-                )
+                cursor.execute("INSERT INTO comunicados (mensaje) VALUES (%s)", (msg_notif,))
 
             conn.commit()
+            print(f"✅ [VALIDAR-PAGO] Pago #{p_id} de {agencia_p} actualizado a {nuevo_estado}.")
             disparar_notificacion(agencia_p, "🔔 Estado de Pago", msg_notif)
+        else:
+            print(f"⚠️ [VALIDAR-PAGO] No se encontró ningún pago con ID {p_id}.")
+            conn.rollback()
+
     except Exception as e:
         conn.rollback()
-        print(f"❌ Error validando pago {p_id}: {e}")
+        print(f"❌ [VALIDAR-PAGO] Error en base de datos: {e}")
+        traceback.print_exc()
     finally:
         conn.close()
 
-    # Recalcular el reporte y balance de la agencia de inmediato
+    # Recalcular el estado contable de la agencia para que el saldo se actualice
     if agencia_p and fecha_pago:
         try:
             recalcular_y_actualizar_reporte(agencia_p, fecha_pago)
+            print(f"✅ [VALIDAR-PAGO] Cuenta recalculada para {agencia_p} ({fecha_pago}).")
         except Exception as e_rec:
-            print(f"⚠️ Aviso al recalcular reporte tras validar pago: {e_rec}")
+            print(f"⚠️ [VALIDAR-PAGO] Error al recalcular reporte: {e_rec}")
 
     return RedirectResponse(url="/admin?tab=transacciones", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -2986,7 +3010,7 @@ def get_admin(
                       AND (factura LIKE %s OR comprobante LIKE %s OR tipo = 'AJUSTE_DEUDA')
                 """, (ag_nombre, f"%{row_c_ag['desde_fecha']}%", f"%{row_c_ag['desde_fecha']}%"))
                 p_concil = cursor.fetchone()
-                m_pagado = float(p_concil['pagado'] or 0.0) if p_concil else 0.0
+                monto_ya_pagado = float(p_concil['pagado'] or 0.0) if p_concil else 0.0
 
                 if abs(dif_original) > 0 and m_pagado >= abs(dif_original) - 0.05:
                     dif_sem_taquilla = 0.0
