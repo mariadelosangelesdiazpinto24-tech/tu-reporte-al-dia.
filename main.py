@@ -1817,7 +1817,7 @@ def get_agencia(
                     if len(cols_s) >= 5:
                         s_raw = re.sub(r'<[^>]+>', '', cols_s[0]).strip()
                         
-                        # Corrección aquí: usar s_raw consistentemente
+                        # Manejo seguro y consistente de s_raw
                         if not s_raw or "SISTEMA" in s_raw.upper() or "TOTALES" in s_raw.upper() or "TRIPLETA" in s_raw.upper():
                             continue
                         
@@ -2983,7 +2983,6 @@ def get_admin(
         casheas_generales = [dict(row) for row in cursor.fetchall()]
         total_cashea_filtrado = sum(float(c.get('monto') or 0.0) for c in casheas_generales)
 
-        # Rango de la última semana completa cerrada para el Admin
         hoy_date = datetime.now(TZ_VENEZUELA).date()
         lunes_pasado = hoy_date - timedelta(days=hoy_date.weekday() + 7)
         domingo_pasado = lunes_pasado + timedelta(days=6)
