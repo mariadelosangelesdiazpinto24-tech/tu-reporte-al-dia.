@@ -427,21 +427,28 @@ def obtener_cuenta_agencia_corte(agencia_raw: str, fecha_corte: Optional[str] = 
     else:
         fecha_obj = datetime.strptime(fecha_hoy_contable, '%Y-%m-%d').date()
         fecha_ayer_str = (fecha_obj - timedelta(days=1)).strftime('%Y-%m-%d')
-
         lunes_esta_semana = fecha_obj - timedelta(days=fecha_obj.weekday())
-        domingo_corte_pasado = (lunes_esta_semana - timedelta(days=1)).strftime('%Y-%m-%d')
 
-        if fecha_ayer_str <= domingo_corte_pasado:
-            saldo_anterior = 0.0
+        # Buscar el reporte de ayer directamente para no perder saldo los lunes
+        cursor.execute("""
+            SELECT monto, detalle_html FROM reportes 
+            WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s
+        """, (ag_norm, fecha_ayer_str))
+        rep_ayer = cursor.fetchone()
+
+        if rep_ayer and rep_ayer['monto'] is not None:
+            saldo_anterior = float(rep_ayer['monto'])
         else:
+            # Si no hubo reporte ayer, buscar el último reporte registrado antes de hoy
             cursor.execute("""
-                SELECT monto, detalle_html FROM reportes 
-                WHERE UPPER(TRIM(agencia)) = %s AND fecha = %s
-            """, (ag_norm, fecha_ayer_str))
-            rep_ayer = cursor.fetchone()
+                SELECT monto FROM reportes 
+                WHERE UPPER(TRIM(agencia)) = %s AND fecha < %s
+                ORDER BY fecha DESC, id DESC LIMIT 1
+            """, (ag_norm, fecha_hoy_contable))
+            rep_ultimo = cursor.fetchone()
 
-            if rep_ayer and rep_ayer['monto'] is not None:
-                saldo_anterior = float(rep_ayer['monto'])
+            if rep_ultimo and rep_ultimo['monto'] is not None:
+                saldo_anterior = float(rep_ultimo['monto'])
             else:
                 cursor.execute("""
                     SELECT detalle_html FROM reportes 
@@ -1817,7 +1824,6 @@ def get_agencia(
                     if len(cols_s) >= 5:
                         s_raw = re.sub(r'<[^>]+>', '', cols_s[0]).strip()
                         
-                        # Manejo seguro y consistente de s_raw
                         if not s_raw or "SISTEMA" in s_raw.upper() or "TOTALES" in s_raw.upper() or "TRIPLETA" in s_raw.upper():
                             continue
                         
@@ -1969,12 +1975,13 @@ def get_agencia(
         "saldo_final": saldo_actual
     }
 
+    # Mostrar pendientes de los últimos 7 días en lugar de vaciarlos el lunes
     cursor.execute("""
         SELECT id, fecha, monto, detalle_html 
         FROM reportes 
-        WHERE UPPER(TRIM(agencia)) = %s AND fecha > %s 
-        ORDER BY fecha DESC
-    """, (agencia_norm, sem_cerrada_hasta))
+        WHERE UPPER(TRIM(agencia)) = %s 
+        ORDER BY fecha DESC LIMIT 7
+    """, (agencia_norm,))
     items_pendientes_filtrados = [dict(row) for row in cursor.fetchall()]
 
     if not items_pendientes_filtrados:
@@ -3033,7 +3040,8 @@ def get_admin(
                 p_concil = cursor.fetchone()
                 monto_ya_pagado = float(p_concil['pagado'] or 0.0) if p_concil else 0.0
 
-                if abs(dif_original) > 0 and m_pagado >= abs(dif_original) - 0.05:
+                # Corrección de m_pagado a monto_ya_pagado
+                if abs(dif_original) > 0 and monto_ya_pagado >= abs(dif_original) - 0.05:
                     dif_sem_taquilla = 0.0
                 else:
                     dif_sem_taquilla = dif_original
